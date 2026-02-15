@@ -10,7 +10,7 @@ describe("repos routes", () => {
 
   beforeEach(() => {
     db = new Database(":memory:");
-    app = createApp(db);
+    ({ app } = createApp(db));
   });
 
   afterEach(() => {
