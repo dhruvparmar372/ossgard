@@ -56,6 +56,13 @@ async function main() {
     qdrantUrl: process.env.QDRANT_URL || "http://localhost:6333",
   };
 
+  if (!serviceConfig.github.token) {
+    console.warn(
+      "WARNING: No GITHUB_TOKEN configured. Scans will fail. " +
+      "Set GITHUB_TOKEN env var or run 'ossgard init'."
+    );
+  }
+
   const factory = new ServiceFactory(serviceConfig);
   const github = factory.createGitHubClient();
   const embeddingLLM = factory.createEmbeddingProvider();
