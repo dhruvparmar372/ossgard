@@ -47,7 +47,7 @@ export class EmbedProcessor implements JobProcessor {
 
       // Build code inputs
       const codeInputs = batch.map(
-        (pr) => pr.filePaths.join("\n") + "\n" + (pr.diffHash ?? "")
+        (pr) => pr.filePaths.join("\n")
       );
 
       // Build intent inputs

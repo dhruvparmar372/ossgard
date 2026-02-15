@@ -171,9 +171,9 @@ describe("EmbedProcessor", () => {
 
     await processor.process(makeJob());
 
-    // Code input: filePaths joined + diffHash
+    // Code input: filePaths joined
     const codeCall = vi.mocked(mockLLM.embed).mock.calls[0];
-    expect(codeCall[0]).toEqual(["src/a.ts\nsrc/b.ts\ndiffhash1"]);
+    expect(codeCall[0]).toEqual(["src/a.ts\nsrc/b.ts"]);
 
     // Intent input: title + body + filePaths
     const intentCall = vi.mocked(mockLLM.embed).mock.calls[1];
