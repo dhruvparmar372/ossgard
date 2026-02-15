@@ -1,0 +1,13 @@
+{
+  "name": "ossgard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "dev": "pnpm --filter @ossgard/api dev"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
