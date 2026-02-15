@@ -13,6 +13,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.14.0
         version: 1.19.9(hono@4.11.9)
+      '@iarna/toml':
+        specifier: ^2.2.5
+        version: 2.2.5
       '@ossgard/shared':
         specifier: workspace:*
         version: link:../shared
@@ -32,6 +35,9 @@ importers:
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
+      '@types/iarna__toml':
+        specifier: ^2.0.5
+        version: 2.0.5
       '@types/uuid':
         specifier: ^10.0.0
         version: 10.0.0

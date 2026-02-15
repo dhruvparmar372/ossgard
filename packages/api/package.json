@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.0",
+    "@iarna/toml": "^2.2.5",
     "@ossgard/shared": "workspace:*",
     "@qdrant/js-client-rest": "^1.16.2",
     "better-sqlite3": "^11.8.0",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
+    "@types/iarna__toml": "^2.0.5",
     "@types/uuid": "^10.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",

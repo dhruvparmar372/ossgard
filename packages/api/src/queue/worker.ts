@@ -46,6 +46,11 @@ export class WorkerLoop {
     return true;
   }
 
+  /** Register a processor for a given job type. */
+  register(processor: JobProcessor): void {
+    this.processors.set(processor.type, processor);
+  }
+
   /** Start polling for jobs at the configured interval. */
   start(): void {
     if (this.intervalId) return;
