@@ -1,5 +1,5 @@
 import BetterSqlite3 from "better-sqlite3";
-import type { PR, Repo, Scan, ScanStatus } from "@ossgard/shared";
+import type { DupeGroup, DupeGroupMember, PR, Repo, Scan, ScanStatus } from "@ossgard/shared";
 import { SCHEMA } from "./schema.js";
 
 interface RepoRow {
@@ -75,6 +75,44 @@ function mapPRRow(row: PRRow): PR {
     githubEtag: row.github_etag,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+interface DupeGroupRow {
+  id: number;
+  scan_id: number;
+  repo_id: number;
+  label: string | null;
+  pr_count: number;
+}
+
+function mapDupeGroupRow(row: DupeGroupRow): DupeGroup {
+  return {
+    id: row.id,
+    scanId: row.scan_id,
+    repoId: row.repo_id,
+    label: row.label,
+    prCount: row.pr_count,
+  };
+}
+
+interface DupeGroupMemberRow {
+  id: number;
+  group_id: number;
+  pr_id: number;
+  rank: number;
+  score: number;
+  rationale: string | null;
+}
+
+function mapDupeGroupMemberRow(row: DupeGroupMemberRow): DupeGroupMember {
+  return {
+    id: row.id,
+    groupId: row.group_id,
+    prId: row.pr_id,
+    rank: row.rank,
+    score: row.score,
+    rationale: row.rationale,
   };
 }
 
@@ -237,6 +275,55 @@ export class Database {
     );
     const rows = stmt.all(repoId) as PRRow[];
     return rows.map(mapPRRow);
+  }
+
+  getPR(id: number): PR | undefined {
+    const stmt = this.raw.prepare("SELECT * FROM prs WHERE id = ?");
+    const row = stmt.get(id) as PRRow | undefined;
+    return row ? mapPRRow(row) : undefined;
+  }
+
+  insertDupeGroup(
+    scanId: number,
+    repoId: number,
+    label: string | null,
+    prCount: number
+  ): DupeGroup {
+    const stmt = this.raw.prepare(
+      "INSERT INTO dupe_groups (scan_id, repo_id, label, pr_count) VALUES (?, ?, ?, ?) RETURNING *"
+    );
+    const row = stmt.get(scanId, repoId, label, prCount) as DupeGroupRow;
+    return mapDupeGroupRow(row);
+  }
+
+  insertDupeGroupMember(
+    groupId: number,
+    prId: number,
+    rank: number,
+    score: number,
+    rationale: string | null
+  ): DupeGroupMember {
+    const stmt = this.raw.prepare(
+      "INSERT INTO dupe_group_members (group_id, pr_id, rank, score, rationale) VALUES (?, ?, ?, ?, ?) RETURNING *"
+    );
+    const row = stmt.get(groupId, prId, rank, score, rationale) as DupeGroupMemberRow;
+    return mapDupeGroupMemberRow(row);
+  }
+
+  listDupeGroups(scanId: number): DupeGroup[] {
+    const stmt = this.raw.prepare(
+      "SELECT * FROM dupe_groups WHERE scan_id = ? ORDER BY id"
+    );
+    const rows = stmt.all(scanId) as DupeGroupRow[];
+    return rows.map(mapDupeGroupRow);
+  }
+
+  listDupeGroupMembers(groupId: number): DupeGroupMember[] {
+    const stmt = this.raw.prepare(
+      "SELECT * FROM dupe_group_members WHERE group_id = ? ORDER BY rank"
+    );
+    const rows = stmt.all(groupId) as DupeGroupMemberRow[];
+    return rows.map(mapDupeGroupMemberRow);
   }
 
   close(): void {
