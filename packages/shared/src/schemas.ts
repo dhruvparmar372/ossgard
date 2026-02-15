@@ -17,8 +17,9 @@ export const DupesQuery = z.object({
 export type DupesQuery = z.infer<typeof DupesQuery>;
 
 export const ScanProgressResponse = z.object({
-  scan_id: z.number(),
+  scanId: z.number(),
   status: z.enum([
+    "queued",
     "ingesting",
     "embedding",
     "clustering",
@@ -28,10 +29,13 @@ export const ScanProgressResponse = z.object({
     "failed",
     "paused",
   ]),
-  pr_count: z.number(),
-  dupe_group_count: z.number(),
-  started_at: z.string(),
-  completed_at: z.string().nullable(),
-  error: z.string().nullable(),
+  phase: z.string(),
+  progress: z
+    .object({
+      current: z.number(),
+      total: z.number(),
+    })
+    .nullable(),
+  dupeGroupCount: z.number(),
 });
 export type ScanProgressResponse = z.infer<typeof ScanProgressResponse>;

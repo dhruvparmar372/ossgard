@@ -49,8 +49,8 @@ describe("Database", () => {
       expect(repo.id).toBe(1);
       expect(repo.owner).toBe("facebook");
       expect(repo.name).toBe("react");
-      expect(repo.last_scan_at).toBeNull();
-      expect(repo.created_at).toBeTruthy();
+      expect(repo.lastScanAt).toBeNull();
+      expect(repo.createdAt).toBeTruthy();
     });
 
     it("gets a repo by id", () => {

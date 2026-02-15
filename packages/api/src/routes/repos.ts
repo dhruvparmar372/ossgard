@@ -39,7 +39,7 @@ repos.delete("/repos/:owner/:name", (c) => {
     return c.json({ error: `${owner}/${name} not found` }, 404);
   }
 
-  return c.json({ ok: true });
+  return c.body(null, 204);
 });
 
 export { repos };

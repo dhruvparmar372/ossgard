@@ -27,7 +27,7 @@ export class ApiClient {
     return res.json() as Promise<T>;
   }
 
-  async delete<T = unknown>(path: string): Promise<T> {
+  async delete(path: string): Promise<void> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: "DELETE",
     });
@@ -35,7 +35,6 @@ export class ApiClient {
       const body = await res.text();
       throw new ApiError(res.status, body);
     }
-    return res.json() as Promise<T>;
   }
 }
 

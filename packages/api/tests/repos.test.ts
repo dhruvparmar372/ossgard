@@ -91,9 +91,8 @@ describe("repos routes", () => {
       const res = await app.request("/repos/facebook/react", {
         method: "DELETE",
       });
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
-      expect(body.ok).toBe(true);
+      expect(res.status).toBe(204);
+      expect(await res.text()).toBe("");
 
       // Verify it's gone
       const repos = db.listRepos();

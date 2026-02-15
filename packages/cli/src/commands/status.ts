@@ -21,7 +21,7 @@ export function statusCommand(client: ApiClient): Command {
 
       console.log("Tracked repositories:\n");
       for (const repo of repos) {
-        const lastScan = repo.last_scan_at ?? "never";
+        const lastScan = repo.lastScanAt ?? "never";
         console.log(`  ${repo.owner}/${repo.name} (last scan: ${lastScan})`);
       }
     });
