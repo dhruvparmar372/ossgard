@@ -11,10 +11,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ossgard/shared": "workspace:*",
-    "hono": "^4.7.0",
     "@hono/node-server": "^1.14.0",
+    "@ossgard/shared": "workspace:*",
+    "@qdrant/js-client-rest": "^1.16.2",
     "better-sqlite3": "^11.8.0",
+    "hono": "^4.7.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
