@@ -1,5 +1,5 @@
 import BetterSqlite3 from "better-sqlite3";
-import type { Repo, Scan, ScanStatus } from "@ossgard/shared";
+import type { PR, Repo, Scan, ScanStatus } from "@ossgard/shared";
 import { SCHEMA } from "./schema.js";
 
 interface RepoRow {
@@ -44,6 +44,51 @@ function mapScanRow(row: ScanRow): Scan {
     completedAt: row.completed_at,
     error: row.error,
   };
+}
+
+interface PRRow {
+  id: number;
+  repo_id: number;
+  number: number;
+  title: string;
+  body: string | null;
+  author: string;
+  diff_hash: string | null;
+  file_paths: string | null;
+  state: string;
+  github_etag: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function mapPRRow(row: PRRow): PR {
+  return {
+    id: row.id,
+    repoId: row.repo_id,
+    number: row.number,
+    title: row.title,
+    body: row.body,
+    author: row.author,
+    diffHash: row.diff_hash,
+    filePaths: row.file_paths ? JSON.parse(row.file_paths) : [],
+    state: row.state as PR["state"],
+    githubEtag: row.github_etag,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export interface UpsertPRInput {
+  repoId: number;
+  number: number;
+  title: string;
+  body: string | null;
+  author: string;
+  diffHash: string | null;
+  filePaths: string[];
+  state: "open" | "closed" | "merged";
+  createdAt: string;
+  updatedAt: string;
 }
 
 export class Database {
@@ -147,6 +192,51 @@ export class Database {
     const stmt = this.raw.prepare(sql);
     const result = stmt.run(...params);
     return result.changes > 0;
+  }
+
+  upsertPR(input: UpsertPRInput): PR {
+    const stmt = this.raw.prepare(`
+      INSERT INTO prs (repo_id, number, title, body, author, diff_hash, file_paths, state, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(repo_id, number) DO UPDATE SET
+        title = excluded.title,
+        body = excluded.body,
+        author = excluded.author,
+        diff_hash = excluded.diff_hash,
+        file_paths = excluded.file_paths,
+        state = excluded.state,
+        updated_at = excluded.updated_at
+      RETURNING *
+    `);
+    const row = stmt.get(
+      input.repoId,
+      input.number,
+      input.title,
+      input.body,
+      input.author,
+      input.diffHash,
+      JSON.stringify(input.filePaths),
+      input.state,
+      input.createdAt,
+      input.updatedAt
+    ) as PRRow;
+    return mapPRRow(row);
+  }
+
+  getPRByNumber(repoId: number, number: number): PR | undefined {
+    const stmt = this.raw.prepare(
+      "SELECT * FROM prs WHERE repo_id = ? AND number = ?"
+    );
+    const row = stmt.get(repoId, number) as PRRow | undefined;
+    return row ? mapPRRow(row) : undefined;
+  }
+
+  listOpenPRs(repoId: number): PR[] {
+    const stmt = this.raw.prepare(
+      "SELECT * FROM prs WHERE repo_id = ? AND state = 'open' ORDER BY number"
+    );
+    const rows = stmt.all(repoId) as PRRow[];
+    return rows.map(mapPRRow);
   }
 
   close(): void {
