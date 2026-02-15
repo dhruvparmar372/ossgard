@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS prs (
 CREATE TABLE IF NOT EXISTS scans (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   repo_id         INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
-  status          TEXT NOT NULL DEFAULT 'ingesting',
+  status          TEXT NOT NULL DEFAULT 'queued',
   phase_cursor    TEXT,
   pr_count        INTEGER DEFAULT 0,
   dupe_group_count INTEGER DEFAULT 0,
