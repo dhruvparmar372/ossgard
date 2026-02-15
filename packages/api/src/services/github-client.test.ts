@@ -139,6 +139,47 @@ describe("GitHubClient", () => {
     expect(url).toContain("/pulls/42/files");
   });
 
+  it("getPRFiles paginates when first page has exactly 100 files", async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => ({
+      filename: `file-${i + 1}.ts`,
+    }));
+    const page2 = Array.from({ length: 10 }, (_, i) => ({
+      filename: `file-${101 + i}.ts`,
+    }));
+
+    const mockFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        makeGitHubResponse(page1, { remaining: 4999, reset: 1700000000 })
+      )
+      .mockResolvedValueOnce(
+        makeGitHubResponse(page2, { remaining: 4998, reset: 1700000000 })
+      );
+
+    const client = new GitHubClient({
+      token: "test-token",
+      fetchFn: mockFetch,
+      maxRetries: 0,
+    });
+
+    const result = await client.getPRFiles("owner", "repo", 7);
+
+    expect(result).toHaveLength(110);
+    expect(result[0]).toBe("file-1.ts");
+    expect(result[99]).toBe("file-100.ts");
+    expect(result[100]).toBe("file-101.ts");
+    expect(result[109]).toBe("file-110.ts");
+
+    // Verify two requests were made with correct pagination
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const url1 = mockFetch.mock.calls[0][0] as string;
+    expect(url1).toContain("/pulls/7/files");
+    expect(url1).toContain("page=1");
+    const url2 = mockFetch.mock.calls[1][0] as string;
+    expect(url2).toContain("/pulls/7/files");
+    expect(url2).toContain("page=2");
+  });
+
   it("fetches PR diff with correct Accept header", async () => {
     const diffText =
       "diff --git a/file.ts b/file.ts\n--- a/file.ts\n+++ b/file.ts\n@@ -1,3 +1,4 @@\n+new line\n old line";

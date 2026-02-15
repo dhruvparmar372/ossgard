@@ -139,17 +139,27 @@ export class GitHubClient {
     repo: string,
     prNumber: number
   ): Promise<string[]> {
-    const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`;
-    const response = await this.githubFetch(url, this.defaultHeaders());
+    const allFiles: string[] = [];
+    let page = 1;
 
-    if (!response.ok) {
-      throw new Error(
-        `GitHub API error: ${response.status} ${response.statusText}`
-      );
+    while (true) {
+      const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100&page=${page}`;
+      const response = await this.githubFetch(url, this.defaultHeaders());
+
+      if (!response.ok) {
+        throw new Error(
+          `GitHub API error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const data = (await response.json()) as Array<{ filename: string }>;
+      allFiles.push(...data.map((f) => f.filename));
+
+      if (data.length < 100) break;
+      page++;
     }
 
-    const data = (await response.json()) as Array<{ filename: string }>;
-    return data.map((f) => f.filename);
+    return allFiles;
   }
 
   async getPRDiff(
