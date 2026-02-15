@@ -309,6 +309,16 @@ describe("RankProcessor", () => {
     expect(groups).toHaveLength(0);
   });
 
+  it("updates repo last_scan_at after scan completes", async () => {
+    await processor.process(makeJob([]));
+
+    const repo = db.getRepo(repoId);
+    expect(repo).toBeDefined();
+    expect(repo!.lastScanAt).toBeTruthy();
+    // Verify it's a valid ISO timestamp
+    expect(new Date(repo!.lastScanAt!).toISOString()).toBe(repo!.lastScanAt);
+  });
+
   it("skips groups where fewer than 2 PRs are found", async () => {
     const pr1 = insertPR(1);
     // pr2 doesn't exist in DB

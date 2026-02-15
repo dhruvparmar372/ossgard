@@ -173,6 +173,13 @@ export class Database {
     return result.changes > 0;
   }
 
+  updateRepoLastScanAt(repoId: number, timestamp: string): void {
+    const stmt = this.raw.prepare(
+      "UPDATE repos SET last_scan_at = ? WHERE id = ?"
+    );
+    stmt.run(timestamp, repoId);
+  }
+
   deleteRepo(owner: string, name: string): boolean {
     const stmt = this.raw.prepare(
       "DELETE FROM repos WHERE owner = ? AND name = ?"

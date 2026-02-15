@@ -97,5 +97,8 @@ export class RankProcessor implements JobProcessor {
       dupeGroupCount: totalGroups,
       completedAt: new Date().toISOString(),
     });
+
+    // Update the repo's last_scan_at timestamp
+    this.db.updateRepoLastScanAt(repoId, new Date().toISOString());
   }
 }
