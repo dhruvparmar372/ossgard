@@ -3,6 +3,7 @@ import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Config } from "../config.js";
 
 /**
  * Look for docker-compose.yml relative to this package's location.
@@ -24,6 +25,36 @@ function findComposeFile(): string | null {
   }
 
   return null;
+}
+
+function pullOllamaModels(composePath: string): void {
+  const config = new Config();
+  const cfg = config.load();
+
+  // Only pull if the LLM provider is ollama (or default)
+  if (cfg.llm.provider && cfg.llm.provider !== "ollama") {
+    return;
+  }
+
+  const models = new Set<string>();
+  if (cfg.embedding.model) {
+    models.add(cfg.embedding.model);
+  }
+  if (cfg.llm.model) {
+    models.add(cfg.llm.model);
+  }
+
+  for (const model of models) {
+    console.log(`Pulling Ollama model: ${model}...`);
+    try {
+      execSync(
+        `docker compose -f ${composePath} exec ollama ollama pull ${model}`,
+        { stdio: "inherit" }
+      );
+    } catch {
+      console.warn(`Warning: failed to pull model "${model}". You may need to pull it manually.`);
+    }
+  }
 }
 
 export function registerStackCommands(program: Command): void {
@@ -49,6 +80,12 @@ export function registerStackCommands(program: Command): void {
         execSync(args.join(" "), { stdio: "inherit" });
       } catch {
         process.exitCode = 1;
+        return;
+      }
+
+      // After successful detached start, pull Ollama models if using ollama provider
+      if (opts.detach) {
+        pullOllamaModels(composePath);
       }
     });
 
