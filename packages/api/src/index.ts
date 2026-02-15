@@ -113,6 +113,15 @@ async function main() {
     ctx.worker.start();
     console.log("Worker loop started");
   });
+
+  const shutdown = () => {
+    console.log("Shutting down gracefully...");
+    ctx.worker.stop();
+    db.close();
+    process.exit(0);
+  };
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
 }
 
 main().catch(console.error);
