@@ -39,7 +39,7 @@ export function scanCommand(client: ApiClient): Command {
             scanId: number;
             jobId: string;
             status: string;
-          }>(`/repos/${owner}/${name}/scan`);
+          }>(`/repos/${owner}/${name}/scan`, opts.full ? { full: true } : undefined);
           scanId = result.scanId;
         } catch (err) {
           if (err instanceof ApiError && err.status === 404) {

@@ -41,7 +41,7 @@ describe("scans routes", () => {
       const job = await ctx.queue.getStatus(body.jobId);
       expect(job).not.toBeNull();
       expect(job!.type).toBe("scan");
-      expect(job!.payload).toEqual({ scanId: 1, repoId: 1 });
+      expect(job!.payload).toEqual({ scanId: 1, repoId: 1, full: false });
       expect(job!.status).toBe("queued");
     });
 

@@ -13,11 +13,22 @@ scans.post("/repos/:owner/:name/scan", async (c) => {
     return c.json({ error: `${owner}/${name} is not tracked` }, 404);
   }
 
+  // Parse optional body for scan options
+  let full = false;
+  try {
+    const body = await c.req.json();
+    if (body && typeof body.full === "boolean") {
+      full = body.full;
+    }
+  } catch {
+    // No body or invalid JSON is fine - defaults to incremental
+  }
+
   const scan = db.createScan(repo.id);
 
   const jobId = await queue.enqueue({
     type: "scan",
-    payload: { scanId: scan.id, repoId: repo.id },
+    payload: { scanId: scan.id, repoId: repo.id, full },
   });
 
   return c.json({ scanId: scan.id, jobId, status: "queued" }, 202);
