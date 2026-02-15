@@ -150,6 +150,88 @@ describe("WorkerLoop", () => {
       expect(job!.status).toBe("failed");
       expect(job!.error).toBe("string error");
     });
+
+    it("calls onJobFailed callback when processor throws", async () => {
+      const failedJobs: { job: Job; error: string }[] = [];
+      const processor: JobProcessor = {
+        type: "scan",
+        process: async () => {
+          throw new Error("connection timeout");
+        },
+      };
+
+      const worker = new WorkerLoop(queue, [processor], {
+        onJobFailed: (job, error) => {
+          failedJobs.push({ job, error });
+        },
+      });
+
+      const jobId = await queue.enqueue({
+        type: "scan",
+        payload: { scanId: 42 },
+        maxRetries: 1,
+      });
+
+      await worker.tick();
+
+      expect(failedJobs).toHaveLength(1);
+      expect(failedJobs[0].job.id).toBe(jobId);
+      expect(failedJobs[0].job.payload).toEqual({ scanId: 42 });
+      expect(failedJobs[0].error).toBe("connection timeout");
+    });
+
+    it("passes scanId in payload to onJobFailed callback", async () => {
+      let receivedPayload: Record<string, unknown> | undefined;
+      const processor: JobProcessor = {
+        type: "ingest",
+        process: async () => {
+          throw new Error("disk full");
+        },
+      };
+
+      const worker = new WorkerLoop(queue, [processor], {
+        onJobFailed: (job) => {
+          receivedPayload = job.payload;
+        },
+      });
+
+      await queue.enqueue({
+        type: "ingest",
+        payload: { scanId: 7, repoId: 99 },
+        maxRetries: 1,
+      });
+
+      await worker.tick();
+
+      expect(receivedPayload).toBeDefined();
+      expect(receivedPayload!.scanId).toBe(7);
+      expect(typeof receivedPayload!.scanId).toBe("number");
+    });
+
+    it("supports setOnJobFailed to set callback after construction", async () => {
+      const errors: string[] = [];
+      const processor: JobProcessor = {
+        type: "scan",
+        process: async () => {
+          throw new Error("late callback");
+        },
+      };
+
+      const worker = new WorkerLoop(queue, [processor]);
+      worker.setOnJobFailed((_job, error) => {
+        errors.push(error);
+      });
+
+      await queue.enqueue({
+        type: "scan",
+        payload: {},
+        maxRetries: 1,
+      });
+
+      await worker.tick();
+
+      expect(errors).toEqual(["late callback"]);
+    });
   });
 
   describe("start() / stop()", () => {

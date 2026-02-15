@@ -6,20 +6,31 @@ export interface JobProcessor {
   process(job: Job): Promise<void>;
 }
 
+export interface WorkerLoopOptions {
+  pollIntervalMs?: number;
+  onJobFailed?: (job: Job, error: string) => void;
+}
+
 export class WorkerLoop {
   private queue: JobQueue;
   private processors: Map<string, JobProcessor>;
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private pollIntervalMs: number;
+  private onJobFailed?: (job: Job, error: string) => void;
 
   constructor(
     queue: JobQueue,
     processors: JobProcessor[] = [],
-    pollIntervalMs: number = 1000
+    optsOrInterval: WorkerLoopOptions | number = {}
   ) {
     this.queue = queue;
     this.processors = new Map(processors.map((p) => [p.type, p]));
-    this.pollIntervalMs = pollIntervalMs;
+    if (typeof optsOrInterval === "number") {
+      this.pollIntervalMs = optsOrInterval;
+    } else {
+      this.pollIntervalMs = optsOrInterval.pollIntervalMs ?? 1000;
+      this.onJobFailed = optsOrInterval.onJobFailed;
+    }
   }
 
   /** Process one job from the queue. Returns true if a job was processed. */
@@ -41,6 +52,7 @@ export class WorkerLoop {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await this.queue.fail(job.id, message);
+      this.onJobFailed?.(job, message);
     }
 
     return true;
@@ -49,6 +61,11 @@ export class WorkerLoop {
   /** Register a processor for a given job type. */
   register(processor: JobProcessor): void {
     this.processors.set(processor.type, processor);
+  }
+
+  /** Set a callback invoked when a job permanently fails. */
+  setOnJobFailed(handler: (job: Job, error: string) => void): void {
+    this.onJobFailed = handler;
   }
 
   /** Start polling for jobs at the configured interval. */

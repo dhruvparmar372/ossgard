@@ -92,6 +92,14 @@ async function main() {
     ctx.worker.register(p);
   }
 
+  // When a job permanently fails, mark the associated scan as failed too
+  ctx.worker.setOnJobFailed((job, error) => {
+    const scanId = (job.payload as Record<string, unknown>).scanId;
+    if (typeof scanId === "number") {
+      db.updateScanStatus(scanId, "failed", { error });
+    }
+  });
+
   const port = Number(process.env.PORT) || 3400;
   serve({ fetch: app.fetch, port }, () => {
     console.log(`ossgard-api listening on http://localhost:${port}`);
