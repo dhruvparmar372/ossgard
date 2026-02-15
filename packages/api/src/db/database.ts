@@ -326,6 +326,14 @@ export class Database {
     return rows.map(mapDupeGroupMemberRow);
   }
 
+  getLatestCompletedScan(repoId: number): Scan | undefined {
+    const stmt = this.raw.prepare(
+      "SELECT * FROM scans WHERE repo_id = ? AND status = 'done' ORDER BY completed_at DESC LIMIT 1"
+    );
+    const row = stmt.get(repoId) as ScanRow | undefined;
+    return row ? mapScanRow(row) : undefined;
+  }
+
   close(): void {
     this.raw.close();
   }
