@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Config } from "../config.js";
@@ -63,6 +63,12 @@ export function registerStackCommands(program: Command): void {
     .description("Start the ossgard stack (Docker Compose)")
     .option("-d, --detach", "Run in background")
     .action((opts: { detach?: boolean }) => {
+      // Ensure ~/.ossgard exists before docker compose creates it as root-owned
+      const ossgardDir = join(process.env.HOME ?? "", ".ossgard");
+      if (!existsSync(ossgardDir)) {
+        mkdirSync(ossgardDir, { recursive: true });
+      }
+
       const composePath = findComposeFile();
       if (!composePath) {
         console.error("docker-compose.yml not found. Are you in the ossgard project?");
