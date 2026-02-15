@@ -198,7 +198,8 @@ describe("GitHubClient", () => {
 
     const result = await client.getPRDiff("facebook", "react", 42);
 
-    expect(result).toBe(diffText);
+    expect(result).not.toBeNull();
+    expect(result!.diff).toBe(diffText);
 
     const init = mockFetch.mock.calls[0][1] as RequestInit;
     const headers = init.headers as Record<string, string>;
@@ -207,6 +208,61 @@ describe("GitHubClient", () => {
     const url = mockFetch.mock.calls[0][0] as string;
     expect(url).toContain("/pulls/42");
     expect(url).not.toContain("/files");
+  });
+
+  it("returns null for 304 Not Modified when etag matches", async () => {
+    const headers = new Headers({
+      "content-type": "text/plain",
+      "x-ratelimit-remaining": "4988",
+      "x-ratelimit-reset": "1700000000",
+    });
+    const notModifiedResponse = new Response(null, { status: 304, headers });
+
+    const mockFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(notModifiedResponse);
+
+    const client = new GitHubClient({
+      token: "test-token",
+      fetchFn: mockFetch,
+      maxRetries: 0,
+    });
+
+    const result = await client.getPRDiff("facebook", "react", 42, '"abc123"');
+
+    expect(result).toBeNull();
+
+    // Verify If-None-Match header was sent
+    const init = mockFetch.mock.calls[0][1] as RequestInit;
+    const reqHeaders = init.headers as Record<string, string>;
+    expect(reqHeaders["If-None-Match"]).toBe('"abc123"');
+  });
+
+  it("returns diff and etag from response headers", async () => {
+    const diffText = "diff --git a/file.ts b/file.ts\n+new line";
+    const headers = new Headers({
+      "content-type": "text/plain",
+      "x-ratelimit-remaining": "4987",
+      "x-ratelimit-reset": "1700000000",
+      etag: '"new-etag-456"',
+    });
+    const response = new Response(diffText, { status: 200, headers });
+
+    const mockFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(response);
+
+    const client = new GitHubClient({
+      token: "test-token",
+      fetchFn: mockFetch,
+      maxRetries: 0,
+    });
+
+    const result = await client.getPRDiff("facebook", "react", 42);
+
+    expect(result).not.toBeNull();
+    expect(result!.diff).toBe(diffText);
+    expect(result!.etag).toBe('"new-etag-456"');
   });
 
   it("tracks rate limit from headers", async () => {

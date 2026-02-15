@@ -30,14 +30,20 @@ export class IngestProcessor implements JobProcessor {
 
     // For each PR, fetch files and diff, compute hash, upsert
     for (const pr of fetchedPRs) {
-      const [filePaths, rawDiff] = await Promise.all([
+      // Look up existing PR for its stored etag
+      const existingPR = this.db.getPRByNumber(repoId, pr.number);
+      const storedEtag = existingPR?.githubEtag ?? null;
+
+      const [filePaths, diffResult] = await Promise.all([
         this.github.getPRFiles(owner, repo, pr.number),
-        this.github.getPRDiff(owner, repo, pr.number),
+        this.github.getPRDiff(owner, repo, pr.number, storedEtag),
       ]);
 
-      const diffHash = hashDiff(rawDiff);
+      // If diff hasn't changed (304), skip processing but still upsert metadata
+      const diffHash = diffResult ? hashDiff(diffResult.diff) : existingPR?.diffHash ?? null;
+      const newEtag = diffResult?.etag ?? storedEtag;
 
-      this.db.upsertPR({
+      const upserted = this.db.upsertPR({
         repoId,
         number: pr.number,
         title: pr.title,
@@ -49,6 +55,11 @@ export class IngestProcessor implements JobProcessor {
         createdAt: pr.createdAt,
         updatedAt: pr.updatedAt,
       });
+
+      // Store the etag
+      if (newEtag && upserted) {
+        this.db.updatePREtag(upserted.id, newEtag);
+      }
     }
 
     // Update scan with PR count

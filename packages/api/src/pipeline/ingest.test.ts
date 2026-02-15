@@ -91,8 +91,8 @@ describe("IngestProcessor", () => {
       "src/utils.ts",
     ]);
     vi.mocked(mockGitHub.getPRDiff)
-      .mockResolvedValueOnce(makeDiff(1))
-      .mockResolvedValueOnce(makeDiff(2));
+      .mockResolvedValueOnce({ diff: makeDiff(1), etag: '"etag1"' })
+      .mockResolvedValueOnce({ diff: makeDiff(2), etag: '"etag2"' });
 
     await processor.process(makeJob());
 
@@ -111,7 +111,7 @@ describe("IngestProcessor", () => {
     const diff = makeDiff(1);
     vi.mocked(mockGitHub.listOpenPRs).mockResolvedValue(prs);
     vi.mocked(mockGitHub.getPRFiles).mockResolvedValue(["file1.ts"]);
-    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue(diff);
+    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue({ diff, etag: '"etag1"' });
 
     await processor.process(makeJob());
 
@@ -124,7 +124,7 @@ describe("IngestProcessor", () => {
   it("enqueues embed job after completion", async () => {
     vi.mocked(mockGitHub.listOpenPRs).mockResolvedValue([makeFetchedPR(1)]);
     vi.mocked(mockGitHub.getPRFiles).mockResolvedValue(["file.ts"]);
-    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue(makeDiff(1));
+    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue({ diff: makeDiff(1), etag: '"etag1"' });
 
     await processor.process(makeJob());
 
@@ -148,7 +148,7 @@ describe("IngestProcessor", () => {
     const prs = [makeFetchedPR(1), makeFetchedPR(2), makeFetchedPR(3)];
     vi.mocked(mockGitHub.listOpenPRs).mockResolvedValue(prs);
     vi.mocked(mockGitHub.getPRFiles).mockResolvedValue([]);
-    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue(makeDiff(1));
+    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue({ diff: makeDiff(1), etag: null });
 
     await processor.process(makeJob());
 
@@ -168,7 +168,7 @@ describe("IngestProcessor", () => {
     const prs = [makeFetchedPR(10), makeFetchedPR(20)];
     vi.mocked(mockGitHub.listOpenPRs).mockResolvedValue(prs);
     vi.mocked(mockGitHub.getPRFiles).mockResolvedValue([]);
-    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue(makeDiff(1));
+    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue({ diff: makeDiff(1), etag: null });
 
     await processor.process(makeJob());
 
@@ -176,7 +176,7 @@ describe("IngestProcessor", () => {
     expect(mockGitHub.getPRFiles).toHaveBeenCalledWith("facebook", "react", 10);
     expect(mockGitHub.getPRFiles).toHaveBeenCalledWith("facebook", "react", 20);
     expect(mockGitHub.getPRDiff).toHaveBeenCalledTimes(2);
-    expect(mockGitHub.getPRDiff).toHaveBeenCalledWith("facebook", "react", 10);
-    expect(mockGitHub.getPRDiff).toHaveBeenCalledWith("facebook", "react", 20);
+    expect(mockGitHub.getPRDiff).toHaveBeenCalledWith("facebook", "react", 10, null);
+    expect(mockGitHub.getPRDiff).toHaveBeenCalledWith("facebook", "react", 20, null);
   });
 });

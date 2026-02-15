@@ -165,13 +165,23 @@ export class GitHubClient {
   async getPRDiff(
     owner: string,
     repo: string,
-    prNumber: number
-  ): Promise<string> {
+    prNumber: number,
+    etag?: string | null
+  ): Promise<{ diff: string; etag: string | null } | null> {
     const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`;
-    const response = await this.githubFetch(url, {
+    const headers: Record<string, string> = {
       ...this.defaultHeaders(),
       Accept: "application/vnd.github.diff",
-    });
+    };
+    if (etag) {
+      headers["If-None-Match"] = etag;
+    }
+
+    const response = await this.githubFetch(url, headers);
+
+    if (response.status === 304) {
+      return null; // Not modified
+    }
 
     if (!response.ok) {
       throw new Error(
@@ -179,6 +189,8 @@ export class GitHubClient {
       );
     }
 
-    return response.text();
+    const diff = await response.text();
+    const newEtag = response.headers.get("etag");
+    return { diff, etag: newEtag };
   }
 }

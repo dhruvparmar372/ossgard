@@ -290,6 +290,11 @@ export class Database {
     return row ? mapPRRow(row) : undefined;
   }
 
+  updatePREtag(prId: number, etag: string | null): void {
+    const stmt = this.raw.prepare("UPDATE prs SET github_etag = ? WHERE id = ?");
+    stmt.run(etag, prId);
+  }
+
   getPRsByIds(ids: number[]): PR[] {
     if (ids.length === 0) return [];
     const placeholders = ids.map(() => "?").join(",");
