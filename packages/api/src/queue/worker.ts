@@ -51,8 +51,17 @@ export class WorkerLoop {
       await this.queue.complete(job.id);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await this.queue.fail(job.id, message);
-      this.onJobFailed?.(job, message);
+
+      if (job.attempts < job.maxRetries) {
+        // Retry with exponential backoff
+        const backoffMs = 1000 * Math.pow(2, job.attempts - 1);
+        const runAfter = new Date(Date.now() + backoffMs);
+        await this.queue.pause(job.id, runAfter);
+      } else {
+        // Max retries exhausted - mark as permanently failed
+        await this.queue.fail(job.id, message);
+        this.onJobFailed?.(job, message);
+      }
     }
 
     return true;

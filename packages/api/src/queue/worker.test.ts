@@ -46,7 +46,7 @@ describe("WorkerLoop", () => {
       expect(job!.status).toBe("done");
     });
 
-    it("fails job when processor throws", async () => {
+    it("fails job when processor throws and retries exhausted", async () => {
       const processor: JobProcessor = {
         type: "scan",
         process: async () => {
@@ -59,6 +59,7 @@ describe("WorkerLoop", () => {
       const jobId = await queue.enqueue({
         type: "scan",
         payload: {},
+        maxRetries: 1,
       });
 
       const result = await worker.tick();
@@ -142,6 +143,7 @@ describe("WorkerLoop", () => {
       const jobId = await queue.enqueue({
         type: "scan",
         payload: {},
+        maxRetries: 1,
       });
 
       await worker.tick();
@@ -231,6 +233,128 @@ describe("WorkerLoop", () => {
       await worker.tick();
 
       expect(errors).toEqual(["late callback"]);
+    });
+
+    it("pauses job for retry when attempts < maxRetries", async () => {
+      const processor: JobProcessor = {
+        type: "scan",
+        process: async () => {
+          throw new Error("transient failure");
+        },
+      };
+
+      const worker = new WorkerLoop(queue, [processor]);
+
+      const jobId = await queue.enqueue({
+        type: "scan",
+        payload: { scanId: 1 },
+        maxRetries: 3,
+      });
+
+      await worker.tick();
+
+      // After first attempt (attempts=1, maxRetries=3), job should be paused (queued with run_after)
+      const job = await queue.getStatus(jobId);
+      expect(job!.status).toBe("queued");
+      expect(job!.runAfter).not.toBeNull();
+    });
+
+    it("does not call onJobFailed when job is retried", async () => {
+      const failedJobs: Job[] = [];
+      const processor: JobProcessor = {
+        type: "scan",
+        process: async () => {
+          throw new Error("transient failure");
+        },
+      };
+
+      const worker = new WorkerLoop(queue, [processor], {
+        onJobFailed: (job) => {
+          failedJobs.push(job);
+        },
+      });
+
+      await queue.enqueue({
+        type: "scan",
+        payload: {},
+        maxRetries: 3,
+      });
+
+      await worker.tick();
+
+      // onJobFailed should NOT be called since retries remain
+      expect(failedJobs).toHaveLength(0);
+    });
+
+    it("fails job and calls onJobFailed when retries are exhausted", async () => {
+      let callCount = 0;
+      const failedErrors: string[] = [];
+      const processor: JobProcessor = {
+        type: "scan",
+        process: async () => {
+          callCount++;
+          throw new Error(`failure #${callCount}`);
+        },
+      };
+
+      const worker = new WorkerLoop(queue, [processor], {
+        onJobFailed: (_job, error) => {
+          failedErrors.push(error);
+        },
+      });
+
+      const jobId = await queue.enqueue({
+        type: "scan",
+        payload: {},
+        maxRetries: 2,
+      });
+
+      // First attempt (attempts=1 < maxRetries=2) -> paused
+      await worker.tick();
+      let job = await queue.getStatus(jobId);
+      expect(job!.status).toBe("queued");
+      expect(failedErrors).toHaveLength(0);
+
+      // Manually clear run_after so dequeue picks it up immediately
+      db.raw.prepare("UPDATE jobs SET run_after = NULL WHERE id = ?").run(jobId);
+
+      // Second attempt (attempts=2 >= maxRetries=2) -> failed
+      await worker.tick();
+      job = await queue.getStatus(jobId);
+      expect(job!.status).toBe("failed");
+      expect(failedErrors).toHaveLength(1);
+      expect(failedErrors[0]).toBe("failure #2");
+    });
+
+    it("uses exponential backoff for retry delay", async () => {
+      const pauseSpy = vi.spyOn(queue, "pause");
+      const processor: JobProcessor = {
+        type: "scan",
+        process: async () => {
+          throw new Error("retry me");
+        },
+      };
+
+      const worker = new WorkerLoop(queue, [processor]);
+
+      await queue.enqueue({
+        type: "scan",
+        payload: {},
+        maxRetries: 3,
+      });
+
+      const before = Date.now();
+      await worker.tick();
+
+      // pause should have been called with a future Date
+      expect(pauseSpy).toHaveBeenCalledTimes(1);
+      const runAfter = pauseSpy.mock.calls[0][1] as Date;
+      expect(runAfter.getTime()).toBeGreaterThanOrEqual(before);
+      // First attempt: backoff = 1000 * 2^(1-1) = 1000ms
+      expect(runAfter.getTime() - before).toBeGreaterThanOrEqual(900); // allow slight timing variance
+      expect(runAfter.getTime() - before).toBeLessThanOrEqual(2000);
+
+      pauseSpy.mockRestore();
     });
   });
 
