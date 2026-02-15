@@ -5,6 +5,7 @@ import { WorkerLoop } from "./queue/worker.js";
 import type { JobProcessor } from "./queue/worker.js";
 import { health } from "./routes/health.js";
 import { repos } from "./routes/repos.js";
+import { scans } from "./routes/scans.js";
 
 export type AppEnv = {
   Variables: {
@@ -38,6 +39,7 @@ export function createApp(
 
   app.route("/", health);
   app.route("/", repos);
+  app.route("/", scans);
 
   return { app, ctx: { db: database, queue, worker } };
 }
