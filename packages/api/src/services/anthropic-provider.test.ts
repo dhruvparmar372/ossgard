@@ -151,5 +151,20 @@ describe("AnthropicProvider", () => {
         provider.chat([{ role: "user", content: "test" }])
       ).rejects.toThrow("Anthropic API error: 401 Unauthorized");
     });
+
+    it("throws descriptive error when LLM returns invalid JSON", async () => {
+      const fetchFn = mockFetch({
+        content: [{ type: "text", text: "not json" }],
+      });
+      const provider = new AnthropicProvider({
+        apiKey: "sk-test-key",
+        model: "claude-sonnet-4-20250514",
+        fetchFn,
+      });
+
+      await expect(
+        provider.chat([{ role: "user", content: "test" }])
+      ).rejects.toThrow("LLM returned invalid JSON");
+    });
   });
 });

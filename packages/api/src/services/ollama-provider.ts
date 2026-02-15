@@ -62,6 +62,13 @@ export class OllamaProvider implements LLMProvider {
       message: { content: string };
     };
 
-    return JSON.parse(data.message.content) as Record<string, unknown>;
+    const raw = data.message.content;
+    try {
+      return JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      throw new Error(
+        `LLM returned invalid JSON: ${raw.slice(0, 200)}`
+      );
+    }
   }
 }

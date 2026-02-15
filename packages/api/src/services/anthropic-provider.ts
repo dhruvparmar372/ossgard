@@ -62,6 +62,13 @@ export class AnthropicProvider implements LLMProvider {
       content: Array<{ type: string; text: string }>;
     };
 
-    return JSON.parse(data.content[0].text) as Record<string, unknown>;
+    const raw = data.content[0].text;
+    try {
+      return JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      throw new Error(
+        `LLM returned invalid JSON: ${raw.slice(0, 200)}`
+      );
+    }
   }
 }

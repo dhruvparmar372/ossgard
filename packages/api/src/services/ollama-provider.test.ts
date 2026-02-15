@@ -140,5 +140,21 @@ describe("OllamaProvider", () => {
         provider.chat([{ role: "user", content: "test" }])
       ).rejects.toThrow("Ollama chat error: 503 Service Unavailable");
     });
+
+    it("throws descriptive error when LLM returns invalid JSON", async () => {
+      const fetchFn = mockFetch({
+        message: { content: "not json {broken" },
+      });
+      const provider = new OllamaProvider({
+        baseUrl: "http://localhost:11434",
+        embeddingModel: "nomic-embed-text",
+        chatModel: "llama3",
+        fetchFn,
+      });
+
+      await expect(
+        provider.chat([{ role: "user", content: "test" }])
+      ).rejects.toThrow("LLM returned invalid JSON");
+    });
   });
 });
