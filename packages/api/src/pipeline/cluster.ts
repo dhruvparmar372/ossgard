@@ -1,0 +1,142 @@
+import type { Job, PR } from "@ossgard/shared";
+import type { Database } from "../db/database.js";
+import type { VectorStore } from "../services/vector-store.js";
+import type { JobQueue } from "../queue/types.js";
+import type { JobProcessor } from "../queue/worker.js";
+import { UnionFind } from "./union-find.js";
+
+const CODE_COLLECTION = "ossgard-code";
+const INTENT_COLLECTION = "ossgard-intent";
+
+export interface ClusterConfig {
+  codeSimilarityThreshold: number;
+  intentSimilarityThreshold: number;
+}
+
+export class ClusterProcessor implements JobProcessor {
+  readonly type = "cluster";
+
+  constructor(
+    private db: Database,
+    private vectorStore: VectorStore,
+    private config: ClusterConfig,
+    private queue?: JobQueue
+  ) {}
+
+  async process(job: Job): Promise<void> {
+    const { repoId, scanId, owner, repo } = job.payload as {
+      repoId: number;
+      scanId: number;
+      owner: string;
+      repo: string;
+    };
+
+    // Update scan status to "clustering"
+    this.db.updateScanStatus(scanId, "clustering");
+
+    // Read all open PRs
+    const prs = this.db.listOpenPRs(repoId);
+
+    const uf = new UnionFind<number>();
+    for (const pr of prs) {
+      uf.add(pr.number);
+    }
+
+    // Fast path: group PRs with identical diffHash
+    const hashGroups = new Map<string, number[]>();
+    for (const pr of prs) {
+      if (pr.diffHash) {
+        const existing = hashGroups.get(pr.diffHash);
+        if (existing) {
+          existing.push(pr.number);
+        } else {
+          hashGroups.set(pr.diffHash, [pr.number]);
+        }
+      }
+    }
+
+    for (const group of hashGroups.values()) {
+      for (let i = 1; i < group.length; i++) {
+        uf.union(group[0], group[i]);
+      }
+    }
+
+    // Embedding path: for each PR, search both code and intent collections
+    // and union PRs that are above the similarity threshold
+    for (const pr of prs) {
+      const codeId = `${repoId}-${pr.number}-code`;
+      const intentId = `${repoId}-${pr.number}-intent`;
+
+      // Search code collection for similar PRs
+      const codeResults = await this.vectorStore.search(
+        CODE_COLLECTION,
+        [], // Vector retrieved by the store's search-by-id capability
+        {
+          limit: prs.length,
+          filter: {
+            must: [{ key: "repoId", match: { value: repoId } }],
+          },
+        }
+      );
+
+      for (const result of codeResults) {
+        if (
+          result.score >= this.config.codeSimilarityThreshold &&
+          result.payload.prNumber !== pr.number
+        ) {
+          uf.union(pr.number, result.payload.prNumber as number);
+        }
+      }
+
+      // Search intent collection for similar PRs
+      const intentResults = await this.vectorStore.search(
+        INTENT_COLLECTION,
+        [],
+        {
+          limit: prs.length,
+          filter: {
+            must: [{ key: "repoId", match: { value: repoId } }],
+          },
+        }
+      );
+
+      for (const result of intentResults) {
+        if (
+          result.score >= this.config.intentSimilarityThreshold &&
+          result.payload.prNumber !== pr.number
+        ) {
+          uf.union(pr.number, result.payload.prNumber as number);
+        }
+      }
+    }
+
+    // Extract connected components with 2+ members
+    const groups = uf.getGroups(2);
+
+    // Build candidate groups: map PR numbers back to PR IDs
+    const prByNumber = new Map<number, PR>();
+    for (const pr of prs) {
+      prByNumber.set(pr.number, pr);
+    }
+
+    const candidateGroups = groups.map((group) => ({
+      prNumbers: group.sort((a, b) => a - b),
+      prIds: group
+        .map((n) => prByNumber.get(n)!.id)
+        .sort((a, b) => a - b),
+    }));
+
+    // Store candidate groups in scan phaseCursor
+    this.db.updateScanStatus(scanId, "clustering", {
+      phaseCursor: { candidateGroups },
+    });
+
+    // Enqueue verify job with candidateGroups payload
+    if (this.queue) {
+      await this.queue.enqueue({
+        type: "verify",
+        payload: { repoId, scanId, owner, repo, candidateGroups },
+      });
+    }
+  }
+}
