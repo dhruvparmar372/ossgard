@@ -22,11 +22,22 @@ dupes.get("/repos/:owner/:name/dupes", (c) => {
 
   const groups = db.listDupeGroups(scan.id);
 
-  const result = groups.map((group) => {
+  // Collect all PR IDs across all groups
+  const allPrIds = new Set<number>();
+  const groupsWithMembers = groups.map((group) => {
     const members = db.listDupeGroupMembers(group.id);
+    for (const m of members) allPrIds.add(m.prId);
+    return { group, members };
+  });
 
+  // Batch fetch all PRs
+  const prs = db.getPRsByIds([...allPrIds]);
+  const prMap = new Map(prs.map((pr) => [pr.id, pr]));
+
+  // Build result using the map
+  const result = groupsWithMembers.map(({ group, members }) => {
     const membersWithPRs = members.map((member) => {
-      const pr = db.getPR(member.prId);
+      const pr = prMap.get(member.prId);
       return {
         prId: member.prId,
         prNumber: pr?.number ?? 0,

@@ -283,6 +283,16 @@ export class Database {
     return row ? mapPRRow(row) : undefined;
   }
 
+  getPRsByIds(ids: number[]): PR[] {
+    if (ids.length === 0) return [];
+    const placeholders = ids.map(() => "?").join(",");
+    const stmt = this.raw.prepare(
+      `SELECT * FROM prs WHERE id IN (${placeholders})`
+    );
+    const rows = stmt.all(...ids) as PRRow[];
+    return rows.map(mapPRRow);
+  }
+
   insertDupeGroup(
     scanId: number,
     repoId: number,

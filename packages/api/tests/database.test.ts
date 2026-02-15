@@ -212,5 +212,29 @@ describe("Database", () => {
       const pr = db.getPRByNumber(repoId, 1);
       expect(pr!.filePaths).toEqual([]);
     });
+
+    it("getPRsByIds returns multiple PRs in one query", () => {
+      const pr1 = db.upsertPR({ ...basePR(), repoId, number: 1 });
+      const pr2 = db.upsertPR({ ...basePR(), repoId, number: 2, title: "Second PR" });
+      db.upsertPR({ ...basePR(), repoId, number: 3, title: "Third PR" });
+
+      const results = db.getPRsByIds([pr1.id, pr2.id]);
+      expect(results).toHaveLength(2);
+      const ids = results.map((r) => r.id);
+      expect(ids).toContain(pr1.id);
+      expect(ids).toContain(pr2.id);
+    });
+
+    it("getPRsByIds returns empty array for empty input", () => {
+      const results = db.getPRsByIds([]);
+      expect(results).toEqual([]);
+    });
+
+    it("getPRsByIds ignores non-existent ids", () => {
+      const pr1 = db.upsertPR({ ...basePR(), repoId, number: 1 });
+      const results = db.getPRsByIds([pr1.id, 9999]);
+      expect(results).toHaveLength(1);
+      expect(results[0].id).toBe(pr1.id);
+    });
   });
 });
