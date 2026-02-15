@@ -208,6 +208,82 @@ describe("GitHubClient", () => {
     );
   });
 
+  it("throttles requests when rate limit is low", async () => {
+    vi.useFakeTimers();
+
+    const resetTime = Math.floor(Date.now() / 1000) + 60; // 60 seconds in the future
+    const files = [{ filename: "src/index.ts" }];
+
+    const mockFetch = vi
+      .fn<typeof fetch>()
+      // First call returns low remaining rate limit
+      .mockResolvedValueOnce(
+        makeGitHubResponse(files, { remaining: 50, reset: resetTime })
+      )
+      // Second call succeeds normally
+      .mockResolvedValueOnce(
+        makeGitHubResponse(files, { remaining: 49, reset: resetTime })
+      );
+
+    const client = new GitHubClient({
+      token: "test-token",
+      fetchFn: mockFetch,
+      maxRetries: 0,
+    });
+
+    // First request sets the rate limit state
+    await client.getPRFiles("owner", "repo", 1);
+    expect(client.rateLimitRemaining).toBe(50);
+
+    // Second request should trigger throttling because remaining < 100 (buffer)
+    const secondRequest = client.getPRFiles("owner", "repo", 2);
+
+    // Advance timers to let the throttle delay resolve
+    await vi.advanceTimersByTimeAsync(2000);
+
+    await secondRequest;
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it("waits until reset when rate limit is fully exhausted", async () => {
+    vi.useFakeTimers();
+
+    const resetTime = Math.floor(Date.now() / 1000) + 30; // 30 seconds in the future
+    const files = [{ filename: "src/index.ts" }];
+
+    const mockFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        makeGitHubResponse(files, { remaining: 0, reset: resetTime })
+      )
+      .mockResolvedValueOnce(
+        makeGitHubResponse(files, { remaining: 4999, reset: resetTime + 3600 })
+      );
+
+    const client = new GitHubClient({
+      token: "test-token",
+      fetchFn: mockFetch,
+      maxRetries: 0,
+    });
+
+    // First request sets remaining to 0
+    await client.getPRFiles("owner", "repo", 1);
+    expect(client.rateLimitRemaining).toBe(0);
+
+    // Second request should block until reset
+    const secondRequest = client.getPRFiles("owner", "repo", 2);
+
+    // Advance past the reset time
+    await vi.advanceTimersByTimeAsync(31_000);
+
+    await secondRequest;
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
   it("handles single-page PR response (fewer than 100)", async () => {
     const prs = Array.from({ length: 5 }, (_, i) => makeGitHubPR(i + 1));
     const mockFetch = vi

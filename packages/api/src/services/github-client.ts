@@ -19,6 +19,8 @@ export interface GitHubClientOptions {
 }
 
 export class GitHubClient {
+  private static RATE_LIMIT_BUFFER = 100;
+
   private client: RateLimitedClient;
   private token: string;
 
@@ -36,6 +38,34 @@ export class GitHubClient {
         // Rate limit tracking is handled via response headers
       },
     });
+  }
+
+  private async throttleIfNeeded(): Promise<void> {
+    if (
+      this.rateLimitRemaining >= 0 &&
+      this.rateLimitRemaining < GitHubClient.RATE_LIMIT_BUFFER &&
+      this.rateLimitReset > 0
+    ) {
+      const now = Date.now() / 1000; // GitHub reset is in epoch seconds
+      const timeToReset = this.rateLimitReset - now;
+      if (timeToReset > 0 && this.rateLimitRemaining > 0) {
+        const delayMs = (timeToReset / this.rateLimitRemaining) * 1000;
+        await new Promise((r) => setTimeout(r, delayMs));
+      } else if (this.rateLimitRemaining === 0 && timeToReset > 0) {
+        // Completely exhausted, wait until reset
+        await new Promise((r) => setTimeout(r, timeToReset * 1000));
+      }
+    }
+  }
+
+  private async githubFetch(
+    url: string,
+    headers: Record<string, string>
+  ): Promise<Response> {
+    await this.throttleIfNeeded();
+    const response = await this.client.fetch(url, { headers });
+    this.trackRateLimit(response);
+    return response;
   }
 
   private defaultHeaders(): Record<string, string> {
@@ -63,11 +93,7 @@ export class GitHubClient {
 
     while (true) {
       const url = `https://api.github.com/repos/${owner}/${repo}/pulls?state=open&per_page=100&page=${page}`;
-      const response = await this.client.fetch(url, {
-        headers: this.defaultHeaders(),
-      });
-
-      this.trackRateLimit(response);
+      const response = await this.githubFetch(url, this.defaultHeaders());
 
       if (!response.ok) {
         throw new Error(
@@ -114,11 +140,7 @@ export class GitHubClient {
     prNumber: number
   ): Promise<string[]> {
     const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`;
-    const response = await this.client.fetch(url, {
-      headers: this.defaultHeaders(),
-    });
-
-    this.trackRateLimit(response);
+    const response = await this.githubFetch(url, this.defaultHeaders());
 
     if (!response.ok) {
       throw new Error(
@@ -136,14 +158,10 @@ export class GitHubClient {
     prNumber: number
   ): Promise<string> {
     const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`;
-    const response = await this.client.fetch(url, {
-      headers: {
-        ...this.defaultHeaders(),
-        Accept: "application/vnd.github.diff",
-      },
+    const response = await this.githubFetch(url, {
+      ...this.defaultHeaders(),
+      Accept: "application/vnd.github.diff",
     });
-
-    this.trackRateLimit(response);
 
     if (!response.ok) {
       throw new Error(
