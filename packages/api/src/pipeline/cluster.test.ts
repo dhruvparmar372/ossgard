@@ -11,6 +11,7 @@ function createMockVectorStore(): VectorStore {
     upsert: vi.fn().mockResolvedValue(undefined),
     search: vi.fn().mockResolvedValue([]),
     deleteByFilter: vi.fn().mockResolvedValue(undefined),
+    getVector: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
   };
 }
 
@@ -132,6 +133,9 @@ describe("ClusterProcessor", () => {
     const pr1 = insertPR(1, { diffHash: "hash-1" });
     const pr2 = insertPR(2, { diffHash: "hash-2" });
 
+    // Mock getVector to return a fake vector
+    vi.mocked(mockVectorStore.getVector).mockResolvedValue([0.1, 0.2, 0.3]);
+
     // Mock vector search to return high similarity between PR 1 and PR 2
     vi.mocked(mockVectorStore.search).mockImplementation(
       async (collection, _vector, _opts) => {
@@ -157,6 +161,12 @@ describe("ClusterProcessor", () => {
 
     await processor.process(makeJob());
 
+    // Verify search is called with actual vectors, NOT []
+    const searchCalls = vi.mocked(mockVectorStore.search).mock.calls;
+    for (const call of searchCalls) {
+      expect(call[1]).toEqual([0.1, 0.2, 0.3]);
+    }
+
     const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
     const candidateGroups = (
       enqueueCall.payload as { candidateGroups: Array<{ prNumbers: number[]; prIds: number[] }> }
@@ -164,6 +174,25 @@ describe("ClusterProcessor", () => {
 
     expect(candidateGroups).toHaveLength(1);
     expect(candidateGroups[0].prNumbers).toEqual([1, 2]);
+  });
+
+  it("skips vector search when getVector returns null (no embedding)", async () => {
+    insertPR(1, { diffHash: "hash-1" });
+    insertPR(2, { diffHash: "hash-2" });
+
+    // No embeddings stored for any PR
+    vi.mocked(mockVectorStore.getVector).mockResolvedValue(null);
+
+    await processor.process(makeJob());
+
+    // search should never be called since no vectors are available
+    expect(mockVectorStore.search).not.toHaveBeenCalled();
+
+    const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    const candidateGroups = (
+      enqueueCall.payload as { candidateGroups: unknown[] }
+    ).candidateGroups;
+    expect(candidateGroups).toHaveLength(0);
   });
 
   it("does not group PRs below similarity threshold", async () => {

@@ -27,4 +27,5 @@ export interface VectorStore {
     collection: string,
     filter: Record<string, unknown>
   ): Promise<void>;
+  getVector(collection: string, id: string): Promise<number[] | null>;
 }

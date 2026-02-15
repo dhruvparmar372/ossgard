@@ -61,51 +61,57 @@ export class ClusterProcessor implements JobProcessor {
       }
     }
 
-    // Embedding path: for each PR, search both code and intent collections
-    // and union PRs that are above the similarity threshold
+    // Embedding path: for each PR, retrieve actual stored vectors and search
+    // both code and intent collections, unioning PRs above the similarity threshold
     for (const pr of prs) {
-      const codeId = `${repoId}-${pr.number}-code`;
-      const intentId = `${repoId}-${pr.number}-intent`;
+      const codePointId = `${repoId}-${pr.number}-code`;
+      const intentPointId = `${repoId}-${pr.number}-intent`;
 
-      // Search code collection for similar PRs
-      const codeResults = await this.vectorStore.search(
-        CODE_COLLECTION,
-        [], // Vector retrieved by the store's search-by-id capability
-        {
-          limit: prs.length,
-          filter: {
-            must: [{ key: "repoId", match: { value: repoId } }],
-          },
-        }
-      );
+      // Retrieve actual stored vector for this PR's code embedding
+      const codeVector = await this.vectorStore.getVector(CODE_COLLECTION, codePointId);
+      if (codeVector) {
+        const codeResults = await this.vectorStore.search(
+          CODE_COLLECTION,
+          codeVector,
+          {
+            limit: prs.length,
+            filter: {
+              must: [{ key: "repoId", match: { value: repoId } }],
+            },
+          }
+        );
 
-      for (const result of codeResults) {
-        if (
-          result.score >= this.config.codeSimilarityThreshold &&
-          result.payload.prNumber !== pr.number
-        ) {
-          uf.union(pr.number, result.payload.prNumber as number);
+        for (const result of codeResults) {
+          if (
+            result.score >= this.config.codeSimilarityThreshold &&
+            result.payload.prNumber !== pr.number
+          ) {
+            uf.union(pr.number, result.payload.prNumber as number);
+          }
         }
       }
 
-      // Search intent collection for similar PRs
-      const intentResults = await this.vectorStore.search(
-        INTENT_COLLECTION,
-        [],
-        {
-          limit: prs.length,
-          filter: {
-            must: [{ key: "repoId", match: { value: repoId } }],
-          },
-        }
-      );
+      // Retrieve actual stored vector for this PR's intent embedding
+      const intentVector = await this.vectorStore.getVector(INTENT_COLLECTION, intentPointId);
+      if (intentVector) {
+        const intentResults = await this.vectorStore.search(
+          INTENT_COLLECTION,
+          intentVector,
+          {
+            limit: prs.length,
+            filter: {
+              must: [{ key: "repoId", match: { value: repoId } }],
+            },
+          }
+        );
 
-      for (const result of intentResults) {
-        if (
-          result.score >= this.config.intentSimilarityThreshold &&
-          result.payload.prNumber !== pr.number
-        ) {
-          uf.union(pr.number, result.payload.prNumber as number);
+        for (const result of intentResults) {
+          if (
+            result.score >= this.config.intentSimilarityThreshold &&
+            result.payload.prNumber !== pr.number
+          ) {
+            uf.union(pr.number, result.payload.prNumber as number);
+          }
         }
       }
     }

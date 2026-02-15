@@ -47,6 +47,10 @@ export interface QdrantClient {
       filter: Record<string, unknown>;
     }
   ): Promise<void>;
+  retrieve(
+    collection: string,
+    opts: { ids: (string | number)[]; with_vector: boolean }
+  ): Promise<Array<{ id: string | number; vector?: number[] }>>;
 }
 
 export class QdrantStore implements VectorStore {
@@ -105,5 +109,14 @@ export class QdrantStore implements VectorStore {
       wait: true,
       filter,
     });
+  }
+
+  async getVector(collection: string, id: string): Promise<number[] | null> {
+    const results = await this.client.retrieve(collection, {
+      ids: [id],
+      with_vector: true,
+    });
+    if (results.length === 0) return null;
+    return results[0].vector ?? null;
   }
 }

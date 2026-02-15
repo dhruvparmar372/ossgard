@@ -8,6 +8,7 @@ function createMockClient(): QdrantClient {
     upsert: vi.fn().mockResolvedValue(undefined),
     search: vi.fn().mockResolvedValue([]),
     delete: vi.fn().mockResolvedValue(undefined),
+    retrieve: vi.fn().mockResolvedValue([]),
   };
 }
 
@@ -147,6 +148,30 @@ describe("QdrantStore", () => {
         wait: true,
         filter,
       });
+    });
+  });
+
+  describe("getVector", () => {
+    it("returns vector when point exists", async () => {
+      vi.mocked(mockClient.retrieve).mockResolvedValue([
+        { id: "point-1", vector: [0.1, 0.2, 0.3] },
+      ]);
+
+      const vector = await store.getVector("my-collection", "point-1");
+
+      expect(vector).toEqual([0.1, 0.2, 0.3]);
+      expect(mockClient.retrieve).toHaveBeenCalledWith("my-collection", {
+        ids: ["point-1"],
+        with_vector: true,
+      });
+    });
+
+    it("returns null when point does not exist", async () => {
+      vi.mocked(mockClient.retrieve).mockResolvedValue([]);
+
+      const vector = await store.getVector("my-collection", "nonexistent");
+
+      expect(vector).toBeNull();
     });
   });
 });
