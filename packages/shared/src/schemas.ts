@@ -12,7 +12,7 @@ export const ScanRequest = z.object({
 export type ScanRequest = z.infer<typeof ScanRequest>;
 
 export const DupesQuery = z.object({
-  min_score: z.coerce.number().min(0).max(100).optional(),
+  minScore: z.coerce.number().min(0).max(100).optional(),
 });
 export type DupesQuery = z.infer<typeof DupesQuery>;
 

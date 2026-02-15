@@ -7,7 +7,14 @@ export function statusCommand(client: ApiClient): Command {
     .description("Show tracked repositories and their status")
     .option("--json", "Output as JSON")
     .action(async (opts: { json?: boolean }) => {
-      const repos = await client.get<Repo[]>("/repos");
+      let repos: Repo[];
+      try {
+        repos = await client.get<Repo[]>("/repos");
+      } catch {
+        console.error("Failed to connect to ossgard API. Is it running? (ossgard up)");
+        process.exitCode = 1;
+        return;
+      }
 
       if (opts.json) {
         console.log(JSON.stringify(repos, null, 2));
