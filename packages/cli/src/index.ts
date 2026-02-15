@@ -5,6 +5,7 @@ import { trackCommand, untrackCommand } from "./commands/track.js";
 import { statusCommand } from "./commands/status.js";
 import { registerInitCommand } from "./commands/init.js";
 import { registerConfigCommand } from "./commands/config.js";
+import { registerStackCommands } from "./commands/stack.js";
 
 const client = new ApiClient(process.env.OSSGARD_API_URL);
 
@@ -17,6 +18,7 @@ program
 
 registerInitCommand(program);
 registerConfigCommand(program);
+registerStackCommands(program);
 
 program.addCommand(trackCommand(client));
 program.addCommand(untrackCommand(client));
