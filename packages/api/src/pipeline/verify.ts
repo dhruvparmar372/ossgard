@@ -65,13 +65,14 @@ export class VerifyProcessor implements JobProcessor {
       };
 
       // Collect verified groups (only groups with 2+ PRs)
-      for (const group of response.groups) {
-        if (group.prIds.length >= 2) {
+      const groups = Array.isArray(response.groups) ? response.groups : [];
+      for (const group of groups) {
+        if (Array.isArray(group.prIds) && group.prIds.length >= 2) {
           verifiedGroups.push({
             prIds: group.prIds,
-            label: group.label,
-            confidence: group.confidence,
-            relationship: group.relationship,
+            label: group.label ?? "Unknown",
+            confidence: group.confidence ?? 0,
+            relationship: group.relationship ?? "unknown",
           });
         }
       }
