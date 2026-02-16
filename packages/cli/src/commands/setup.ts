@@ -36,7 +36,7 @@ async function choose(
   return defaultOption;
 }
 
-async function validateGitHubToken(token: string): Promise<boolean> {
+export async function validateGitHubToken(token: string): Promise<boolean> {
   try {
     const res = await fetch("https://api.github.com/user", {
       headers: { Authorization: `Bearer ${token}` },
@@ -47,7 +47,7 @@ async function validateGitHubToken(token: string): Promise<boolean> {
   }
 }
 
-async function healthCheck(url: string, path: string): Promise<boolean> {
+export async function healthCheck(url: string, path: string): Promise<boolean> {
   try {
     const res = await fetch(`${url}${path}`);
     return res.ok;
