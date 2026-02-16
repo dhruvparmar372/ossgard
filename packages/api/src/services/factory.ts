@@ -13,6 +13,7 @@ export interface ServiceConfig {
   llm: { provider: string; url: string; model: string; apiKey: string; batch?: boolean };
   embedding: { provider: string; url: string; model: string; apiKey: string; batch?: boolean };
   vectorStoreUrl: string;
+  vectorStoreApiKey?: string;
 }
 
 export class ServiceFactory {
@@ -72,7 +73,10 @@ export class ServiceFactory {
   /** Create a vector store backed by Qdrant. Uses dynamic import for the Qdrant client. */
   async createVectorStore(): Promise<VectorStore> {
     const { QdrantClient: RealQdrantClient } = await import("@qdrant/js-client-rest");
-    const realClient = new RealQdrantClient({ url: this.config.vectorStoreUrl });
+    const realClient = new RealQdrantClient({
+      url: this.config.vectorStoreUrl,
+      ...(this.config.vectorStoreApiKey && { apiKey: this.config.vectorStoreApiKey }),
+    });
 
     // Adapt the real Qdrant client to our minimal QdrantClient interface
     const adapter: QdrantClient = {

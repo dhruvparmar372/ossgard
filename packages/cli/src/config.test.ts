@@ -39,4 +39,15 @@ describe("Config", () => {
     config.set("vector_store.url", "https://cloud.qdrant.io:6333");
     expect(config.get("vector_store.url")).toBe("https://cloud.qdrant.io:6333");
   });
+
+  it("vector_store.api_key defaults to empty string", () => {
+    const cfg = config.load();
+    expect(cfg.vector_store.api_key).toBe("");
+  });
+
+  it("get/set works with vector_store.api_key", () => {
+    config.init("ghp_test");
+    config.set("vector_store.api_key", "qdrant-cloud-key-123");
+    expect(config.get("vector_store.api_key")).toBe("qdrant-cloud-key-123");
+  });
 });

@@ -109,6 +109,7 @@ batch = false
 
 [vector_store]
 url = "http://localhost:6333"          # Qdrant URL
+api_key = ""                           # required for Qdrant Cloud
 ```
 
 The default config uses local Ollama for both chat and embeddings — no API keys needed. To use cloud providers, set the provider, URL, and supply an API key.

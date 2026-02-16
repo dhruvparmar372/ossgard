@@ -14,7 +14,7 @@ interface TomlConfig {
   github?: { token?: string };
   llm?: { provider?: string; url?: string; model?: string; api_key?: string; batch?: boolean };
   embedding?: { provider?: string; url?: string; model?: string; api_key?: string; batch?: boolean };
-  vector_store?: { url?: string };
+  vector_store?: { url?: string; api_key?: string };
   scan?: {
     code_similarity_threshold?: number;
     intent_similarity_threshold?: number;
@@ -57,6 +57,7 @@ async function main() {
       batch: toml.embedding?.batch || false,
     },
     vectorStoreUrl: toml.vector_store?.url || "http://localhost:6333",
+    vectorStoreApiKey: toml.vector_store?.api_key || "",
   };
 
   if (!serviceConfig.github.token) {

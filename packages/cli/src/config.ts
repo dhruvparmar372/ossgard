@@ -21,6 +21,7 @@ export interface OssgardConfig {
   };
   vector_store: {
     url: string;
+    api_key: string;
   };
   scan: {
     concurrency: number;
@@ -45,6 +46,7 @@ const DEFAULT_CONFIG: OssgardConfig = {
   },
   vector_store: {
     url: "http://localhost:6333",
+    api_key: "",
   },
   scan: {
     concurrency: 10,
