@@ -48,8 +48,7 @@ Jobs are queued in SQLite and processed by an in-process worker loop, making sca
 
 ### Prerequisites
 
-- Node.js >= 22
-- pnpm
+- [Bun](https://bun.sh) >= 1.0
 - Docker & Docker Compose
 - A GitHub Personal Access Token (PAT)
 
@@ -59,21 +58,24 @@ Jobs are queued in SQLite and processed by an in-process worker loop, making sca
 # Clone and install dependencies
 git clone https://github.com/your-org/ossgard.git
 cd ossgard
-pnpm install
-pnpm build
+bun install
+bun run build
+
+# Compile standalone CLI binary
+bun run build:cli
 
 # Initialize config (creates ~/.ossgard/config.toml, prompts for GitHub PAT)
-pnpm --filter cli exec ossgard init
+./packages/cli/dist/ossgard init
 
 # Start the stack (API + Qdrant + Ollama)
-pnpm --filter cli exec ossgard up --detach
+./packages/cli/dist/ossgard up --detach
 
 # Track a repo and scan it
-pnpm --filter cli exec ossgard track facebook/react
-pnpm --filter cli exec ossgard scan facebook/react
+./packages/cli/dist/ossgard track facebook/react
+./packages/cli/dist/ossgard scan facebook/react
 
 # View duplicate groups
-pnpm --filter cli exec ossgard dupes facebook/react
+./packages/cli/dist/ossgard dupes facebook/react
 ```
 
 ### Docker Compose services
@@ -139,9 +141,10 @@ Environment variables override TOML values:
 ### Development
 
 ```bash
-pnpm dev          # Run API with hot reload (tsx watch)
-pnpm test         # Run unit tests across all packages
-pnpm test:e2e     # Run end-to-end tests (requires running stack)
+bun run dev       # Run API with hot reload
+bun run test      # Run unit tests across all packages
+bun run test:e2e  # Run end-to-end tests (requires running stack)
+bun run build:cli # Compile standalone CLI binary
 ```
 
 ## Project structure
