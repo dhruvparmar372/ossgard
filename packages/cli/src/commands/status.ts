@@ -3,7 +3,11 @@ import { ApiClient } from "../client.js";
 import { requireSetup } from "../guard.js";
 import type { Repo, ScanStatus } from "@ossgard/shared";
 
-type RepoWithScanStatus = Repo & { activeScanStatus: ScanStatus | null };
+type RepoWithScanStatus = Repo & {
+  activeScanStatus: ScanStatus | null;
+  activeScanPrCount: number | null;
+  activeScanDupeGroupCount: number | null;
+};
 
 const PHASE_LABELS: Record<ScanStatus, string> = {
   queued: "Queued",
@@ -46,7 +50,15 @@ export function statusCommand(client: ApiClient): Command {
       for (const repo of repos) {
         if (repo.activeScanStatus) {
           const label = PHASE_LABELS[repo.activeScanStatus] ?? repo.activeScanStatus;
-          console.log(`  ${repo.owner}/${repo.name} (scanning: ${label})`);
+          const counts: string[] = [];
+          if (repo.activeScanPrCount && repo.activeScanPrCount > 0) {
+            counts.push(`${repo.activeScanPrCount} PRs`);
+          }
+          if (repo.activeScanDupeGroupCount && repo.activeScanDupeGroupCount > 0) {
+            counts.push(`${repo.activeScanDupeGroupCount} dupe groups`);
+          }
+          const suffix = counts.length > 0 ? ` — ${counts.join(", ")}` : "";
+          console.log(`  ${repo.owner}/${repo.name} (scanning: ${label}${suffix})`);
         } else {
           const lastScan = repo.lastScanAt ?? "never";
           console.log(`  ${repo.owner}/${repo.name} (last scan: ${lastScan})`);

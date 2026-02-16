@@ -38,10 +38,13 @@ export class IngestProcessor implements JobProcessor {
     // Fetch open PRs from GitHub (optionally limited)
     const fetchedPRs = await github.listOpenPRs(owner, repo, maxPrs);
 
+    ingestLog.info("Fetched PR list", { scanId, total: fetchedPRs.length });
+
     let etagHits = 0;
 
     // For each PR, fetch files and diff, compute hash, upsert
-    for (const pr of fetchedPRs) {
+    for (let i = 0; i < fetchedPRs.length; i++) {
+      const pr = fetchedPRs[i];
       // Look up existing PR for its stored etag
       const existingPR = this.db.getPRByNumber(repoId, pr.number);
       const storedEtag = existingPR?.githubEtag ?? null;
@@ -72,6 +75,10 @@ export class IngestProcessor implements JobProcessor {
       // Store the etag
       if (newEtag && upserted) {
         this.db.updatePREtag(upserted.id, newEtag);
+      }
+
+      if (i % 10 === 0 || i === fetchedPRs.length - 1) {
+        ingestLog.info("Ingesting PRs", { scanId, progress: `${i + 1}/${fetchedPRs.length}` });
       }
     }
 

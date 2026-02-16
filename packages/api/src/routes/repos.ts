@@ -10,7 +10,12 @@ repos.get("/repos", (c) => {
   const allRepos = db.listRepos();
   const enriched = allRepos.map((repo) => {
     const activeScan = db.getActiveScan(repo.id, account.id);
-    return { ...repo, activeScanStatus: activeScan?.status ?? null };
+    return {
+      ...repo,
+      activeScanStatus: activeScan?.status ?? null,
+      activeScanPrCount: activeScan?.prCount ?? null,
+      activeScanDupeGroupCount: activeScan?.dupeGroupCount ?? null,
+    };
   });
   return c.json(enriched);
 });
