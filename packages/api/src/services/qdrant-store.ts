@@ -1,9 +1,22 @@
+import { createHash } from "node:crypto";
 import type {
   VectorStore,
   VectorPoint,
   SearchResult,
   SearchOptions,
 } from "./vector-store.js";
+
+/** Convert an arbitrary string ID to a deterministic UUID (v4-format from MD5 hash). */
+export function toUUID(id: string): string {
+  const hex = createHash("md5").update(id).digest("hex");
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join("-");
+}
 
 /** Minimal Qdrant client interface. The real @qdrant/js-client-rest is injected at runtime. */
 export interface QdrantClient {
@@ -75,7 +88,7 @@ export class QdrantStore implements VectorStore {
     await this.client.upsert(collection, {
       wait: true,
       points: points.map((p) => ({
-        id: p.id,
+        id: toUUID(p.id),
         vector: p.vector,
         payload: p.payload,
       })),
@@ -113,7 +126,7 @@ export class QdrantStore implements VectorStore {
 
   async getVector(collection: string, id: string): Promise<number[] | null> {
     const results = await this.client.retrieve(collection, {
-      ids: [id],
+      ids: [toUUID(id)],
       with_vector: true,
     });
     if (results.length === 0) return null;

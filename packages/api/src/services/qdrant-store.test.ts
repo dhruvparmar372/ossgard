@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { QdrantStore, type QdrantClient } from "./qdrant-store.js";
+import { QdrantStore, toUUID, type QdrantClient } from "./qdrant-store.js";
 
 function createMockClient(): QdrantClient {
   return {
@@ -66,8 +66,8 @@ describe("QdrantStore", () => {
       expect(mockClient.upsert).toHaveBeenCalledWith("my-collection", {
         wait: true,
         points: [
-          { id: "point-1", vector: [0.1, 0.2, 0.3], payload: { repoId: 1 } },
-          { id: "point-2", vector: [0.4, 0.5, 0.6], payload: { repoId: 2 } },
+          { id: toUUID("point-1"), vector: [0.1, 0.2, 0.3], payload: { repoId: 1 } },
+          { id: toUUID("point-2"), vector: [0.4, 0.5, 0.6], payload: { repoId: 2 } },
         ],
       });
     });
@@ -161,7 +161,7 @@ describe("QdrantStore", () => {
 
       expect(vector).toEqual([0.1, 0.2, 0.3]);
       expect(mockClient.retrieve).toHaveBeenCalledWith("my-collection", {
-        ids: ["point-1"],
+        ids: [toUUID("point-1")],
         with_vector: true,
       });
     });
