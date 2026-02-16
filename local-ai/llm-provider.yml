@@ -1,0 +1,12 @@
+name: ossgard-llm-provider
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ossgard-models:/root/.ollama
+
+volumes:
+  ossgard-models:

@@ -1,0 +1,30 @@
+# E2E test configuration
+#
+# This config is used by the end-to-end tests. It targets the local AI stack
+# (Qdrant + Ollama) and expects them to be running before tests start.
+#
+# GitHub token is NOT stored here — it's resolved at test time from:
+#   1. GITHUB_TOKEN env var (preferred)
+#   2. Host machine's ~/.ossgard/config.toml (fallback)
+
+[api]
+url = "http://localhost:3400"
+
+[github]
+token = ""
+
+[llm]
+provider = "ollama"
+url = "http://localhost:11434"
+model = "llama3"
+api_key = ""
+
+[embedding]
+provider = "ollama"
+url = "http://localhost:11434"
+model = "nomic-embed-text"
+api_key = ""
+
+[vector_store]
+url = "http://localhost:6333"
+api_key = ""

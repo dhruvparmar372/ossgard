@@ -6,6 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "build:bin": "bun build ./src/index.ts --compile --outfile dist/ossgard-api",
     "dev": "bun --watch src/index.ts",
     "start": "bun dist/index.js",
     "test": "bun test"
