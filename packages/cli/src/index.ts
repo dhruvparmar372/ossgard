@@ -5,7 +5,6 @@ import { trackCommand, untrackCommand } from "./commands/track.js";
 import { statusCommand } from "./commands/status.js";
 import { registerInitCommand } from "./commands/init.js";
 import { registerConfigCommand } from "./commands/config.js";
-import { registerStackCommands } from "./commands/stack.js";
 import { scanCommand } from "./commands/scan.js";
 import { dupesCommand } from "./commands/dupes.js";
 
@@ -20,7 +19,6 @@ program
 
 registerInitCommand(program);
 registerConfigCommand(program);
-registerStackCommands(program);
 
 program.addCommand(trackCommand(client));
 program.addCommand(untrackCommand(client));
