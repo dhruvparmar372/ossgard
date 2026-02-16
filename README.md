@@ -96,14 +96,27 @@ token = "ghp_..."
 provider = "ollama"         # or "anthropic"
 model = "llama3"            # or "claude-haiku-4-5-20251001"
 api_key = ""                # required for anthropic
+batch = false               # enable batch processing (anthropic only)
 
 [embedding]
 provider = "ollama"         # or "openai"
 model = "nomic-embed-text"  # or "text-embedding-3-large"
 api_key = ""                # required for openai
+batch = false               # enable batch processing (openai only)
 ```
 
 The default stack uses local Ollama for both chat and embeddings — no API keys needed. To use cloud providers, set the provider and supply an API key.
+
+#### Batch processing
+
+When using cloud providers, setting `batch = true` enables asynchronous batch APIs:
+
+- **Anthropic** (`llm.batch = true`): Uses the [Message Batches API](https://docs.anthropic.com/en/docs/build-with-claude/message-batches) to process verify and rank jobs. Requests are submitted as a batch and polled until completion. Anthropic offers a 50% cost discount on batch requests.
+- **OpenAI** (`embedding.batch = true`): Uses the [Batch API](https://platform.openai.com/docs/guides/batch) to process embedding requests via file upload and polling.
+
+Batch mode is ignored for Ollama (no batch API). When only a single request exists in a pipeline step, the provider falls back to the standard sync path automatically.
+
+**Prompt caching:** Anthropic providers (both sync and batch) automatically use [prompt caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) on system prompts. Since verify and rank use the same system prompt for every group in a scan, all calls after the first get a cache hit, reducing cost and latency.
 
 Environment variables override TOML values:
 
@@ -113,9 +126,11 @@ Environment variables override TOML values:
 | `LLM_PROVIDER` | Chat provider (`ollama` or `anthropic`) |
 | `LLM_MODEL` | Chat model name |
 | `LLM_API_KEY` | API key for chat provider |
+| `LLM_BATCH` | Enable LLM batch processing (`true` / `false`) |
 | `EMBEDDING_PROVIDER` | Embedding provider (`ollama` or `openai`) |
 | `EMBEDDING_MODEL` | Embedding model name |
 | `EMBEDDING_API_KEY` | API key for embedding provider |
+| `EMBEDDING_BATCH` | Enable embedding batch processing (`true` / `false`) |
 | `OLLAMA_URL` | Ollama base URL (default `http://localhost:11434`) |
 | `QDRANT_URL` | Qdrant base URL (default `http://localhost:6333`) |
 
