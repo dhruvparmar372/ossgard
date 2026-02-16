@@ -33,7 +33,7 @@ describe("scans routes", () => {
 
       // Verify scan was created in database
       const scan = db.getScan(body.scanId);
-      expect(scan).toBeDefined();
+      expect(scan).not.toBeNull();
       expect(scan!.repoId).toBe(1);
       expect(scan!.status).toBe("queued");
 

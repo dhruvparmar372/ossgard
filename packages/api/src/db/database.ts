@@ -1,4 +1,4 @@
-import BetterSqlite3 from "better-sqlite3";
+import { Database as BunDatabase } from "bun:sqlite";
 import type { DupeGroup, DupeGroupMember, PR, Repo, Scan, ScanStatus } from "@ossgard/shared";
 import { SCHEMA } from "./schema.js";
 
@@ -130,13 +130,13 @@ export interface UpsertPRInput {
 }
 
 export class Database {
-  readonly raw: BetterSqlite3.Database;
+  readonly raw: BunDatabase;
 
   constructor(path: string = ":memory:") {
-    this.raw = new BetterSqlite3(path);
-    this.raw.pragma("journal_mode = WAL");
-    this.raw.pragma("foreign_keys = ON");
-    this.raw.exec(SCHEMA);
+    this.raw = new BunDatabase(path, { strict: true });
+    this.raw.run("PRAGMA journal_mode = WAL");
+    this.raw.run("PRAGMA foreign_keys = ON");
+    this.raw.run(SCHEMA);
   }
 
   insertRepo(owner: string, name: string): Repo {
@@ -147,18 +147,18 @@ export class Database {
     return mapRepoRow(row);
   }
 
-  getRepo(id: number): Repo | undefined {
+  getRepo(id: number): Repo | null {
     const stmt = this.raw.prepare("SELECT * FROM repos WHERE id = ?");
-    const row = stmt.get(id) as RepoRow | undefined;
-    return row ? mapRepoRow(row) : undefined;
+    const row = stmt.get(id) as RepoRow | null;
+    return row ? mapRepoRow(row) : null;
   }
 
-  getRepoByOwnerName(owner: string, name: string): Repo | undefined {
+  getRepoByOwnerName(owner: string, name: string): Repo | null {
     const stmt = this.raw.prepare(
       "SELECT * FROM repos WHERE owner = ? AND name = ?"
     );
-    const row = stmt.get(owner, name) as RepoRow | undefined;
-    return row ? mapRepoRow(row) : undefined;
+    const row = stmt.get(owner, name) as RepoRow | null;
+    return row ? mapRepoRow(row) : null;
   }
 
   listRepos(): Repo[] {
@@ -196,10 +196,10 @@ export class Database {
     return mapScanRow(row);
   }
 
-  getScan(id: number): Scan | undefined {
+  getScan(id: number): Scan | null {
     const stmt = this.raw.prepare("SELECT * FROM scans WHERE id = ?");
-    const row = stmt.get(id) as ScanRow | undefined;
-    return row ? mapScanRow(row) : undefined;
+    const row = stmt.get(id) as ScanRow | null;
+    return row ? mapScanRow(row) : null;
   }
 
   updateScanStatus(
@@ -208,7 +208,7 @@ export class Database {
     extra?: Partial<Pick<Scan, "error" | "completedAt" | "phaseCursor" | "prCount" | "dupeGroupCount">>
   ): boolean {
     let sql = "UPDATE scans SET status = ?";
-    const params: unknown[] = [status];
+    const params: (string | number | null)[] = [status];
 
     if (extra?.error !== undefined) {
       sql += ", error = ?";
@@ -268,12 +268,12 @@ export class Database {
     return mapPRRow(row);
   }
 
-  getPRByNumber(repoId: number, number: number): PR | undefined {
+  getPRByNumber(repoId: number, number: number): PR | null {
     const stmt = this.raw.prepare(
       "SELECT * FROM prs WHERE repo_id = ? AND number = ?"
     );
-    const row = stmt.get(repoId, number) as PRRow | undefined;
-    return row ? mapPRRow(row) : undefined;
+    const row = stmt.get(repoId, number) as PRRow | null;
+    return row ? mapPRRow(row) : null;
   }
 
   listOpenPRs(repoId: number): PR[] {
@@ -284,10 +284,10 @@ export class Database {
     return rows.map(mapPRRow);
   }
 
-  getPR(id: number): PR | undefined {
+  getPR(id: number): PR | null {
     const stmt = this.raw.prepare("SELECT * FROM prs WHERE id = ?");
-    const row = stmt.get(id) as PRRow | undefined;
-    return row ? mapPRRow(row) : undefined;
+    const row = stmt.get(id) as PRRow | null;
+    return row ? mapPRRow(row) : null;
   }
 
   updatePREtag(prId: number, etag: string | null): void {
@@ -348,12 +348,12 @@ export class Database {
     return rows.map(mapDupeGroupMemberRow);
   }
 
-  getLatestCompletedScan(repoId: number): Scan | undefined {
+  getLatestCompletedScan(repoId: number): Scan | null {
     const stmt = this.raw.prepare(
       "SELECT * FROM scans WHERE repo_id = ? AND status = 'done' ORDER BY completed_at DESC LIMIT 1"
     );
-    const row = stmt.get(repoId) as ScanRow | undefined;
-    return row ? mapScanRow(row) : undefined;
+    const row = stmt.get(repoId) as ScanRow | null;
+    return row ? mapScanRow(row) : null;
   }
 
   close(): void {

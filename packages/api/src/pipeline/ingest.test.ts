@@ -116,7 +116,7 @@ describe("IngestProcessor", () => {
     await processor.process(makeJob());
 
     const storedPR = db.getPRByNumber(repoId, 1);
-    expect(storedPR).toBeDefined();
+    expect(storedPR).not.toBeNull();
     expect(storedPR!.diffHash).toBe(hashDiff(diff));
     expect(storedPR!.diffHash).toMatch(/^[0-9a-f]{64}$/);
   });

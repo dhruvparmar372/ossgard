@@ -30,16 +30,13 @@ describe("Database", () => {
     });
 
     it("enables WAL mode for file-based databases", () => {
-      // In-memory databases use "memory" journal mode; WAL only applies to files.
-      // We verify the pragma is set, but :memory: always returns "memory".
-      const result = db.raw.pragma("journal_mode") as { journal_mode: string }[];
-      // :memory: dbs cannot use WAL, so just verify it returns a valid mode
-      expect(["wal", "memory"]).toContain(result[0].journal_mode);
+      const result = db.raw.query("PRAGMA journal_mode").get() as { journal_mode: string };
+      expect(["wal", "memory"]).toContain(result.journal_mode);
     });
 
     it("enables foreign keys", () => {
-      const result = db.raw.pragma("foreign_keys") as { foreign_keys: number }[];
-      expect(result[0].foreign_keys).toBe(1);
+      const result = db.raw.query("PRAGMA foreign_keys").get() as { foreign_keys: number };
+      expect(result.foreign_keys).toBe(1);
     });
   });
 
@@ -56,26 +53,26 @@ describe("Database", () => {
     it("gets a repo by id", () => {
       const inserted = db.insertRepo("facebook", "react");
       const fetched = db.getRepo(inserted.id);
-      expect(fetched).toBeDefined();
+      expect(fetched).not.toBeNull();
       expect(fetched!.owner).toBe("facebook");
       expect(fetched!.name).toBe("react");
     });
 
-    it("returns undefined for missing repo", () => {
+    it("returns null for missing repo", () => {
       const fetched = db.getRepo(999);
-      expect(fetched).toBeUndefined();
+      expect(fetched).toBeNull();
     });
 
     it("gets a repo by owner and name", () => {
       db.insertRepo("facebook", "react");
       const fetched = db.getRepoByOwnerName("facebook", "react");
-      expect(fetched).toBeDefined();
+      expect(fetched).not.toBeNull();
       expect(fetched!.id).toBe(1);
     });
 
-    it("returns undefined for missing owner/name", () => {
+    it("returns null for missing owner/name", () => {
       const fetched = db.getRepoByOwnerName("nope", "nada");
-      expect(fetched).toBeUndefined();
+      expect(fetched).toBeNull();
     });
 
     it("lists all repos", () => {
@@ -171,14 +168,14 @@ describe("Database", () => {
     it("getPRByNumber returns the PR", () => {
       db.upsertPR({ ...basePR(), repoId });
       const pr = db.getPRByNumber(repoId, 1);
-      expect(pr).toBeDefined();
+      expect(pr).not.toBeNull();
       expect(pr!.number).toBe(1);
       expect(pr!.title).toBe("Fix bug");
     });
 
-    it("getPRByNumber returns undefined for missing PR", () => {
+    it("getPRByNumber returns null for missing PR", () => {
       const pr = db.getPRByNumber(repoId, 999);
-      expect(pr).toBeUndefined();
+      expect(pr).toBeNull();
     });
 
     it("listOpenPRs filters by state", () => {

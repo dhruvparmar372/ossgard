@@ -8,19 +8,18 @@
     "build": "tsc",
     "dev": "bun --watch src/index.ts",
     "start": "bun dist/index.js",
-    "test": "vitest run"
+    "test": "bun --bun vitest run"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.0",
     "@iarna/toml": "^2.2.5",
     "@ossgard/shared": "workspace:*",
     "@qdrant/js-client-rest": "^1.16.2",
-    "better-sqlite3": "^11.8.0",
     "hono": "^4.7.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
+    "@types/bun": "^1.3.9",
     "@types/iarna__toml": "^2.0.5",
     "@types/uuid": "^10.0.0",
     "typescript": "^5.7.0",

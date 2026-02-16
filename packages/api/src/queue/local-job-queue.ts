@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import type BetterSqlite3 from "better-sqlite3";
+import type { Database } from "bun:sqlite";
 import type { Job } from "@ossgard/shared";
 import type { JobQueue, EnqueueOptions } from "./types.js";
 
@@ -41,9 +41,9 @@ function mapJobRow(row: JobRow): Job {
 }
 
 export class LocalJobQueue implements JobQueue {
-  private db: BetterSqlite3.Database;
+  private db: Database;
 
-  constructor(db: BetterSqlite3.Database) {
+  constructor(db: Database) {
     this.db = db;
   }
 
@@ -65,7 +65,7 @@ export class LocalJobQueue implements JobQueue {
 
   async getStatus(jobId: string): Promise<Job | null> {
     const stmt = this.db.prepare("SELECT * FROM jobs WHERE id = ?");
-    const row = stmt.get(jobId) as JobRow | undefined;
+    const row = stmt.get(jobId) as JobRow | null;
     return row ? mapJobRow(row) : null;
   }
 
@@ -84,7 +84,7 @@ export class LocalJobQueue implements JobQueue {
       )
       RETURNING *
     `);
-    const row = stmt.get() as JobRow | undefined;
+    const row = stmt.get() as JobRow | null;
     return row ? mapJobRow(row) : null;
   }
 

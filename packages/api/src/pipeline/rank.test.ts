@@ -320,7 +320,7 @@ describe("RankProcessor", () => {
     await processor.process(makeJob([]));
 
     const repo = db.getRepo(repoId);
-    expect(repo).toBeDefined();
+    expect(repo).not.toBeNull();
     expect(repo!.lastScanAt).toBeTruthy();
     // Verify it's a valid ISO timestamp
     expect(new Date(repo!.lastScanAt!).toISOString()).toBe(repo!.lastScanAt);
