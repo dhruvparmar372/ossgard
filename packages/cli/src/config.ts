@@ -5,8 +5,23 @@ import { parse, stringify } from "@iarna/toml";
 
 export interface OssgardConfig {
   github: { token: string };
-  llm: { provider: string; model: string; api_key: string; batch?: boolean };
-  embedding: { provider: string; model: string; api_key: string; batch?: boolean };
+  llm: {
+    provider: string;
+    url: string;
+    model: string;
+    api_key: string;
+    batch?: boolean;
+  };
+  embedding: {
+    provider: string;
+    url: string;
+    model: string;
+    api_key: string;
+    batch?: boolean;
+  };
+  vector_store: {
+    url: string;
+  };
   scan: {
     concurrency: number;
     code_similarity_threshold: number;
@@ -16,8 +31,21 @@ export interface OssgardConfig {
 
 const DEFAULT_CONFIG: OssgardConfig = {
   github: { token: "" },
-  llm: { provider: "ollama", model: "llama3", api_key: "" },
-  embedding: { provider: "ollama", model: "nomic-embed-text", api_key: "" },
+  llm: {
+    provider: "ollama",
+    url: "http://localhost:11434",
+    model: "llama3",
+    api_key: "",
+  },
+  embedding: {
+    provider: "ollama",
+    url: "http://localhost:11434",
+    model: "nomic-embed-text",
+    api_key: "",
+  },
+  vector_store: {
+    url: "http://localhost:6333",
+  },
   scan: {
     concurrency: 10,
     code_similarity_threshold: 0.85,
