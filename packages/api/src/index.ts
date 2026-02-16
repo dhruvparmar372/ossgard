@@ -12,8 +12,9 @@ import { RankProcessor } from "./pipeline/rank.js";
 
 interface TomlConfig {
   github?: { token?: string };
-  llm?: { provider?: string; model?: string; api_key?: string; batch?: boolean };
-  embedding?: { provider?: string; model?: string; api_key?: string; batch?: boolean };
+  llm?: { provider?: string; url?: string; model?: string; api_key?: string; batch?: boolean };
+  embedding?: { provider?: string; url?: string; model?: string; api_key?: string; batch?: boolean };
+  vector_store?: { url?: string };
   scan?: {
     code_similarity_threshold?: number;
     intent_similarity_threshold?: number;
@@ -37,28 +38,25 @@ function loadTomlConfig(): TomlConfig {
 async function main() {
   const toml = loadTomlConfig();
 
-  // Environment variables take precedence over TOML config
   const serviceConfig: ServiceConfig = {
     github: {
       token: process.env.GITHUB_TOKEN || toml.github?.token || "",
     },
     llm: {
-      provider: process.env.LLM_PROVIDER || toml.llm?.provider || "ollama",
-      model: process.env.LLM_MODEL || toml.llm?.model || "llama3",
-      apiKey: process.env.LLM_API_KEY || toml.llm?.api_key || "",
-      batch: process.env.LLM_BATCH === "true" || toml.llm?.batch || false,
+      provider: toml.llm?.provider || "ollama",
+      url: toml.llm?.url || "http://localhost:11434",
+      model: toml.llm?.model || "llama3",
+      apiKey: toml.llm?.api_key || "",
+      batch: toml.llm?.batch || false,
     },
     embedding: {
-      provider:
-        process.env.EMBEDDING_PROVIDER || toml.embedding?.provider || "ollama",
-      model:
-        process.env.EMBEDDING_MODEL || toml.embedding?.model || "nomic-embed-text",
-      apiKey:
-        process.env.EMBEDDING_API_KEY || toml.embedding?.api_key || "",
-      batch: process.env.EMBEDDING_BATCH === "true" || toml.embedding?.batch || false,
+      provider: toml.embedding?.provider || "ollama",
+      url: toml.embedding?.url || "http://localhost:11434",
+      model: toml.embedding?.model || "nomic-embed-text",
+      apiKey: toml.embedding?.api_key || "",
+      batch: toml.embedding?.batch || false,
     },
-    ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434",
-    qdrantUrl: process.env.QDRANT_URL || "http://localhost:6333",
+    vectorStoreUrl: toml.vector_store?.url || "http://localhost:6333",
   };
 
   if (!serviceConfig.github.token) {
