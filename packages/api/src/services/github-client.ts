@@ -15,20 +15,23 @@ export interface GitHubClientOptions {
   maxConcurrent?: number;
   maxRetries?: number;
   baseBackoffMs?: number;
+  rateLimitBuffer?: number;
   fetchFn?: typeof fetch;
 }
 
 export class GitHubClient {
-  private static RATE_LIMIT_BUFFER = 100;
+  private static DEFAULT_RATE_LIMIT_BUFFER = 100;
 
   private client: RateLimitedClient;
   private token: string;
+  private rateLimitBuffer: number;
 
   rateLimitRemaining = -1;
   rateLimitReset = -1;
 
   constructor(options: GitHubClientOptions) {
     this.token = options.token;
+    this.rateLimitBuffer = options.rateLimitBuffer ?? GitHubClient.DEFAULT_RATE_LIMIT_BUFFER;
     this.client = new RateLimitedClient({
       maxConcurrent: options.maxConcurrent ?? 10,
       maxRetries: options.maxRetries ?? 3,
@@ -43,7 +46,7 @@ export class GitHubClient {
   private async throttleIfNeeded(): Promise<void> {
     if (
       this.rateLimitRemaining >= 0 &&
-      this.rateLimitRemaining < GitHubClient.RATE_LIMIT_BUFFER &&
+      this.rateLimitRemaining < this.rateLimitBuffer &&
       this.rateLimitReset > 0
     ) {
       const now = Date.now() / 1000; // GitHub reset is in epoch seconds
@@ -69,11 +72,14 @@ export class GitHubClient {
   }
 
   private defaultHeaders(): Record<string, string> {
-    return {
-      Authorization: `Bearer ${this.token}`,
+    const headers: Record<string, string> = {
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
     };
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+    return headers;
   }
 
   private trackRateLimit(response: Response): void {
@@ -87,12 +93,13 @@ export class GitHubClient {
     }
   }
 
-  async listOpenPRs(owner: string, repo: string): Promise<FetchedPR[]> {
+  async listOpenPRs(owner: string, repo: string, maxResults?: number): Promise<FetchedPR[]> {
     const allPRs: FetchedPR[] = [];
     let page = 1;
+    const perPage = maxResults ? Math.min(maxResults, 100) : 100;
 
     while (true) {
-      const url = `https://api.github.com/repos/${owner}/${repo}/pulls?state=open&per_page=100&page=${page}`;
+      const url = `https://api.github.com/repos/${owner}/${repo}/pulls?state=open&per_page=${perPage}&page=${page}`;
       const response = await this.githubFetch(url, this.defaultHeaders());
 
       if (!response.ok) {
@@ -121,10 +128,14 @@ export class GitHubClient {
           createdAt: pr.created_at,
           updatedAt: pr.updated_at,
         });
+
+        if (maxResults && allPRs.length >= maxResults) {
+          return allPRs;
+        }
       }
 
-      // If we got fewer than 100, we've reached the last page
-      if (data.length < 100) {
+      // If we got fewer than perPage, we've reached the last page
+      if (data.length < perPage) {
         break;
       }
 
