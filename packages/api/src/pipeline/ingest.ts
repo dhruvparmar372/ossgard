@@ -4,6 +4,7 @@ import type { ServiceResolver } from "../services/service-resolver.js";
 import type { JobQueue } from "../queue/types.js";
 import type { JobProcessor } from "../queue/worker.js";
 import { hashDiff } from "./normalize-diff.js";
+import { DiffTooLargeError } from "../services/github-client.js";
 import { log } from "../logger.js";
 
 const ingestLog = log.child("ingest");
@@ -49,12 +50,24 @@ export class IngestProcessor implements JobProcessor {
       const existingPR = this.db.getPRByNumber(repoId, pr.number);
       const storedEtag = existingPR?.githubEtag ?? null;
 
-      const [filePaths, diffResult] = await Promise.all([
-        github.getPRFiles(owner, repo, pr.number),
-        github.getPRDiff(owner, repo, pr.number, storedEtag),
-      ]);
+      let filePaths: string[];
+      let diffResult: { diff: string; etag: string | null } | null;
+      try {
+        [filePaths, diffResult] = await Promise.all([
+          github.getPRFiles(owner, repo, pr.number),
+          github.getPRDiff(owner, repo, pr.number, storedEtag),
+        ]);
+      } catch (err) {
+        if (err instanceof DiffTooLargeError) {
+          ingestLog.warn("Diff too large, skipping diff", { scanId, pr: pr.number });
+          filePaths = await github.getPRFiles(owner, repo, pr.number);
+          diffResult = null;
+        } else {
+          throw err;
+        }
+      }
 
-      // If diff hasn't changed (304), skip processing but still upsert metadata
+      // If diff hasn't changed (304) or was too large, skip processing but still upsert metadata
       if (!diffResult) etagHits++;
       const diffHash = diffResult ? hashDiff(diffResult.diff) : existingPR?.diffHash ?? null;
       const newEtag = diffResult?.etag ?? storedEtag;

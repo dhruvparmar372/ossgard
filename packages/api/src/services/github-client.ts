@@ -1,5 +1,16 @@
 import { RateLimitedClient } from "./rate-limiter.js";
 
+export class DiffTooLargeError extends Error {
+  constructor(
+    public readonly owner: string,
+    public readonly repo: string,
+    public readonly prNumber: number
+  ) {
+    super(`Diff too large for ${owner}/${repo}#${prNumber} (GitHub 406)`);
+    this.name = "DiffTooLargeError";
+  }
+}
+
 export interface FetchedPR {
   number: number;
   title: string;
@@ -192,6 +203,10 @@ export class GitHubClient {
 
     if (response.status === 304) {
       return null; // Not modified
+    }
+
+    if (response.status === 406) {
+      throw new DiffTooLargeError(owner, repo, prNumber);
     }
 
     if (!response.ok) {

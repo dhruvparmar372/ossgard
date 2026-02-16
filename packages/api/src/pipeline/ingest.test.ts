@@ -1,6 +1,7 @@
 import { IngestProcessor } from "./ingest.js";
 import { Database } from "../db/database.js";
 import type { GitHubClient, FetchedPR } from "../services/github-client.js";
+import { DiffTooLargeError } from "../services/github-client.js";
 import type { JobQueue } from "../queue/types.js";
 import type { Job } from "@ossgard/shared";
 import { hashDiff } from "./normalize-diff.js";
@@ -206,5 +207,31 @@ describe("IngestProcessor", () => {
     expect(mockGitHub.getPRDiff).toHaveBeenCalledTimes(2);
     expect(mockGitHub.getPRDiff).toHaveBeenCalledWith("facebook", "react", 10, null);
     expect(mockGitHub.getPRDiff).toHaveBeenCalledWith("facebook", "react", 20, null);
+  });
+
+  it("continues ingesting when a PR diff is too large", async () => {
+    const prs = [makeFetchedPR(1), makeFetchedPR(2)];
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
+    (mockGitHub.getPRFiles as any).mockResolvedValue(["src/index.ts"]);
+    (mockGitHub.getPRDiff as any)
+      .mockRejectedValueOnce(new DiffTooLargeError("facebook", "react", 1))
+      .mockResolvedValueOnce({ diff: makeDiff(2), etag: '"etag2"' });
+
+    await processor.process(makeJob());
+
+    // Both PRs should be stored despite the first one's diff failing
+    const storedPRs = db.listOpenPRs(repoId);
+    expect(storedPRs).toHaveLength(2);
+
+    // PR 1 has no diff hash (diff was too large)
+    const pr1 = db.getPRByNumber(repoId, 1);
+    expect(pr1!.diffHash).toBeNull();
+
+    // PR 2 has a normal diff hash
+    const pr2 = db.getPRByNumber(repoId, 2);
+    expect(pr2!.diffHash).toBe(hashDiff(makeDiff(2)));
+
+    // Embed job was still enqueued
+    expect(mockQueue.enqueue).toHaveBeenCalledTimes(1);
   });
 });

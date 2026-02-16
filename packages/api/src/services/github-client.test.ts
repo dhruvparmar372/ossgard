@@ -1,4 +1,4 @@
-import { GitHubClient } from "./github-client.js";
+import { GitHubClient, DiffTooLargeError } from "./github-client.js";
 
 function makeGitHubPR(n: number) {
   return {
@@ -363,6 +363,30 @@ describe("GitHubClient", () => {
     // Second request: reset time is in the past, so throttle delay <= 0 and skips
     await client.getPRFiles("owner", "repo", 2);
     expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws DiffTooLargeError when GitHub returns 406", async () => {
+    const headers = new Headers({
+      "content-type": "application/json",
+      "x-ratelimit-remaining": "4900",
+      "x-ratelimit-reset": "1700000000",
+    });
+    const response = new Response(
+      JSON.stringify({ message: "Diff is too large" }),
+      { status: 406, statusText: "Not Acceptable", headers }
+    );
+
+    const mockFetch = vi.fn().mockResolvedValue(response);
+
+    const client = new GitHubClient({
+      token: "test-token",
+      fetchFn: mockFetch,
+      maxRetries: 0,
+    });
+
+    await expect(client.getPRDiff("openclaw", "openclaw", 99)).rejects.toThrow(
+      DiffTooLargeError
+    );
   });
 
   it("handles single-page PR response (fewer than 100)", async () => {
