@@ -1,4 +1,6 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import TOML from "@iarna/toml";
 import { createApp } from "./app.js";
 import { Database } from "./db/database.js";
@@ -73,7 +75,9 @@ async function main() {
   const chatLLM = factory.createLLMProvider();
   const vectorStore = await factory.createVectorStore();
 
-  const dbPath = process.env.DATABASE_PATH ?? "./ossgard.db";
+  const defaultDbDir = join(homedir(), ".ossgard");
+  mkdirSync(defaultDbDir, { recursive: true });
+  const dbPath = process.env.DATABASE_PATH ?? join(defaultDbDir, "ossgard.db");
   const db = new Database(dbPath);
 
   const codeSimilarityThreshold =

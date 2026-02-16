@@ -185,7 +185,7 @@ A small set of env vars are supported for deployment flexibility:
 | Variable | Purpose |
 |----------|---------|
 | `GITHUB_TOKEN` | Override config token (useful in CI/CD) |
-| `DATABASE_PATH` | SQLite database location (default `./ossgard.db`) |
+| `DATABASE_PATH` | SQLite database location (default `~/.ossgard/ossgard.db`) |
 | `PORT` | API server port (default `3400`) |
 | `CONFIG_PATH` | Alternate config file location |
 
