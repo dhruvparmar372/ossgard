@@ -1,6 +1,6 @@
 import type { Job, PR } from "@ossgard/shared";
 import type { Database } from "../db/database.js";
-import type { VectorStore } from "../services/vector-store.js";
+import type { ServiceResolver } from "../services/service-resolver.js";
 import type { JobQueue } from "../queue/types.js";
 import type { JobProcessor } from "../queue/worker.js";
 import { UnionFind } from "./union-find.js";
@@ -8,31 +8,29 @@ import { UnionFind } from "./union-find.js";
 const CODE_COLLECTION = "ossgard-code";
 const INTENT_COLLECTION = "ossgard-intent";
 
-export interface ClusterConfig {
-  codeSimilarityThreshold: number;
-  intentSimilarityThreshold: number;
-}
-
 export class ClusterProcessor implements JobProcessor {
   readonly type = "cluster";
 
   constructor(
     private db: Database,
-    private vectorStore: VectorStore,
-    private config: ClusterConfig,
+    private resolver: ServiceResolver,
     private queue?: JobQueue
   ) {}
 
   async process(job: Job): Promise<void> {
-    const { repoId, scanId, owner, repo } = job.payload as {
+    const { repoId, scanId, accountId, owner, repo } = job.payload as {
       repoId: number;
       scanId: number;
+      accountId: number;
       owner: string;
       repo: string;
     };
 
     // Update scan status to "clustering"
     this.db.updateScanStatus(scanId, "clustering");
+
+    // Resolve services from account config
+    const { vectorStore, scanConfig } = await this.resolver.resolve(accountId);
 
     // Read all open PRs
     const prs = this.db.listOpenPRs(repoId);
@@ -68,9 +66,9 @@ export class ClusterProcessor implements JobProcessor {
       const intentPointId = `${repoId}-${pr.number}-intent`;
 
       // Retrieve actual stored vector for this PR's code embedding
-      const codeVector = await this.vectorStore.getVector(CODE_COLLECTION, codePointId);
+      const codeVector = await vectorStore.getVector(CODE_COLLECTION, codePointId);
       if (codeVector) {
-        const codeResults = await this.vectorStore.search(
+        const codeResults = await vectorStore.search(
           CODE_COLLECTION,
           codeVector,
           {
@@ -84,7 +82,7 @@ export class ClusterProcessor implements JobProcessor {
         for (const result of codeResults) {
           const neighborPR = result.payload.prNumber as number;
           if (
-            result.score >= this.config.codeSimilarityThreshold &&
+            result.score >= scanConfig.codeSimilarityThreshold &&
             neighborPR !== pr.number &&
             uf.has(neighborPR)
           ) {
@@ -94,9 +92,9 @@ export class ClusterProcessor implements JobProcessor {
       }
 
       // Retrieve actual stored vector for this PR's intent embedding
-      const intentVector = await this.vectorStore.getVector(INTENT_COLLECTION, intentPointId);
+      const intentVector = await vectorStore.getVector(INTENT_COLLECTION, intentPointId);
       if (intentVector) {
-        const intentResults = await this.vectorStore.search(
+        const intentResults = await vectorStore.search(
           INTENT_COLLECTION,
           intentVector,
           {
@@ -110,7 +108,7 @@ export class ClusterProcessor implements JobProcessor {
         for (const result of intentResults) {
           const neighborPR = result.payload.prNumber as number;
           if (
-            result.score >= this.config.intentSimilarityThreshold &&
+            result.score >= scanConfig.intentSimilarityThreshold &&
             neighborPR !== pr.number &&
             uf.has(neighborPR)
           ) {
@@ -145,7 +143,7 @@ export class ClusterProcessor implements JobProcessor {
     if (this.queue) {
       await this.queue.enqueue({
         type: "verify",
-        payload: { repoId, scanId, owner, repo, candidateGroups },
+        payload: { repoId, scanId, accountId, owner, repo, candidateGroups },
       });
     }
   }

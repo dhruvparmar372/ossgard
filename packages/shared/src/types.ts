@@ -90,6 +90,23 @@ export interface Job {
   updatedAt: string;
 }
 
+export interface AccountConfig {
+  github: { token: string };
+  llm: { provider: string; url: string; model: string; api_key: string; batch?: boolean };
+  embedding: { provider: string; url: string; model: string; api_key: string; batch?: boolean };
+  vector_store: { url: string; api_key: string };
+  scan?: { concurrency?: number; code_similarity_threshold?: number; intent_similarity_threshold?: number };
+}
+
+export interface Account {
+  id: number;
+  apiKey: string;
+  label: string | null;
+  config: AccountConfig;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ScanProgress {
   scanId: number;
   status: ScanStatus;

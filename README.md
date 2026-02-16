@@ -83,8 +83,9 @@ Start the API server in one terminal, use the CLI in another:
 ```
 Terminal 1                       Terminal 2
 
-$ ossgard-api                    $ ossgard init
-  API listening on :3400           Config created at ~/.ossgard/config.toml
+$ ossgard-api                    $ ossgard setup
+  API listening on :3400           → Collects GitHub token, LLM/embedding/vector store config
+                                   → Registers account server-side, stores API key locally
 
                                  $ ossgard track facebook/react
                                  $ ossgard scan facebook/react
@@ -115,64 +116,44 @@ ollama pull nomic-embed-text    # embeddings
 ollama pull llama3              # LLM for verify/rank
 ```
 
-The default config points to `localhost:6333` (Qdrant) and `localhost:11434` (Ollama), so no config changes are needed when running locally.
-
-If you prefer cloud providers instead, update your config:
-
-```bash
-ossgard config set vector_store.url "https://your-qdrant-cloud-url"
-ossgard config set vector_store.api_key "your-api-key"
-ossgard config set llm.provider "anthropic"
-ossgard config set llm.api_key "your-api-key"
-ossgard config set embedding.provider "openai"
-ossgard config set embedding.api_key "your-api-key"
-```
+The `ossgard setup` wizard defaults to `localhost:6333` (Qdrant) and `localhost:11434` (Ollama), so no changes are needed when running locally. To use cloud providers instead, provide the appropriate URLs and API keys during setup (or run `ossgard setup --force` to reconfigure).
 
 ### Usage
 
 ```bash
+ossgard setup                      # register account + configure services
+ossgard setup --force              # reconfigure an existing account
 ossgard track facebook/react       # start tracking a repo
 ossgard scan facebook/react        # run a duplicate scan
 ossgard dupes facebook/react       # view duplicate groups
 ossgard status                     # list tracked repos
-ossgard config show                # view current configuration
+ossgard config show                # view local CLI configuration
 ```
 
 ### Configuration
 
-Config lives at `~/.ossgard/config.toml`:
+ossgard uses a split configuration model:
+
+- **Local CLI config** (`~/.ossgard/config.toml`) — stores only the API server connection:
 
 ```toml
-[github]
-token = "ghp_..."
-
-[llm]
-provider = "ollama"                    # "ollama" | "anthropic"
-url = "http://localhost:11434"         # provider base URL
-model = "llama3"
-api_key = ""
-batch = false
-
-[embedding]
-provider = "ollama"                    # "ollama" | "openai"
-url = "http://localhost:11434"         # provider base URL
-model = "nomic-embed-text"
-api_key = ""
-batch = false
-
-[vector_store]
-url = "http://localhost:6333"          # Qdrant URL
-api_key = ""                           # required for Qdrant Cloud
+[api]
+url = "http://localhost:3400"
+key = "your-api-key"
 ```
 
-The default config uses local Ollama for both chat and embeddings — no API keys needed. To use cloud providers, set the provider, URL, and supply an API key.
+- **Server-side account config** — stores all service credentials (GitHub token, LLM/embedding providers, vector store). This is set during `ossgard setup` and stored in the API server's database per account.
+
+The setup wizard collects everything in one step: GitHub PAT, LLM provider (Ollama or Anthropic), embedding provider (Ollama or OpenAI), and vector store (Qdrant). To reconfigure, run `ossgard setup --force`.
+
+Repositories and PRs are global — multiple accounts tracking the same repo share fetched data. Only the analysis (scans, duplicate groups, rankings) is account-scoped, since different LLM/embedding configurations produce different results.
 
 #### Batch processing
 
-When using cloud providers, setting `batch = true` enables asynchronous batch APIs:
+When using cloud providers, enabling batch mode during setup uses asynchronous batch APIs:
 
-- **Anthropic** (`llm.batch = true`): Uses the [Message Batches API](https://docs.anthropic.com/en/docs/build-with-claude/message-batches) to process verify and rank jobs. Requests are submitted as a batch and polled until completion. Anthropic offers a 50% cost discount on batch requests.
-- **OpenAI** (`embedding.batch = true`): Uses the [Batch API](https://platform.openai.com/docs/guides/batch) to process embedding requests via file upload and polling.
+- **Anthropic** (LLM batch): Uses the [Message Batches API](https://docs.anthropic.com/en/docs/build-with-claude/message-batches) to process verify and rank jobs. Requests are submitted as a batch and polled until completion. Anthropic offers a 50% cost discount on batch requests.
+- **OpenAI** (embedding batch): Uses the [Batch API](https://platform.openai.com/docs/guides/batch) to process embedding requests via file upload and polling.
 
 Batch mode is ignored for Ollama (no batch API). When only a single request exists in a pipeline step, the provider falls back to the standard sync path automatically.
 
@@ -184,10 +165,10 @@ A small set of env vars are supported for deployment flexibility:
 
 | Variable | Purpose |
 |----------|---------|
-| `GITHUB_TOKEN` | Override config token (useful in CI/CD) |
 | `DATABASE_PATH` | SQLite database location (default `~/.ossgard/ossgard.db`) |
 | `PORT` | API server port (default `3400`) |
-| `CONFIG_PATH` | Alternate config file location |
+
+All user configuration (GitHub token, LLM/embedding providers, vector store) is stored server-side per account. Run `ossgard setup` to register an account and configure services.
 
 **Note:** Switching embedding providers changes vector dimensions. ossgard automatically detects dimension mismatches in Qdrant and recreates collections as needed (existing vectors will be lost — a re-scan is required).
 
@@ -222,12 +203,20 @@ bun run test:e2e
 
 The smoke tests (`e2e/smoke.test.ts`) only need the binaries built — they don't require the local AI stack. The full pipeline test (`e2e/openclaw.test.ts`) requires everything and will skip gracefully if services aren't available.
 
+#### API authentication
+
+All API endpoints (except `/health` and `POST /accounts`) require an API key via the `Authorization: Bearer <key>` header. The CLI handles this automatically using the key stored during setup.
+
 ## Project structure
 
 ```
 packages/
   api/       Hono HTTP server, pipeline processors, services, SQLite DB
-  cli/       Commander-based CLI (init, config show/get/set, track, scan, dupes, status)
+               - middleware/    API key auth
+               - routes/       REST endpoints (accounts, repos, scans, dupes)
+               - services/     Service resolver, validators, LLM/embedding/vector providers
+               - pipeline/     Job processors (ingest, embed, cluster, verify, rank)
+  cli/       Commander-based CLI (setup, config, track, scan, dupes, status)
   shared/    Types and Zod schemas shared across packages
 local-ai/
   vector-store.yml    Local Qdrant via Docker (optional)

@@ -6,6 +6,7 @@ const scans = new Hono<AppEnv>();
 scans.post("/repos/:owner/:name/scan", async (c) => {
   const db = c.get("db");
   const queue = c.get("queue");
+  const account = c.get("account");
   const { owner, name } = c.req.param();
 
   const repo = db.getRepoByOwnerName(owner, name);
@@ -28,11 +29,11 @@ scans.post("/repos/:owner/:name/scan", async (c) => {
     // No body or invalid JSON is fine - defaults to incremental
   }
 
-  const scan = db.createScan(repo.id);
+  const scan = db.createScan(repo.id, account.id);
 
   const jobId = await queue.enqueue({
     type: "scan",
-    payload: { scanId: scan.id, repoId: repo.id, full, ...(maxPrs !== undefined && { maxPrs }) },
+    payload: { scanId: scan.id, repoId: repo.id, accountId: account.id, full, ...(maxPrs !== undefined && { maxPrs }) },
   });
 
   return c.json({ scanId: scan.id, jobId, status: "queued" }, 202);
@@ -40,6 +41,7 @@ scans.post("/repos/:owner/:name/scan", async (c) => {
 
 scans.get("/scans/:id", (c) => {
   const db = c.get("db");
+  const account = c.get("account");
   const id = Number(c.req.param("id"));
 
   if (Number.isNaN(id)) {

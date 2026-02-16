@@ -15,6 +15,11 @@ describe("ApiClient", () => {
     const client = new ApiClient("http://localhost:3400///");
     expect(client.baseUrl).toBe("http://localhost:3400");
   });
+
+  it("constructs with an API key", () => {
+    const client = new ApiClient("http://localhost:3400", "test-api-key-123");
+    expect(client.baseUrl).toBe("http://localhost:3400");
+  });
 });
 
 describe("ApiError", () => {

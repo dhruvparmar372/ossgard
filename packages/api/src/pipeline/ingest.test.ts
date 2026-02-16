@@ -27,6 +27,13 @@ index abc..def 100644
 `;
 }
 
+const TEST_CONFIG = {
+  github: { token: "ghp_test" },
+  llm: { provider: "ollama", url: "http://localhost:11434", model: "llama3", api_key: "" },
+  embedding: { provider: "ollama", url: "http://localhost:11434", model: "nomic-embed-text", api_key: "" },
+  vector_store: { url: "http://localhost:6333", api_key: "" },
+};
+
 describe("IngestProcessor", () => {
   let db: Database;
   let mockGitHub: GitHubClient;
@@ -34,12 +41,15 @@ describe("IngestProcessor", () => {
   let processor: IngestProcessor;
   let repoId: number;
   let scanId: number;
+  let accountId: number;
 
   beforeEach(() => {
     db = new Database(":memory:");
+    const account = db.createAccount("key-1", "test", TEST_CONFIG as any);
+    accountId = account.id;
     const repo = db.insertRepo("facebook", "react");
     repoId = repo.id;
-    const scan = db.createScan(repoId);
+    const scan = db.createScan(repoId, accountId);
     scanId = scan.id;
 
     mockGitHub = {
@@ -50,6 +60,10 @@ describe("IngestProcessor", () => {
       rateLimitReset: 0,
     } as unknown as GitHubClient;
 
+    const mockResolver = {
+      resolve: vi.fn().mockResolvedValue({ github: mockGitHub }),
+    } as any;
+
     mockQueue = {
       enqueue: vi.fn().mockResolvedValue("job-123"),
       getStatus: vi.fn(),
@@ -59,7 +73,7 @@ describe("IngestProcessor", () => {
       pause: vi.fn(),
     };
 
-    processor = new IngestProcessor(db, mockGitHub, mockQueue);
+    processor = new IngestProcessor(db, mockResolver, mockQueue);
   });
 
   afterEach(() => {
@@ -70,7 +84,7 @@ describe("IngestProcessor", () => {
     return {
       id: "test-job-1",
       type: "ingest",
-      payload: { repoId, scanId, owner: "facebook", repo: "react" },
+      payload: { repoId, scanId, accountId, owner: "facebook", repo: "react" },
       status: "running",
       result: null,
       error: null,
@@ -130,7 +144,7 @@ describe("IngestProcessor", () => {
     expect(mockQueue.enqueue).toHaveBeenCalledTimes(1);
     expect(mockQueue.enqueue).toHaveBeenCalledWith({
       type: "embed",
-      payload: { repoId, scanId, owner: "facebook", repo: "react" },
+      payload: { repoId, scanId, accountId, owner: "facebook", repo: "react" },
     });
   });
 
@@ -170,7 +184,7 @@ describe("IngestProcessor", () => {
 
     const job: Job = {
       ...makeJob(),
-      payload: { repoId, scanId, owner: "facebook", repo: "react", maxPrs: 5 },
+      payload: { repoId, scanId, accountId, owner: "facebook", repo: "react", maxPrs: 5 },
     };
 
     await processor.process(job);

@@ -1,18 +1,16 @@
 /**
  * Shared E2E test setup utilities.
  *
- * Handles resolving config, starting the API server binary, and providing
- * a CLI runner — all using the standalone binaries.
+ * Handles starting the API server binary, registering a test account,
+ * and providing a CLI runner — all using the standalone binaries.
  */
 import { spawn, type Subprocess } from "bun";
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir, homedir } from "node:os";
 
 const API_BIN = join(import.meta.dirname, "..", "packages", "api", "dist", "ossgard-api");
 const CLI_BIN = join(import.meta.dirname, "..", "packages", "cli", "dist", "ossgard");
-
-const E2E_CONFIG_PATH = join(import.meta.dirname, "config.toml");
 
 /** Resolve the GitHub token from GITHUB_TOKEN env var or host config. */
 function resolveGitHubToken(): string {
@@ -34,28 +32,41 @@ function resolveGitHubToken(): string {
   return "";
 }
 
-/** Write the e2e config to a temp directory, injecting the GitHub token. */
-function writeTestConfig(tempDir: string, overrides: { apiPort: number; githubToken: string }): string {
+/** Write a slim CLI config (api.url + api.key) to the temp directory. */
+function writeCliConfig(tempDir: string, apiUrl: string, apiKey: string): string {
   const configDir = join(tempDir, ".ossgard");
   mkdirSync(configDir, { recursive: true });
 
-  let config = readFileSync(E2E_CONFIG_PATH, "utf-8");
-
-  // Inject the API URL with the test port
-  config = config.replace(
-    /url = "http:\/\/localhost:\d+"/,
-    `url = "http://localhost:${overrides.apiPort}"`
-  );
-
-  // Inject the GitHub token
-  config = config.replace(
-    /token = ""/,
-    `token = "${overrides.githubToken}"`
-  );
-
+  const config = `[api]\nurl = "${apiUrl}"\nkey = "${apiKey}"\n`;
   const configPath = join(configDir, "config.toml");
   writeFileSync(configPath, config);
   return configPath;
+}
+
+/** Register a test account with the API server. */
+async function registerTestAccount(
+  apiUrl: string,
+  githubToken: string
+): Promise<string> {
+  const res = await fetch(`${apiUrl}/accounts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      label: "e2e-test",
+      config: {
+        github: { token: githubToken },
+        llm: { provider: "ollama", url: "http://localhost:11434", model: "llama3", api_key: "" },
+        embedding: { provider: "ollama", url: "http://localhost:11434", model: "nomic-embed-text", api_key: "" },
+        vector_store: { url: "http://localhost:6333", api_key: "" },
+      },
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to register test account: ${res.status} ${body}`);
+  }
+  const data = (await res.json()) as { apiKey: string; warnings: string[] };
+  return data.apiKey;
 }
 
 /** Check if a service is reachable. */
@@ -93,6 +104,7 @@ export async function assertModel(ollamaUrl: string, model: string): Promise<voi
 export interface TestEnv {
   apiProcess: Subprocess;
   apiUrl: string;
+  apiKey: string;
   tempDir: string;
   configPath: string;
   githubToken: string;
@@ -105,7 +117,7 @@ export interface TestEnv {
 }
 
 /**
- * Start the ossgard-api binary and prepare a CLI runner.
+ * Start the ossgard-api binary, register a test account, and prepare a CLI runner.
  *
  * Fails if:
  * - Standalone binaries haven't been built
@@ -136,23 +148,17 @@ export async function startTestEnv(opts: { apiPort: number }): Promise<TestEnv> 
     );
   }
 
-  // Set up temp directory and config
+  // Set up temp directory
   const tempDir = mkdirSync(join(tmpdir(), `ossgard-e2e-${opts.apiPort}-${Date.now()}`), { recursive: true }) as string;
   const apiUrl = `http://localhost:${opts.apiPort}`;
-  const configPath = writeTestConfig(tempDir, {
-    apiPort: opts.apiPort,
-    githubToken,
-  });
 
-  // Start the API server binary
+  // Start the API server binary (no config needed — accounts are server-side)
   const dbPath = join(tempDir, "test.db");
   const apiProcess = spawn([API_BIN], {
     env: {
       ...process.env,
       PORT: String(opts.apiPort),
       DATABASE_PATH: dbPath,
-      CONFIG_PATH: configPath,
-      GITHUB_TOKEN: githubToken,
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -180,6 +186,12 @@ export async function startTestEnv(opts: { apiPort: number }): Promise<TestEnv> 
     throw new Error("API server did not start in time");
   }
 
+  // Register a test account
+  const apiKey = await registerTestAccount(apiUrl, githubToken);
+
+  // Write CLI config with api.url + api.key
+  const configPath = writeCliConfig(tempDir, apiUrl, apiKey);
+
   // CLI runner
   const cli = async (
     args: string[],
@@ -189,6 +201,7 @@ export async function startTestEnv(opts: { apiPort: number }): Promise<TestEnv> 
       env: {
         ...process.env,
         OSSGARD_API_URL: apiUrl,
+        OSSGARD_API_KEY: apiKey,
         HOME: tempDir,
       },
       stdout: "pipe",
@@ -208,6 +221,7 @@ export async function startTestEnv(opts: { apiPort: number }): Promise<TestEnv> 
   return {
     apiProcess,
     apiUrl,
+    apiKey,
     tempDir,
     configPath,
     githubToken,

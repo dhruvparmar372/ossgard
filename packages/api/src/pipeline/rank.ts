@@ -1,7 +1,8 @@
 import type { Job, PR } from "@ossgard/shared";
 import type { Database } from "../db/database.js";
-import type { ChatProvider, Message } from "../services/llm-provider.js";
+import type { Message } from "../services/llm-provider.js";
 import { isBatchChatProvider } from "../services/llm-provider.js";
+import type { ServiceResolver } from "../services/service-resolver.js";
 import type { JobProcessor } from "../queue/worker.js";
 import { buildRankPrompt } from "./prompts.js";
 
@@ -32,13 +33,14 @@ export class RankProcessor implements JobProcessor {
 
   constructor(
     private db: Database,
-    private llm: ChatProvider
+    private resolver: ServiceResolver
   ) {}
 
   async process(job: Job): Promise<void> {
-    const { repoId, scanId, verifiedGroups } = job.payload as {
+    const { repoId, scanId, accountId, verifiedGroups } = job.payload as {
       repoId: number;
       scanId: number;
+      accountId: number;
       owner: string;
       repo: string;
       verifiedGroups: VerifiedGroup[];
@@ -46,6 +48,9 @@ export class RankProcessor implements JobProcessor {
 
     // Update scan status to "ranking"
     this.db.updateScanStatus(scanId, "ranking");
+
+    // Resolve LLM from account config
+    const { llm } = await this.resolver.resolve(accountId);
 
     // 1. Build all messages upfront
     const prepared: PreparedGroup[] = [];
@@ -68,8 +73,8 @@ export class RankProcessor implements JobProcessor {
     // 2. Call LLM (batch or sequential)
     let responses: Array<{ rankings: RankingResult[] }>;
 
-    if (isBatchChatProvider(this.llm) && prepared.length > 1) {
-      const results = await this.llm.chatBatch(
+    if (isBatchChatProvider(llm) && prepared.length > 1) {
+      const results = await llm.chatBatch(
         prepared.map((p) => ({
           id: `rank-${p.groupIndex}`,
           messages: p.messages,
@@ -81,7 +86,7 @@ export class RankProcessor implements JobProcessor {
     } else {
       responses = [];
       for (const p of prepared) {
-        const response = (await this.llm.chat(p.messages)) as {
+        const response = (await llm.chat(p.messages)) as {
           rankings: RankingResult[];
         };
         responses.push(response);

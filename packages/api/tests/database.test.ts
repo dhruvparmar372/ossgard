@@ -20,6 +20,7 @@ describe("Database", () => {
         .all() as { name: string }[];
 
       const tableNames = tables.map((t) => t.name);
+      expect(tableNames).toContain("accounts");
       expect(tableNames).toContain("repos");
       expect(tableNames).toContain("prs");
       expect(tableNames).toContain("scans");

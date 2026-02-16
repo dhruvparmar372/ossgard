@@ -1,6 +1,6 @@
 import type { Job } from "@ossgard/shared";
 import type { Database } from "../db/database.js";
-import type { GitHubClient } from "../services/github-client.js";
+import type { ServiceResolver } from "../services/service-resolver.js";
 import type { JobQueue } from "../queue/types.js";
 import type { JobProcessor } from "../queue/worker.js";
 import { hashDiff } from "./normalize-diff.js";
@@ -10,14 +10,15 @@ export class IngestProcessor implements JobProcessor {
 
   constructor(
     private db: Database,
-    private github: GitHubClient,
+    private resolver: ServiceResolver,
     private queue: JobQueue
   ) {}
 
   async process(job: Job): Promise<void> {
-    const { repoId, scanId, owner, repo, maxPrs } = job.payload as {
+    const { repoId, scanId, accountId, owner, repo, maxPrs } = job.payload as {
       repoId: number;
       scanId: number;
+      accountId: number;
       owner: string;
       repo: string;
       maxPrs?: number;
@@ -26,8 +27,11 @@ export class IngestProcessor implements JobProcessor {
     // Update scan status to "ingesting"
     this.db.updateScanStatus(scanId, "ingesting");
 
+    // Resolve the GitHub client from the account config
+    const { github } = await this.resolver.resolve(accountId);
+
     // Fetch open PRs from GitHub (optionally limited)
-    const fetchedPRs = await this.github.listOpenPRs(owner, repo, maxPrs);
+    const fetchedPRs = await github.listOpenPRs(owner, repo, maxPrs);
 
     // For each PR, fetch files and diff, compute hash, upsert
     for (const pr of fetchedPRs) {
@@ -36,8 +40,8 @@ export class IngestProcessor implements JobProcessor {
       const storedEtag = existingPR?.githubEtag ?? null;
 
       const [filePaths, diffResult] = await Promise.all([
-        this.github.getPRFiles(owner, repo, pr.number),
-        this.github.getPRDiff(owner, repo, pr.number, storedEtag),
+        github.getPRFiles(owner, repo, pr.number),
+        github.getPRDiff(owner, repo, pr.number, storedEtag),
       ]);
 
       // If diff hasn't changed (304), skip processing but still upsert metadata
@@ -71,7 +75,7 @@ export class IngestProcessor implements JobProcessor {
     // Enqueue the next pipeline stage: embed
     await this.queue.enqueue({
       type: "embed",
-      payload: { repoId, scanId, owner, repo },
+      payload: { repoId, scanId, accountId, owner, repo },
     });
   }
 }

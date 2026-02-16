@@ -21,7 +21,7 @@ describe("requireSetup", () => {
 
   it("returns true when config is complete", () => {
     const config = new Config(tempDir);
-    config.init("ghp_validtoken");
+    config.save({ api: { url: "http://localhost:3400", key: "test-key-123" } });
 
     expect(requireSetup(tempDir)).toBe(true);
     expect(process.exitCode).toBeUndefined();

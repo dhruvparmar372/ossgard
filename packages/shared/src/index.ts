@@ -9,6 +9,8 @@ export type {
   JobType,
   JobStatus,
   ScanProgress,
+  Account,
+  AccountConfig,
 } from "./types.js";
 
 export {
@@ -16,4 +18,6 @@ export {
   ScanRequest,
   DupesQuery,
   ScanProgressResponse,
+  AccountConfigSchema,
+  RegisterAccountRequest,
 } from "./schemas.js";

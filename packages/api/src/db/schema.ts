@@ -1,4 +1,13 @@
 export const SCHEMA = `
+CREATE TABLE IF NOT EXISTS accounts (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  api_key         TEXT NOT NULL UNIQUE,
+  label           TEXT,
+  config          TEXT NOT NULL DEFAULT '{}',
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS repos (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   owner           TEXT NOT NULL,
@@ -27,6 +36,7 @@ CREATE TABLE IF NOT EXISTS prs (
 CREATE TABLE IF NOT EXISTS scans (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   repo_id         INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+  account_id      INTEGER NOT NULL REFERENCES accounts(id),
   status          TEXT NOT NULL DEFAULT 'queued',
   phase_cursor    TEXT,
   pr_count        INTEGER DEFAULT 0,

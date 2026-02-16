@@ -2,15 +2,27 @@ import { createApp } from "../src/app.js";
 import { Database } from "../src/db/database.js";
 import type { Hono } from "hono";
 import type { AppEnv, AppContext } from "../src/app.js";
+import type { Account, AccountConfig } from "@ossgard/shared";
+
+const TEST_API_KEY = "test-api-key-123";
+const TEST_CONFIG: AccountConfig = {
+  github: { token: "ghp_test" },
+  llm: { provider: "ollama", url: "http://localhost:11434", model: "llama3", api_key: "" },
+  embedding: { provider: "ollama", url: "http://localhost:11434", model: "nomic-embed-text", api_key: "" },
+  vector_store: { url: "http://localhost:6333", api_key: "" },
+};
+const AUTH_HEADER = { Authorization: `Bearer ${TEST_API_KEY}` };
 
 describe("scans routes", () => {
   let db: Database;
   let app: Hono<AppEnv>;
   let ctx: AppContext;
+  let account: Account;
 
   beforeEach(() => {
     db = new Database(":memory:");
     ({ app, ctx } = createApp(db));
+    account = db.createAccount(TEST_API_KEY, "test", TEST_CONFIG);
   });
 
   afterEach(() => {
@@ -23,6 +35,7 @@ describe("scans routes", () => {
 
       const res = await app.request("/repos/facebook/react/scan", {
         method: "POST",
+        headers: AUTH_HEADER,
       });
       expect(res.status).toBe(202);
       const body = (await res.json()) as any;
@@ -40,13 +53,14 @@ describe("scans routes", () => {
       const job = await ctx.queue.getStatus(body.jobId);
       expect(job).not.toBeNull();
       expect(job!.type).toBe("scan");
-      expect(job!.payload).toEqual({ scanId: 1, repoId: 1, full: false });
+      expect(job!.payload).toEqual({ scanId: 1, repoId: 1, accountId: account.id, full: false });
       expect(job!.status).toBe("queued");
     });
 
     it("returns 404 for untracked repo", async () => {
       const res = await app.request("/repos/facebook/react/scan", {
         method: "POST",
+        headers: AUTH_HEADER,
       });
       expect(res.status).toBe(404);
       const body = (await res.json()) as any;
@@ -58,9 +72,11 @@ describe("scans routes", () => {
 
       const res1 = await app.request("/repos/facebook/react/scan", {
         method: "POST",
+        headers: AUTH_HEADER,
       });
       const res2 = await app.request("/repos/facebook/react/scan", {
         method: "POST",
+        headers: AUTH_HEADER,
       });
 
       expect(res1.status).toBe(202);
@@ -80,10 +96,11 @@ describe("scans routes", () => {
       // Create a scan via the route
       const createRes = await app.request("/repos/facebook/react/scan", {
         method: "POST",
+        headers: AUTH_HEADER,
       });
       const { scanId } = (await createRes.json()) as any;
 
-      const res = await app.request(`/scans/${scanId}`);
+      const res = await app.request(`/scans/${scanId}`, { headers: AUTH_HEADER });
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
       expect(body.id).toBe(scanId);
@@ -97,14 +114,14 @@ describe("scans routes", () => {
     });
 
     it("returns 404 for non-existent scan", async () => {
-      const res = await app.request("/scans/999");
+      const res = await app.request("/scans/999", { headers: AUTH_HEADER });
       expect(res.status).toBe(404);
       const body = (await res.json()) as any;
       expect(body.error).toContain("not found");
     });
 
     it("returns 400 for invalid scan ID", async () => {
-      const res = await app.request("/scans/abc");
+      const res = await app.request("/scans/abc", { headers: AUTH_HEADER });
       expect(res.status).toBe(400);
       const body = (await res.json()) as any;
       expect(body.error).toContain("Invalid scan ID");
@@ -112,12 +129,12 @@ describe("scans routes", () => {
 
     it("reflects updated scan status", async () => {
       const repo = db.insertRepo("facebook", "react");
-      const scan = db.createScan(repo.id);
+      const scan = db.createScan(repo.id, account.id);
 
       // Update the scan status
       db.updateScanStatus(scan.id, "ingesting", { prCount: 42 });
 
-      const res = await app.request(`/scans/${scan.id}`);
+      const res = await app.request(`/scans/${scan.id}`, { headers: AUTH_HEADER });
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
       expect(body.status).toBe("ingesting");

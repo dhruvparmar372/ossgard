@@ -46,26 +46,43 @@ function makeVector(seed: number): number[] {
   return Array.from({ length: 768 }, (_, i) => seed * 0.01 + i * 0.001);
 }
 
+const TEST_CONFIG = {
+  github: { token: "ghp_test" },
+  llm: { provider: "ollama", url: "http://localhost:11434", model: "llama3", api_key: "" },
+  embedding: { provider: "ollama", url: "http://localhost:11434", model: "nomic-embed-text", api_key: "" },
+  vector_store: { url: "http://localhost:6333", api_key: "" },
+};
+
 describe("EmbedProcessor", () => {
   let db: Database;
   let mockEmbedding: EmbeddingProvider;
   let mockVectorStore: VectorStore;
   let mockQueue: JobQueue;
+  let mockResolver: any;
   let processor: EmbedProcessor;
   let repoId: number;
   let scanId: number;
+  let accountId: number;
 
   beforeEach(() => {
     db = new Database(":memory:");
+    const account = db.createAccount("key-1", "test", TEST_CONFIG as any);
+    accountId = account.id;
     const repo = db.insertRepo("facebook", "react");
     repoId = repo.id;
-    const scan = db.createScan(repoId);
+    const scan = db.createScan(repoId, accountId);
     scanId = scan.id;
 
     mockEmbedding = createMockEmbeddingProvider();
     mockVectorStore = createMockVectorStore();
     mockQueue = createMockQueue();
-    processor = new EmbedProcessor(db, mockEmbedding, mockVectorStore, mockQueue);
+    mockResolver = {
+      resolve: vi.fn().mockResolvedValue({
+        embedding: mockEmbedding,
+        vectorStore: mockVectorStore,
+      }),
+    };
+    processor = new EmbedProcessor(db, mockResolver, mockQueue);
   });
 
   afterEach(() => {
@@ -76,7 +93,7 @@ describe("EmbedProcessor", () => {
     return {
       id: "test-job-1",
       type: "embed",
-      payload: { repoId, scanId, owner: "facebook", repo: "react" },
+      payload: { repoId, scanId, accountId, owner: "facebook", repo: "react" },
       status: "running",
       result: null,
       error: null,
@@ -125,8 +142,15 @@ describe("EmbedProcessor", () => {
   });
 
   it("uses provider dimensions for collections", async () => {
-    (mockEmbedding as any).dimensions = 3072;
-    const processor3072 = new EmbedProcessor(db, mockEmbedding, mockVectorStore, mockQueue);
+    const mockEmbedding3072 = createMockEmbeddingProvider();
+    (mockEmbedding3072 as any).dimensions = 3072;
+    const mockResolver3072 = {
+      resolve: vi.fn().mockResolvedValue({
+        embedding: mockEmbedding3072,
+        vectorStore: mockVectorStore,
+      }),
+    };
+    const processor3072 = new EmbedProcessor(db, mockResolver3072 as any, mockQueue);
 
     await processor3072.process(makeJob());
 
@@ -213,7 +237,7 @@ describe("EmbedProcessor", () => {
     expect(mockQueue.enqueue).toHaveBeenCalledTimes(1);
     expect(mockQueue.enqueue).toHaveBeenCalledWith({
       type: "cluster",
-      payload: { repoId, scanId, owner: "facebook", repo: "react" },
+      payload: { repoId, scanId, accountId, owner: "facebook", repo: "react" },
     });
   });
 
@@ -255,8 +279,7 @@ describe("EmbedProcessor", () => {
   it("works without a queue (queue is optional)", async () => {
     const processorNoQueue = new EmbedProcessor(
       db,
-      mockEmbedding,
-      mockVectorStore
+      mockResolver
     );
 
     insertPR(1);
@@ -274,7 +297,13 @@ describe("EmbedProcessor", () => {
 
     beforeEach(() => {
       batchEmbedding = createMockBatchEmbeddingProvider();
-      batchProcessor = new EmbedProcessor(db, batchEmbedding, mockVectorStore, mockQueue);
+      const batchResolver = {
+        resolve: vi.fn().mockResolvedValue({
+          embedding: batchEmbedding,
+          vectorStore: mockVectorStore,
+        }),
+      };
+      batchProcessor = new EmbedProcessor(db, batchResolver as any, mockQueue);
     });
 
     it("uses embedBatch when provider is batch and PRs exist", async () => {

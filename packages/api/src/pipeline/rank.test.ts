@@ -17,22 +17,35 @@ function createMockBatchChat(): BatchChatProvider {
   };
 }
 
+const TEST_CONFIG = {
+  github: { token: "ghp_test" },
+  llm: { provider: "ollama", url: "http://localhost:11434", model: "llama3", api_key: "" },
+  embedding: { provider: "ollama", url: "http://localhost:11434", model: "nomic-embed-text", api_key: "" },
+  vector_store: { url: "http://localhost:6333", api_key: "" },
+};
+
 describe("RankProcessor", () => {
   let db: Database;
   let mockChat: ChatProvider;
   let processor: RankProcessor;
   let repoId: number;
   let scanId: number;
+  let accountId: number;
 
   beforeEach(() => {
     db = new Database(":memory:");
+    const account = db.createAccount("key-1", "test", TEST_CONFIG as any);
+    accountId = account.id;
     const repo = db.insertRepo("facebook", "react");
     repoId = repo.id;
-    const scan = db.createScan(repoId);
+    const scan = db.createScan(repoId, accountId);
     scanId = scan.id;
 
     mockChat = createMockChat();
-    processor = new RankProcessor(db, mockChat);
+    const mockResolver = {
+      resolve: vi.fn().mockResolvedValue({ llm: mockChat }),
+    };
+    processor = new RankProcessor(db, mockResolver as any);
   });
 
   afterEach(() => {
@@ -68,6 +81,7 @@ describe("RankProcessor", () => {
       payload: {
         repoId,
         scanId,
+        accountId,
         owner: "facebook",
         repo: "react",
         verifiedGroups,
@@ -353,7 +367,10 @@ describe("RankProcessor", () => {
 
     beforeEach(() => {
       batchChat = createMockBatchChat();
-      batchProcessor = new RankProcessor(db, batchChat);
+      const batchResolver = {
+        resolve: vi.fn().mockResolvedValue({ llm: batchChat }),
+      };
+      batchProcessor = new RankProcessor(db, batchResolver as any);
     });
 
     it("uses chatBatch when provider is batch and multiple groups exist", async () => {

@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { createInterface, Interface as RLInterface } from "node:readline";
 import { Config, OssgardConfig } from "../config.js";
+import { ApiClient, ApiError } from "../client.js";
 
 function ask(rl: RLInterface, prompt: string): Promise<string> {
   return new Promise((resolve) => {
@@ -36,17 +37,6 @@ async function choose(
   return defaultOption;
 }
 
-export async function validateGitHubToken(token: string): Promise<boolean> {
-  try {
-    const res = await fetch("https://api.github.com/user", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 export async function healthCheck(url: string, path: string): Promise<boolean> {
   try {
     const res = await fetch(`${url}${path}`);
@@ -70,7 +60,6 @@ export function registerSetupCommand(program: Command): void {
         return;
       }
 
-      // Load existing config for defaults when using --force
       const existing = config.exists() ? config.load() : undefined;
 
       const rl = createInterface({
@@ -96,7 +85,7 @@ export function registerSetupCommand(program: Command): void {
           break;
         }
         console.error(
-          `Could not reach ossgard API at ${apiUrl}. Is it running? (ossgard up)\n`
+          `Could not reach ossgard API at ${apiUrl}. Is it running?\n`
         );
         const retry = await ask(rl, "Try a different URL? (Y/n): ");
         if (retry.toLowerCase() === "n") {
@@ -111,33 +100,21 @@ export function registerSetupCommand(program: Command): void {
       console.log("=== GitHub ===\n");
       let githubToken = "";
       while (true) {
-        const defaultHint = existing?.github.token ? " (leave blank to keep current)" : "";
-        githubToken = await ask(rl, `GitHub Personal Access Token${defaultHint}: `);
-        if (!githubToken && existing?.github.token) {
-          githubToken = existing.github.token;
-          console.log("Keeping existing token.");
-          break;
-        }
+        githubToken = await ask(rl, "GitHub Personal Access Token: ");
         if (!githubToken) {
           console.error("Token is required.");
           continue;
         }
-        console.log("Validating token...");
-        const valid = await validateGitHubToken(githubToken);
-        if (valid) {
-          console.log("Token is valid.\n");
-          break;
-        }
-        console.error("Invalid token. Please try again.\n");
+        break;
       }
 
       // --- LLM Provider ---
-      console.log("=== LLM Provider ===\n");
+      console.log("\n=== LLM Provider ===\n");
       const llmProvider = await choose(
         rl,
         "Select LLM provider:",
         ["ollama", "anthropic"],
-        existing?.llm.provider ?? "ollama"
+        "ollama"
       );
 
       let llmUrl = "";
@@ -145,53 +122,21 @@ export function registerSetupCommand(program: Command): void {
       let llmApiKey = "";
 
       if (llmProvider === "ollama") {
-        llmUrl = await askWithDefault(
-          rl,
-          "Ollama URL",
-          existing?.llm.url ?? "http://localhost:11434"
-        );
-        llmModel = await askWithDefault(
-          rl,
-          "Model",
-          existing?.llm.model ?? "llama3"
-        );
-
-        console.log("Checking Ollama connection...");
-        const ok = await healthCheck(llmUrl, "/api/tags");
-        if (ok) {
-          console.log("Ollama is reachable.\n");
-        } else {
-          console.log(
-            `Warning: Could not reach Ollama at ${llmUrl}. Make sure it's running before using ossgard.\n`
-          );
-        }
+        llmUrl = await askWithDefault(rl, "Ollama URL", "http://localhost:11434");
+        llmModel = await askWithDefault(rl, "Model", "llama3");
       } else {
-        // anthropic
-        llmApiKey = await askWithDefault(
-          rl,
-          "Anthropic API key",
-          existing?.llm.api_key ?? ""
-        );
-        if (llmApiKey && !llmApiKey.startsWith("sk-ant-")) {
-          console.log(
-            "Warning: Anthropic API keys typically start with 'sk-ant-'.\n"
-          );
-        }
-        llmModel = await askWithDefault(
-          rl,
-          "Model",
-          existing?.llm.model ?? "claude-sonnet-4-20250514"
-        );
-        llmUrl = existing?.llm.url ?? "";
+        llmApiKey = await ask(rl, "Anthropic API key: ");
+        llmModel = await askWithDefault(rl, "Model", "claude-sonnet-4-20250514");
+        llmUrl = "";
       }
 
       // --- Embedding Provider ---
-      console.log("=== Embedding Provider ===\n");
+      console.log("\n=== Embedding Provider ===\n");
       const embeddingProvider = await choose(
         rl,
         "Select embedding provider:",
         ["ollama", "openai"],
-        existing?.embedding.provider ?? "ollama"
+        "ollama"
       );
 
       let embeddingUrl = "";
@@ -199,74 +144,27 @@ export function registerSetupCommand(program: Command): void {
       let embeddingApiKey = "";
 
       if (embeddingProvider === "ollama") {
-        embeddingUrl = await askWithDefault(
-          rl,
-          "Ollama URL",
-          existing?.embedding.url ?? "http://localhost:11434"
-        );
-        embeddingModel = await askWithDefault(
-          rl,
-          "Model",
-          existing?.embedding.model ?? "nomic-embed-text"
-        );
-
-        console.log("Checking Ollama connection...");
-        const ok = await healthCheck(embeddingUrl, "/api/tags");
-        if (ok) {
-          console.log("Ollama is reachable.\n");
-        } else {
-          console.log(
-            `Warning: Could not reach Ollama at ${embeddingUrl}. Make sure it's running before using ossgard.\n`
-          );
-        }
+        embeddingUrl = await askWithDefault(rl, "Ollama URL", "http://localhost:11434");
+        embeddingModel = await askWithDefault(rl, "Model", "nomic-embed-text");
       } else {
-        // openai
-        embeddingApiKey = await askWithDefault(
-          rl,
-          "OpenAI API key",
-          existing?.embedding.api_key ?? ""
-        );
-        if (embeddingApiKey && !embeddingApiKey.startsWith("sk-")) {
-          console.log(
-            "Warning: OpenAI API keys typically start with 'sk-'.\n"
-          );
-        }
-        embeddingModel = await askWithDefault(
-          rl,
-          "Model",
-          existing?.embedding.model ?? "text-embedding-3-small"
-        );
-        embeddingUrl = existing?.embedding.url ?? "";
+        embeddingApiKey = await ask(rl, "OpenAI API key: ");
+        embeddingModel = await askWithDefault(rl, "Model", "text-embedding-3-small");
+        embeddingUrl = "";
       }
 
       // --- Vector Store (Qdrant) ---
-      console.log("=== Vector Store (Qdrant) ===\n");
-      const vectorUrl = await askWithDefault(
-        rl,
-        "Qdrant URL",
-        existing?.vector_store.url ?? "http://localhost:6333"
-      );
+      console.log("\n=== Vector Store (Qdrant) ===\n");
+      const vectorUrl = await askWithDefault(rl, "Qdrant URL", "http://localhost:6333");
       const vectorApiKey = await askWithDefault(
         rl,
         "Qdrant API key (optional, press Enter to skip)",
-        existing?.vector_store.api_key ?? ""
+        ""
       );
-
-      console.log("Checking Qdrant connection...");
-      const qdrantOk = await healthCheck(vectorUrl, "/collections");
-      if (qdrantOk) {
-        console.log("Qdrant is reachable.\n");
-      } else {
-        console.log(
-          `Warning: Could not reach Qdrant at ${vectorUrl}. Make sure it's running before using ossgard.\n`
-        );
-      }
 
       rl.close();
 
-      // Build full config
-      const newConfig: OssgardConfig = {
-        api: { url: apiUrl },
+      // Build the account config to send to the API
+      const accountConfig = {
         github: { token: githubToken },
         llm: {
           provider: llmProvider,
@@ -284,15 +182,69 @@ export function registerSetupCommand(program: Command): void {
           url: vectorUrl,
           api_key: vectorApiKey,
         },
-        scan: existing?.scan ?? {
-          concurrency: 10,
-          code_similarity_threshold: 0.85,
-          intent_similarity_threshold: 0.80,
-        },
       };
 
+      // Register or update account
+      const unauthClient = new ApiClient(apiUrl);
+      let apiKey: string;
+
+      if (opts.force && existing?.api?.key) {
+        // Reconfigure: update existing account
+        console.log("\nUpdating account configuration...");
+        try {
+          const authClient = new ApiClient(apiUrl, existing.api.key);
+          const result = await authClient.updateAccountConfig(accountConfig);
+          apiKey = existing.api.key;
+          if (result.warnings.length > 0) {
+            for (const w of result.warnings) {
+              console.log(`  Warning: ${w}`);
+            }
+          }
+          console.log("Account configuration updated.");
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 401) {
+            console.log("Existing API key invalid. Registering new account...");
+            const result = await unauthClient.register(accountConfig);
+            apiKey = result.apiKey;
+            if (result.warnings.length > 0) {
+              for (const w of result.warnings) {
+                console.log(`  Warning: ${w}`);
+              }
+            }
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        // First-time setup: register new account
+        console.log("\nRegistering account...");
+        try {
+          const result = await unauthClient.register(accountConfig);
+          apiKey = result.apiKey;
+          if (result.warnings.length > 0) {
+            for (const w of result.warnings) {
+              console.log(`  Warning: ${w}`);
+            }
+          }
+          console.log("Account registered successfully.");
+        } catch (err) {
+          if (err instanceof ApiError) {
+            console.error(`Registration failed: ${err.body}`);
+            process.exitCode = 1;
+            return;
+          }
+          throw err;
+        }
+      }
+
+      // Save only api.url + api.key locally
+      const newConfig: OssgardConfig = {
+        api: { url: apiUrl, key: apiKey },
+      };
       config.save(newConfig);
-      console.log("Config written to ~/.ossgard/config.toml");
-      console.log('Run "ossgard up" to start the stack.');
+
+      console.log("\nConfig written to ~/.ossgard/config.toml");
+      console.log(`API key: ${apiKey.slice(0, 8)}...`);
+      console.log("You can now use ossgard commands (track, scan, dupes, etc.).");
     });
 }

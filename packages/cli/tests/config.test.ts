@@ -22,120 +22,94 @@ describe("Config", () => {
       expect(config.exists()).toBe(false);
     });
 
-    it("returns true after init", () => {
-      config.init("ghp_test123");
+    it("returns true after save", () => {
+      config.save({ api: { url: "http://localhost:3400", key: "test-key" } });
       expect(config.exists()).toBe(true);
     });
   });
 
-  describe("init()", () => {
-    it("creates config file with github token", () => {
-      config.init("ghp_test123");
+  describe("save()", () => {
+    it("creates config file with api fields", () => {
+      config.save({ api: { url: "http://localhost:3400", key: "test-key-123" } });
       const loaded = config.load();
-      expect(loaded.github.token).toBe("ghp_test123");
-    });
-
-    it("creates config file with default values", () => {
-      config.init("ghp_test123");
-      const loaded = config.load();
-      expect(loaded.llm.provider).toBe("ollama");
-      expect(loaded.llm.model).toBe("llama3");
-      expect(loaded.llm.api_key).toBe("");
-      expect(loaded.embedding.model).toBe("nomic-embed-text");
-      expect(loaded.scan.concurrency).toBe(10);
-      expect(loaded.scan.code_similarity_threshold).toBe(0.85);
-      expect(loaded.scan.intent_similarity_threshold).toBe(0.80);
+      expect(loaded.api.url).toBe("http://localhost:3400");
+      expect(loaded.api.key).toBe("test-key-123");
     });
 
     it("writes a valid TOML file", () => {
-      config.init("ghp_abc");
+      config.save({ api: { url: "http://localhost:3400", key: "my-key" } });
       const raw = readFileSync(join(tempDir, "config.toml"), "utf-8");
-      expect(raw).toContain("[github]");
-      expect(raw).toContain('token = "ghp_abc"');
-      expect(raw).toContain("[llm]");
-      expect(raw).toContain("[scan]");
+      expect(raw).toContain("[api]");
+      expect(raw).toContain('url = "http://localhost:3400"');
+      expect(raw).toContain('key = "my-key"');
     });
   });
 
   describe("load()", () => {
     it("returns defaults when config file does not exist", () => {
       const loaded = config.load();
-      expect(loaded.github.token).toBe("");
-      expect(loaded.llm.provider).toBe("ollama");
-      expect(loaded.scan.concurrency).toBe(10);
+      expect(loaded.api.url).toBe("http://localhost:3400");
+      expect(loaded.api.key).toBe("");
     });
 
     it("returns saved config when file exists", () => {
-      config.init("ghp_saved");
+      config.save({ api: { url: "http://example.com:3400", key: "saved-key" } });
       const loaded = config.load();
-      expect(loaded.github.token).toBe("ghp_saved");
+      expect(loaded.api.url).toBe("http://example.com:3400");
+      expect(loaded.api.key).toBe("saved-key");
     });
   });
 
   describe("get()", () => {
     it("gets top-level section", () => {
-      config.init("ghp_get");
-      const github = config.get("github") as { token: string };
-      expect(github.token).toBe("ghp_get");
+      config.save({ api: { url: "http://localhost:3400", key: "get-key" } });
+      const api = config.get("api") as { url: string; key: string };
+      expect(api.key).toBe("get-key");
     });
 
     it("gets nested value with dot notation", () => {
-      config.init("ghp_dot");
-      expect(config.get("llm.provider")).toBe("ollama");
-      expect(config.get("scan.concurrency")).toBe(10);
-      expect(config.get("github.token")).toBe("ghp_dot");
+      config.save({ api: { url: "http://localhost:3400", key: "dot-key" } });
+      expect(config.get("api.url")).toBe("http://localhost:3400");
+      expect(config.get("api.key")).toBe("dot-key");
     });
 
     it("returns undefined for non-existent key", () => {
-      config.init("ghp_none");
+      config.save({ api: { url: "http://localhost:3400", key: "none-key" } });
       expect(config.get("nonexistent")).toBeUndefined();
-      expect(config.get("llm.nonexistent")).toBeUndefined();
+      expect(config.get("api.nonexistent")).toBeUndefined();
     });
 
     it("returns defaults when no config file exists", () => {
-      expect(config.get("llm.provider")).toBe("ollama");
+      expect(config.get("api.url")).toBe("http://localhost:3400");
     });
   });
 
   describe("set()", () => {
     it("sets a string value", () => {
-      config.init("ghp_set");
-      config.set("github.token", "ghp_new");
-      expect(config.get("github.token")).toBe("ghp_new");
+      config.save({ api: { url: "http://localhost:3400", key: "old-key" } });
+      config.set("api.key", "new-key");
+      expect(config.get("api.key")).toBe("new-key");
     });
 
-    it("sets a value on a provider", () => {
-      config.init("ghp_set");
-      config.set("llm.provider", "anthropic");
-      expect(config.get("llm.provider")).toBe("anthropic");
-    });
-
-    it("preserves number types for existing numeric values", () => {
-      config.init("ghp_num");
-      config.set("scan.concurrency", "20");
-      expect(config.get("scan.concurrency")).toBe(20);
-      expect(typeof config.get("scan.concurrency")).toBe("number");
-    });
-
-    it("preserves float number types", () => {
-      config.init("ghp_float");
-      config.set("scan.code_similarity_threshold", "0.90");
-      expect(config.get("scan.code_similarity_threshold")).toBe(0.90);
+    it("sets the api url", () => {
+      config.save({ api: { url: "http://localhost:3400", key: "set-key" } });
+      config.set("api.url", "http://remote:3400");
+      expect(config.get("api.url")).toBe("http://remote:3400");
     });
 
     it("persists changes to disk", () => {
-      config.init("ghp_persist");
-      config.set("llm.model", "gpt-4");
+      config.save({ api: { url: "http://localhost:3400", key: "persist-key" } });
+      config.set("api.key", "updated-key");
 
       // Create a new Config instance to verify disk persistence
       const config2 = new Config(tempDir);
-      expect(config2.get("llm.model")).toBe("gpt-4");
+      expect(config2.get("api.key")).toBe("updated-key");
     });
 
     it("creates config file if it does not exist", () => {
-      config.set("github.token", "ghp_create");
+      config.set("api.key", "create-key");
       expect(config.exists()).toBe(true);
-      expect(config.get("github.token")).toBe("ghp_create");
+      expect(config.get("api.key")).toBe("create-key");
     });
   });
 });

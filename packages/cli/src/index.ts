@@ -11,7 +11,8 @@ import { dupesCommand } from "./commands/dupes.js";
 
 const config = new Config();
 const apiUrl = process.env.OSSGARD_API_URL ?? config.get("api.url") as string | undefined;
-const client = new ApiClient(apiUrl);
+const apiKey = process.env.OSSGARD_API_KEY ?? config.get("api.key") as string | undefined;
+const client = new ApiClient(apiUrl, apiKey ?? undefined);
 
 const program = new Command();
 

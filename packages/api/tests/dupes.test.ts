@@ -2,14 +2,26 @@ import { createApp } from "../src/app.js";
 import { Database } from "../src/db/database.js";
 import type { Hono } from "hono";
 import type { AppEnv } from "../src/app.js";
+import type { Account, AccountConfig } from "@ossgard/shared";
+
+const TEST_API_KEY = "test-api-key-123";
+const TEST_CONFIG: AccountConfig = {
+  github: { token: "ghp_test" },
+  llm: { provider: "ollama", url: "http://localhost:11434", model: "llama3", api_key: "" },
+  embedding: { provider: "ollama", url: "http://localhost:11434", model: "nomic-embed-text", api_key: "" },
+  vector_store: { url: "http://localhost:6333", api_key: "" },
+};
+const AUTH_HEADER = { Authorization: `Bearer ${TEST_API_KEY}` };
 
 describe("dupes routes", () => {
   let db: Database;
   let app: Hono<AppEnv>;
+  let account: Account;
 
   beforeEach(() => {
     db = new Database(":memory:");
     ({ app } = createApp(db));
+    account = db.createAccount(TEST_API_KEY, "test", TEST_CONFIG);
   });
 
   afterEach(() => {
@@ -18,7 +30,7 @@ describe("dupes routes", () => {
 
   describe("GET /repos/:owner/:name/dupes", () => {
     it("returns 404 for untracked repo", async () => {
-      const res = await app.request("/repos/facebook/react/dupes");
+      const res = await app.request("/repos/facebook/react/dupes", { headers: AUTH_HEADER });
       expect(res.status).toBe(404);
       const body = (await res.json()) as any;
       expect(body.error).toContain("not tracked");
@@ -27,7 +39,7 @@ describe("dupes routes", () => {
     it("returns 404 when no completed scan exists", async () => {
       db.insertRepo("facebook", "react");
 
-      const res = await app.request("/repos/facebook/react/dupes");
+      const res = await app.request("/repos/facebook/react/dupes", { headers: AUTH_HEADER });
       expect(res.status).toBe(404);
       const body = (await res.json()) as any;
       expect(body.error).toContain("No completed scan");
@@ -35,9 +47,9 @@ describe("dupes routes", () => {
 
     it("returns 404 when scan exists but is not done", async () => {
       const repo = db.insertRepo("facebook", "react");
-      db.createScan(repo.id); // status = queued
+      db.createScan(repo.id, account.id); // status = queued
 
-      const res = await app.request("/repos/facebook/react/dupes");
+      const res = await app.request("/repos/facebook/react/dupes", { headers: AUTH_HEADER });
       expect(res.status).toBe(404);
       const body = (await res.json()) as any;
       expect(body.error).toContain("No completed scan");
@@ -45,12 +57,12 @@ describe("dupes routes", () => {
 
     it("returns empty groups when scan is done with no dupes", async () => {
       const repo = db.insertRepo("facebook", "react");
-      const scan = db.createScan(repo.id);
+      const scan = db.createScan(repo.id, account.id);
       db.updateScanStatus(scan.id, "done", {
         completedAt: new Date().toISOString(),
       });
 
-      const res = await app.request("/repos/facebook/react/dupes");
+      const res = await app.request("/repos/facebook/react/dupes", { headers: AUTH_HEADER });
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
       expect(body.repo).toBe("facebook/react");
@@ -90,7 +102,7 @@ describe("dupes routes", () => {
       });
 
       // Create a completed scan with dupe groups
-      const scan = db.createScan(repo.id);
+      const scan = db.createScan(repo.id, account.id);
       db.updateScanStatus(scan.id, "done", {
         completedAt: new Date().toISOString(),
         dupeGroupCount: 1,
@@ -100,7 +112,7 @@ describe("dupes routes", () => {
       db.insertDupeGroupMember(group.id, pr1.id, 1, 0.95, "Original fix");
       db.insertDupeGroupMember(group.id, pr2.id, 2, 0.90, "Duplicate fix");
 
-      const res = await app.request("/repos/facebook/react/dupes");
+      const res = await app.request("/repos/facebook/react/dupes", { headers: AUTH_HEADER });
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
 
@@ -132,18 +144,18 @@ describe("dupes routes", () => {
       const repo = db.insertRepo("facebook", "react");
 
       // Create first completed scan
-      const scan1 = db.createScan(repo.id);
+      const scan1 = db.createScan(repo.id, account.id);
       db.updateScanStatus(scan1.id, "done", {
         completedAt: "2024-01-01T00:00:00Z",
       });
 
       // Create second completed scan
-      const scan2 = db.createScan(repo.id);
+      const scan2 = db.createScan(repo.id, account.id);
       db.updateScanStatus(scan2.id, "done", {
         completedAt: "2024-06-01T00:00:00Z",
       });
 
-      const res = await app.request("/repos/facebook/react/dupes");
+      const res = await app.request("/repos/facebook/react/dupes", { headers: AUTH_HEADER });
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
       expect(body.scanId).toBe(scan2.id);

@@ -1,6 +1,26 @@
 import { Database as BunDatabase } from "bun:sqlite";
-import type { DupeGroup, DupeGroupMember, PR, Repo, Scan, ScanStatus } from "@ossgard/shared";
+import type { Account, AccountConfig, DupeGroup, DupeGroupMember, PR, Repo, Scan, ScanStatus } from "@ossgard/shared";
 import { SCHEMA } from "./schema.js";
+
+interface AccountRow {
+  id: number;
+  api_key: string;
+  label: string | null;
+  config: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function mapAccountRow(row: AccountRow): Account {
+  return {
+    id: row.id,
+    apiKey: row.api_key,
+    label: row.label,
+    config: JSON.parse(row.config) as AccountConfig,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
 
 interface RepoRow {
   id: number;
@@ -23,6 +43,7 @@ function mapRepoRow(row: RepoRow): Repo {
 interface ScanRow {
   id: number;
   repo_id: number;
+  account_id: number;
   status: string;
   phase_cursor: string | null;
   pr_count: number;
@@ -139,6 +160,38 @@ export class Database {
     this.raw.run(SCHEMA);
   }
 
+  // ── Account methods ──
+
+  createAccount(apiKey: string, label: string | null, config: AccountConfig): Account {
+    const stmt = this.raw.prepare(
+      "INSERT INTO accounts (api_key, label, config) VALUES (?, ?, ?) RETURNING *"
+    );
+    const row = stmt.get(apiKey, label, JSON.stringify(config)) as AccountRow;
+    return mapAccountRow(row);
+  }
+
+  getAccountByApiKey(apiKey: string): Account | null {
+    const stmt = this.raw.prepare("SELECT * FROM accounts WHERE api_key = ?");
+    const row = stmt.get(apiKey) as AccountRow | null;
+    return row ? mapAccountRow(row) : null;
+  }
+
+  getAccount(id: number): Account | null {
+    const stmt = this.raw.prepare("SELECT * FROM accounts WHERE id = ?");
+    const row = stmt.get(id) as AccountRow | null;
+    return row ? mapAccountRow(row) : null;
+  }
+
+  updateAccountConfig(id: number, config: AccountConfig): boolean {
+    const stmt = this.raw.prepare(
+      "UPDATE accounts SET config = ?, updated_at = datetime('now') WHERE id = ?"
+    );
+    const result = stmt.run(JSON.stringify(config), id);
+    return result.changes > 0;
+  }
+
+  // ── Repo methods ──
+
   insertRepo(owner: string, name: string): Repo {
     const stmt = this.raw.prepare(
       "INSERT INTO repos (owner, name) VALUES (?, ?) RETURNING *"
@@ -188,11 +241,11 @@ export class Database {
     return result.changes > 0;
   }
 
-  createScan(repoId: number): Scan {
+  createScan(repoId: number, accountId: number): Scan {
     const stmt = this.raw.prepare(
-      "INSERT INTO scans (repo_id, status) VALUES (?, 'queued') RETURNING *"
+      "INSERT INTO scans (repo_id, account_id, status) VALUES (?, ?, 'queued') RETURNING *"
     );
-    const row = stmt.get(repoId) as ScanRow;
+    const row = stmt.get(repoId, accountId) as ScanRow;
     return mapScanRow(row);
   }
 
@@ -348,11 +401,11 @@ export class Database {
     return rows.map(mapDupeGroupMemberRow);
   }
 
-  getLatestCompletedScan(repoId: number): Scan | null {
+  getLatestCompletedScan(repoId: number, accountId: number): Scan | null {
     const stmt = this.raw.prepare(
-      "SELECT * FROM scans WHERE repo_id = ? AND status = 'done' ORDER BY completed_at DESC LIMIT 1"
+      "SELECT * FROM scans WHERE repo_id = ? AND account_id = ? AND status = 'done' ORDER BY completed_at DESC LIMIT 1"
     );
-    const row = stmt.get(repoId) as ScanRow | null;
+    const row = stmt.get(repoId, accountId) as ScanRow | null;
     return row ? mapScanRow(row) : null;
   }
 

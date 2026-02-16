@@ -4,57 +4,11 @@ import { homedir } from "node:os";
 import { parse, stringify } from "@iarna/toml";
 
 export interface OssgardConfig {
-  api: { url: string };
-  github: { token: string };
-  llm: {
-    provider: string;
-    url: string;
-    model: string;
-    api_key: string;
-    batch?: boolean;
-  };
-  embedding: {
-    provider: string;
-    url: string;
-    model: string;
-    api_key: string;
-    batch?: boolean;
-  };
-  vector_store: {
-    url: string;
-    api_key: string;
-  };
-  scan: {
-    concurrency: number;
-    code_similarity_threshold: number;
-    intent_similarity_threshold: number;
-  };
+  api: { url: string; key: string };
 }
 
 const DEFAULT_CONFIG: OssgardConfig = {
-  api: { url: "http://localhost:3400" },
-  github: { token: "" },
-  llm: {
-    provider: "ollama",
-    url: "http://localhost:11434",
-    model: "llama3",
-    api_key: "",
-  },
-  embedding: {
-    provider: "ollama",
-    url: "http://localhost:11434",
-    model: "nomic-embed-text",
-    api_key: "",
-  },
-  vector_store: {
-    url: "http://localhost:6333",
-    api_key: "",
-  },
-  scan: {
-    concurrency: 10,
-    code_similarity_threshold: 0.85,
-    intent_similarity_threshold: 0.80,
-  },
+  api: { url: "http://localhost:3400", key: "" },
 };
 
 export class Config {
@@ -64,16 +18,6 @@ export class Config {
   constructor(configDir?: string) {
     this.configDir = configDir ?? join(homedir(), ".ossgard");
     this.configPath = join(this.configDir, "config.toml");
-  }
-
-  /** Create a default config file with the given GitHub token. */
-  init(githubToken: string): void {
-    mkdirSync(this.configDir, { recursive: true });
-    const config: OssgardConfig = {
-      ...structuredClone(DEFAULT_CONFIG),
-      github: { token: githubToken },
-    };
-    writeFileSync(this.configPath, stringify(config as any), "utf-8");
   }
 
   /** Load config from disk, returning defaults if the file doesn't exist. */
@@ -86,7 +30,7 @@ export class Config {
     return parsed;
   }
 
-  /** Get a config value using dot-notation (e.g. "llm.provider"). */
+  /** Get a config value using dot-notation (e.g. "api.url"). */
   get(key: string): unknown {
     const config = this.load();
     const parts = key.split(".");
@@ -150,13 +94,7 @@ export class Config {
   isComplete(): boolean {
     if (!this.exists()) return false;
     const cfg = this.load();
-    return !!(
-      cfg.api.url &&
-      cfg.github.token &&
-      cfg.llm.provider &&
-      cfg.embedding.provider &&
-      cfg.vector_store.url
-    );
+    return !!(cfg.api.url && cfg.api.key);
   }
 
   /** Write a full config object to disk. */

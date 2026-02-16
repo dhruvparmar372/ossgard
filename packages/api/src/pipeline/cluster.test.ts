@@ -25,6 +25,13 @@ function createMockQueue(): JobQueue {
   };
 }
 
+const TEST_CONFIG = {
+  github: { token: "ghp_test" },
+  llm: { provider: "ollama", url: "http://localhost:11434", model: "llama3", api_key: "" },
+  embedding: { provider: "ollama", url: "http://localhost:11434", model: "nomic-embed-text", api_key: "" },
+  vector_store: { url: "http://localhost:6333", api_key: "" },
+};
+
 describe("ClusterProcessor", () => {
   let db: Database;
   let mockVectorStore: VectorStore;
@@ -32,22 +39,26 @@ describe("ClusterProcessor", () => {
   let processor: ClusterProcessor;
   let repoId: number;
   let scanId: number;
+  let accountId: number;
 
   beforeEach(() => {
     db = new Database(":memory:");
+    const account = db.createAccount("key-1", "test", TEST_CONFIG as any);
+    accountId = account.id;
     const repo = db.insertRepo("facebook", "react");
     repoId = repo.id;
-    const scan = db.createScan(repoId);
+    const scan = db.createScan(repoId, accountId);
     scanId = scan.id;
 
     mockVectorStore = createMockVectorStore();
     mockQueue = createMockQueue();
-    processor = new ClusterProcessor(
-      db,
-      mockVectorStore,
-      { codeSimilarityThreshold: 0.85, intentSimilarityThreshold: 0.80 },
-      mockQueue
-    );
+    const mockResolver = {
+      resolve: vi.fn().mockResolvedValue({
+        vectorStore: mockVectorStore,
+        scanConfig: { codeSimilarityThreshold: 0.85, intentSimilarityThreshold: 0.80 },
+      }),
+    };
+    processor = new ClusterProcessor(db, mockResolver as any, mockQueue);
   });
 
   afterEach(() => {
@@ -58,7 +69,7 @@ describe("ClusterProcessor", () => {
     return {
       id: "test-job-1",
       type: "cluster",
-      payload: { repoId, scanId, owner: "facebook", repo: "react" },
+      payload: { repoId, scanId, accountId, owner: "facebook", repo: "react" },
       status: "running",
       result: null,
       error: null,

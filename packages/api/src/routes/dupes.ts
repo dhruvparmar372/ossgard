@@ -5,6 +5,7 @@ const dupes = new Hono<AppEnv>();
 
 dupes.get("/repos/:owner/:name/dupes", (c) => {
   const db = c.get("db");
+  const account = c.get("account");
   const { owner, name } = c.req.param();
 
   const repo = db.getRepoByOwnerName(owner, name);
@@ -12,7 +13,7 @@ dupes.get("/repos/:owner/:name/dupes", (c) => {
     return c.json({ error: `${owner}/${name} is not tracked` }, 404);
   }
 
-  const scan = db.getLatestCompletedScan(repo.id);
+  const scan = db.getLatestCompletedScan(repo.id, account.id);
   if (!scan) {
     return c.json(
       { error: `No completed scan found for ${owner}/${name}` },

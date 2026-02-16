@@ -1,9 +1,12 @@
 import { Hono } from "hono";
+import type { Account } from "@ossgard/shared";
 import { Database } from "./db/database.js";
 import { LocalJobQueue } from "./queue/local-job-queue.js";
 import { WorkerLoop } from "./queue/worker.js";
 import type { JobProcessor } from "./queue/worker.js";
+import { authMiddleware } from "./middleware/auth.js";
 import { health } from "./routes/health.js";
+import { accounts } from "./routes/accounts.js";
 import { repos } from "./routes/repos.js";
 import { scans } from "./routes/scans.js";
 import { dupes } from "./routes/dupes.js";
@@ -12,6 +15,7 @@ export type AppEnv = {
   Variables: {
     db: Database;
     queue: LocalJobQueue;
+    account: Account;
   };
 };
 
@@ -38,7 +42,15 @@ export function createApp(
     await next();
   });
 
+  // Unauthenticated routes
   app.route("/", health);
+  app.route("/", accounts);
+
+  // Auth middleware for all other routes
+  app.use("/repos/*", authMiddleware);
+  app.use("/scans/*", authMiddleware);
+
+  // Authenticated routes
   app.route("/", repos);
   app.route("/", scans);
   app.route("/", dupes);

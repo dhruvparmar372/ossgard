@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { Config } from "../config.js";
 
@@ -22,7 +21,7 @@ export function registerConfigCommand(program: Command): void {
 
   configCmd
     .command("get <key>")
-    .description("Get a config value (dot-notation, e.g. llm.provider)")
+    .description("Get a config value (dot-notation, e.g. api.url)")
     .action((key: string) => {
       const config = new Config();
       const value = config.get(key);

@@ -29,6 +29,13 @@ function createMockQueue(): JobQueue {
   };
 }
 
+const TEST_CONFIG = {
+  github: { token: "ghp_test" },
+  llm: { provider: "ollama", url: "http://localhost:11434", model: "llama3", api_key: "" },
+  embedding: { provider: "ollama", url: "http://localhost:11434", model: "nomic-embed-text", api_key: "" },
+  vector_store: { url: "http://localhost:6333", api_key: "" },
+};
+
 describe("VerifyProcessor", () => {
   let db: Database;
   let mockChat: ChatProvider;
@@ -36,17 +43,23 @@ describe("VerifyProcessor", () => {
   let processor: VerifyProcessor;
   let repoId: number;
   let scanId: number;
+  let accountId: number;
 
   beforeEach(() => {
     db = new Database(":memory:");
+    const account = db.createAccount("key-1", "test", TEST_CONFIG as any);
+    accountId = account.id;
     const repo = db.insertRepo("facebook", "react");
     repoId = repo.id;
-    const scan = db.createScan(repoId);
+    const scan = db.createScan(repoId, accountId);
     scanId = scan.id;
 
     mockChat = createMockChat();
     mockQueue = createMockQueue();
-    processor = new VerifyProcessor(db, mockChat, mockQueue);
+    const mockResolver = {
+      resolve: vi.fn().mockResolvedValue({ llm: mockChat }),
+    };
+    processor = new VerifyProcessor(db, mockResolver as any, mockQueue);
   });
 
   afterEach(() => {
@@ -75,6 +88,7 @@ describe("VerifyProcessor", () => {
       payload: {
         repoId,
         scanId,
+        accountId,
         owner: "facebook",
         repo: "react",
         candidateGroups,
@@ -230,6 +244,7 @@ describe("VerifyProcessor", () => {
       payload: {
         repoId,
         scanId,
+        accountId,
         owner: "facebook",
         repo: "react",
         verifiedGroups: [],
@@ -277,7 +292,10 @@ describe("VerifyProcessor", () => {
 
     beforeEach(() => {
       batchChat = createMockBatchChat();
-      batchProcessor = new VerifyProcessor(db, batchChat, mockQueue);
+      const batchResolver = {
+        resolve: vi.fn().mockResolvedValue({ llm: batchChat }),
+      };
+      batchProcessor = new VerifyProcessor(db, batchResolver as any, mockQueue);
     });
 
     it("uses chatBatch when provider is batch and multiple candidates exist", async () => {

@@ -1,7 +1,8 @@
 import type { Job, PR } from "@ossgard/shared";
 import type { Database } from "../db/database.js";
-import type { ChatProvider, Message } from "../services/llm-provider.js";
+import type { Message } from "../services/llm-provider.js";
 import { isBatchChatProvider } from "../services/llm-provider.js";
+import type { ServiceResolver } from "../services/service-resolver.js";
 import type { JobQueue } from "../queue/types.js";
 import type { JobProcessor } from "../queue/worker.js";
 import { buildVerifyPrompt } from "./prompts.js";
@@ -56,14 +57,15 @@ export class VerifyProcessor implements JobProcessor {
 
   constructor(
     private db: Database,
-    private llm: ChatProvider,
+    private resolver: ServiceResolver,
     private queue?: JobQueue
   ) {}
 
   async process(job: Job): Promise<void> {
-    const { repoId, scanId, owner, repo, candidateGroups } = job.payload as {
+    const { repoId, scanId, accountId, owner, repo, candidateGroups } = job.payload as {
       repoId: number;
       scanId: number;
+      accountId: number;
       owner: string;
       repo: string;
       candidateGroups: CandidateGroup[];
@@ -71,6 +73,9 @@ export class VerifyProcessor implements JobProcessor {
 
     // Update scan status to "verifying"
     this.db.updateScanStatus(scanId, "verifying");
+
+    // Resolve LLM from account config
+    const { llm } = await this.resolver.resolve(accountId);
 
     // 1. Build all messages upfront
     const prepared: PreparedCandidate[] = [];
@@ -88,8 +93,8 @@ export class VerifyProcessor implements JobProcessor {
     // 2. Call LLM (batch or sequential)
     const verifiedGroups: VerifiedGroup[] = [];
 
-    if (isBatchChatProvider(this.llm) && prepared.length > 1) {
-      const results = await this.llm.chatBatch(
+    if (isBatchChatProvider(llm) && prepared.length > 1) {
+      const results = await llm.chatBatch(
         prepared.map((p) => ({
           id: `verify-${p.index}`,
           messages: p.messages,
@@ -102,7 +107,7 @@ export class VerifyProcessor implements JobProcessor {
       }
     } else {
       for (const p of prepared) {
-        const response = (await this.llm.chat(
+        const response = (await llm.chat(
           p.messages
         )) as VerifyResponse;
         verifiedGroups.push(...collectVerifiedGroups(response));
@@ -113,7 +118,7 @@ export class VerifyProcessor implements JobProcessor {
     if (this.queue) {
       await this.queue.enqueue({
         type: "rank",
-        payload: { repoId, scanId, owner, repo, verifiedGroups },
+        payload: { repoId, scanId, accountId, owner, repo, verifiedGroups },
       });
     }
   }

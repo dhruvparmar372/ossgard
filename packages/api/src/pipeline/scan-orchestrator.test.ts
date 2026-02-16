@@ -3,18 +3,28 @@ import { Database } from "../db/database.js";
 import type { JobQueue } from "../queue/types.js";
 import type { Job } from "@ossgard/shared";
 
+const TEST_CONFIG = {
+  github: { token: "ghp_test" },
+  llm: { provider: "ollama", url: "http://localhost:11434", model: "llama3", api_key: "" },
+  embedding: { provider: "ollama", url: "http://localhost:11434", model: "nomic-embed-text", api_key: "" },
+  vector_store: { url: "http://localhost:6333", api_key: "" },
+};
+
 describe("ScanOrchestrator", () => {
   let db: Database;
   let mockQueue: JobQueue;
   let orchestrator: ScanOrchestrator;
   let repoId: number;
   let scanId: number;
+  let accountId: number;
 
   beforeEach(() => {
     db = new Database(":memory:");
+    const account = db.createAccount("key-1", "test", TEST_CONFIG as any);
+    accountId = account.id;
     const repo = db.insertRepo("facebook", "react");
     repoId = repo.id;
-    const scan = db.createScan(repoId);
+    const scan = db.createScan(repoId, accountId);
     scanId = scan.id;
 
     mockQueue = {
@@ -37,7 +47,7 @@ describe("ScanOrchestrator", () => {
     return {
       id: "scan-job-1",
       type: "scan",
-      payload: { repoId, scanId },
+      payload: { repoId, scanId, accountId },
       status: "running",
       result: null,
       error: null,
@@ -58,6 +68,7 @@ describe("ScanOrchestrator", () => {
       payload: {
         repoId,
         scanId,
+        accountId,
         owner: "facebook",
         repo: "react",
       },
@@ -67,11 +78,11 @@ describe("ScanOrchestrator", () => {
   it("looks up repo to get owner and name", async () => {
     // Insert a different repo to verify the correct one is used
     const repo2 = db.insertRepo("vercel", "next.js");
-    const scan2 = db.createScan(repo2.id);
+    const scan2 = db.createScan(repo2.id, accountId);
 
     const job: Job = {
       ...makeJob(),
-      payload: { repoId: repo2.id, scanId: scan2.id },
+      payload: { repoId: repo2.id, scanId: scan2.id, accountId },
     };
 
     await orchestrator.process(job);
@@ -81,6 +92,7 @@ describe("ScanOrchestrator", () => {
       payload: {
         repoId: repo2.id,
         scanId: scan2.id,
+        accountId,
         owner: "vercel",
         repo: "next.js",
       },
@@ -90,7 +102,7 @@ describe("ScanOrchestrator", () => {
   it("throws if repo is not found", async () => {
     const job: Job = {
       ...makeJob(),
-      payload: { repoId: 9999, scanId },
+      payload: { repoId: 9999, scanId, accountId },
     };
 
     await expect(orchestrator.process(job)).rejects.toThrow(
@@ -102,7 +114,7 @@ describe("ScanOrchestrator", () => {
   it("forwards maxPrs when present in payload", async () => {
     const job: Job = {
       ...makeJob(),
-      payload: { repoId, scanId, maxPrs: 10 },
+      payload: { repoId, scanId, accountId, maxPrs: 10 },
     };
 
     await orchestrator.process(job);
@@ -112,6 +124,7 @@ describe("ScanOrchestrator", () => {
       payload: {
         repoId,
         scanId,
+        accountId,
         owner: "facebook",
         repo: "react",
         maxPrs: 10,

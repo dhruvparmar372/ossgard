@@ -16,6 +16,40 @@ export const DupesQuery = z.object({
 });
 export type DupesQuery = z.infer<typeof DupesQuery>;
 
+export const AccountConfigSchema = z.object({
+  github: z.object({ token: z.string().min(1) }),
+  llm: z.object({
+    provider: z.string().min(1),
+    url: z.string(),
+    model: z.string().min(1),
+    api_key: z.string(),
+    batch: z.boolean().optional(),
+  }),
+  embedding: z.object({
+    provider: z.string().min(1),
+    url: z.string(),
+    model: z.string().min(1),
+    api_key: z.string(),
+    batch: z.boolean().optional(),
+  }),
+  vector_store: z.object({
+    url: z.string().min(1),
+    api_key: z.string(),
+  }),
+  scan: z.object({
+    concurrency: z.number().optional(),
+    code_similarity_threshold: z.number().optional(),
+    intent_similarity_threshold: z.number().optional(),
+  }).optional(),
+});
+export type AccountConfigSchema = z.infer<typeof AccountConfigSchema>;
+
+export const RegisterAccountRequest = z.object({
+  label: z.string().optional(),
+  config: AccountConfigSchema,
+});
+export type RegisterAccountRequest = z.infer<typeof RegisterAccountRequest>;
+
 export const ScanProgressResponse = z.object({
   scanId: z.number(),
   status: z.enum([
