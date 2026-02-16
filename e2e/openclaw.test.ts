@@ -11,7 +11,6 @@
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Scan } from "@ossgard/shared";
 
 const QDRANT_URL = process.env.QDRANT_URL || "http://localhost:6333";

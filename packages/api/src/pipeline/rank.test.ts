@@ -1,4 +1,3 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { RankProcessor } from "./rank.js";
 import { Database } from "../db/database.js";
 import type { ChatProvider, BatchChatProvider } from "../services/llm-provider.js";
@@ -96,7 +95,7 @@ describe("RankProcessor", () => {
     const pr1 = insertPR(1);
     const pr2 = insertPR(2);
 
-    vi.mocked(mockChat.chat).mockResolvedValue({
+    (mockChat.chat as any).mockResolvedValue({
       rankings: [
         {
           prNumber: 1,
@@ -151,7 +150,7 @@ describe("RankProcessor", () => {
     const pr2 = insertPR(2);
 
     // Return rankings in ascending order from LLM
-    vi.mocked(mockChat.chat).mockResolvedValue({
+    (mockChat.chat as any).mockResolvedValue({
       rankings: [
         {
           prNumber: 2,
@@ -200,7 +199,7 @@ describe("RankProcessor", () => {
     const pr3 = insertPR(3);
     const pr4 = insertPR(4);
 
-    vi.mocked(mockChat.chat).mockResolvedValue({
+    (mockChat.chat as any).mockResolvedValue({
       rankings: [
         { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
         { prNumber: 2, score: 70, codeQuality: 35, completeness: 35, rationale: "OK" },
@@ -236,7 +235,7 @@ describe("RankProcessor", () => {
     const pr3 = insertPR(3);
     const pr4 = insertPR(4);
 
-    vi.mocked(mockChat.chat)
+    (mockChat.chat as any)
       .mockResolvedValueOnce({
         rankings: [
           { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
@@ -279,7 +278,7 @@ describe("RankProcessor", () => {
     const pr1 = insertPR(1);
     const pr2 = insertPR(2);
 
-    vi.mocked(mockChat.chat).mockResolvedValue({
+    (mockChat.chat as any).mockResolvedValue({
       rankings: [
         { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
         { prNumber: 2, score: 70, codeQuality: 35, completeness: 35, rationale: "OK" },
@@ -297,7 +296,7 @@ describe("RankProcessor", () => {
       ])
     );
 
-    const chatCall = vi.mocked(mockChat.chat).mock.calls[0][0];
+    const chatCall = (mockChat.chat as any).mock.calls[0][0];
     expect(chatCall[0].role).toBe("system");
     expect(chatCall[0].content).toContain("Fix login bug");
     expect(chatCall[1].role).toBe("user");
@@ -363,7 +362,7 @@ describe("RankProcessor", () => {
       const pr3 = insertPR(3);
       const pr4 = insertPR(4);
 
-      vi.mocked(batchChat.chatBatch).mockResolvedValue([
+      (batchChat.chatBatch as any).mockResolvedValue([
         {
           id: "rank-0",
           response: {
@@ -409,7 +408,7 @@ describe("RankProcessor", () => {
       const pr1 = insertPR(1);
       const pr2 = insertPR(2);
 
-      vi.mocked(batchChat.chat).mockResolvedValue({
+      (batchChat.chat as any).mockResolvedValue({
         rankings: [
           { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
           { prNumber: 2, score: 60, codeQuality: 30, completeness: 30, rationale: "Fair" },

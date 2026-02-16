@@ -10,8 +10,6 @@
  * the running API server (e.g. http://localhost:3400) and these
  * tests will issue real HTTP requests.
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-
 // When E2E_BASE_URL is set, tests hit a live server.
 // Otherwise they use the Hono app's built-in test client.
 const BASE_URL = process.env.E2E_BASE_URL;

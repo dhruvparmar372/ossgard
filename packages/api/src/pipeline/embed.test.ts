@@ -1,4 +1,3 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EmbedProcessor } from "./embed.js";
 import { Database } from "../db/database.js";
 import type { EmbeddingProvider, BatchEmbeddingProvider } from "../services/llm-provider.js";
@@ -147,7 +146,7 @@ describe("EmbedProcessor", () => {
 
     const vec1 = makeVector(1);
     const vec2 = makeVector(2);
-    vi.mocked(mockEmbedding.embed)
+    (mockEmbedding.embed as any)
       .mockResolvedValueOnce([vec1, vec2]) // code embeddings
       .mockResolvedValueOnce([vec1, vec2]); // intent embeddings
 
@@ -160,7 +159,7 @@ describe("EmbedProcessor", () => {
     const pr1 = insertPR(1, { filePaths: ["src/a.ts"], diffHash: "abc123" });
     const vec1 = makeVector(1);
 
-    vi.mocked(mockEmbedding.embed)
+    (mockEmbedding.embed as any)
       .mockResolvedValueOnce([vec1]) // code
       .mockResolvedValueOnce([vec1]); // intent
 
@@ -191,18 +190,18 @@ describe("EmbedProcessor", () => {
     insertPR(1, { filePaths: ["src/a.ts", "src/b.ts"], diffHash: "diffhash1" });
 
     const vec = makeVector(1);
-    vi.mocked(mockEmbedding.embed)
+    (mockEmbedding.embed as any)
       .mockResolvedValueOnce([vec])
       .mockResolvedValueOnce([vec]);
 
     await processor.process(makeJob());
 
     // Code input: filePaths joined
-    const codeCall = vi.mocked(mockEmbedding.embed).mock.calls[0];
+    const codeCall = (mockEmbedding.embed as any).mock.calls[0];
     expect(codeCall[0]).toEqual(["src/a.ts\nsrc/b.ts"]);
 
     // Intent input: title + body + filePaths
-    const intentCall = vi.mocked(mockEmbedding.embed).mock.calls[1];
+    const intentCall = (mockEmbedding.embed as any).mock.calls[1];
     expect(intentCall[0]).toEqual([
       "PR #1\nBody of PR #1\nsrc/a.ts\nsrc/b.ts",
     ]);
@@ -225,7 +224,7 @@ describe("EmbedProcessor", () => {
     }
 
     // First batch: 50 code + 50 intent, second batch: 25 code + 25 intent
-    vi.mocked(mockEmbedding.embed).mockImplementation(async (texts) => {
+    (mockEmbedding.embed as any).mockImplementation(async (texts) => {
       return texts.map((_, i) => makeVector(i));
     });
 
@@ -235,13 +234,13 @@ describe("EmbedProcessor", () => {
     expect(mockEmbedding.embed).toHaveBeenCalledTimes(4);
 
     // First batch code: 50 texts
-    expect(vi.mocked(mockEmbedding.embed).mock.calls[0][0]).toHaveLength(50);
+    expect((mockEmbedding.embed as any).mock.calls[0][0]).toHaveLength(50);
     // First batch intent: 50 texts
-    expect(vi.mocked(mockEmbedding.embed).mock.calls[1][0]).toHaveLength(50);
+    expect((mockEmbedding.embed as any).mock.calls[1][0]).toHaveLength(50);
     // Second batch code: 25 texts
-    expect(vi.mocked(mockEmbedding.embed).mock.calls[2][0]).toHaveLength(25);
+    expect((mockEmbedding.embed as any).mock.calls[2][0]).toHaveLength(25);
     // Second batch intent: 25 texts
-    expect(vi.mocked(mockEmbedding.embed).mock.calls[3][0]).toHaveLength(25);
+    expect((mockEmbedding.embed as any).mock.calls[3][0]).toHaveLength(25);
   });
 
   it("handles no open PRs gracefully", async () => {
@@ -261,7 +260,7 @@ describe("EmbedProcessor", () => {
     );
 
     insertPR(1);
-    vi.mocked(mockEmbedding.embed).mockResolvedValue([makeVector(1)]);
+    (mockEmbedding.embed as any).mockResolvedValue([makeVector(1)]);
 
     // Should not throw
     await processorNoQueue.process(makeJob());
@@ -285,7 +284,7 @@ describe("EmbedProcessor", () => {
       const vec1 = makeVector(1);
       const vec2 = makeVector(2);
 
-      vi.mocked(batchEmbedding.embedBatch).mockResolvedValue([
+      (batchEmbedding.embedBatch as any).mockResolvedValue([
         { id: "code-0", embeddings: [vec1, vec2] },
         { id: "intent-0", embeddings: [vec1, vec2] },
       ]);
@@ -296,7 +295,7 @@ describe("EmbedProcessor", () => {
       expect(batchEmbedding.embed).not.toHaveBeenCalled();
 
       // 2 requests: code-0, intent-0
-      const batchCall = vi.mocked(batchEmbedding.embedBatch).mock.calls[0][0];
+      const batchCall = (batchEmbedding.embedBatch as any).mock.calls[0][0];
       expect(batchCall).toHaveLength(2);
       expect(batchCall[0].id).toBe("code-0");
       expect(batchCall[1].id).toBe("intent-0");
@@ -310,7 +309,7 @@ describe("EmbedProcessor", () => {
         insertPR(i);
       }
 
-      vi.mocked(batchEmbedding.embedBatch).mockImplementation(
+      (batchEmbedding.embedBatch as any).mockImplementation(
         async (requests) => {
           return requests.map((req) => ({
             id: req.id,
@@ -324,7 +323,7 @@ describe("EmbedProcessor", () => {
       expect(batchEmbedding.embedBatch).toHaveBeenCalledTimes(1);
 
       // 2 batches * 2 types = 4 requests
-      const batchCall = vi.mocked(batchEmbedding.embedBatch).mock.calls[0][0];
+      const batchCall = (batchEmbedding.embedBatch as any).mock.calls[0][0];
       expect(batchCall).toHaveLength(4);
       expect(batchCall[0].id).toBe("code-0");
       expect(batchCall[0].texts).toHaveLength(50);

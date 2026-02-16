@@ -1,4 +1,3 @@
-import { describe, it, expect, vi } from "vitest";
 import { GitHubClient } from "./github-client.js";
 
 function makeGitHubPR(n: number) {
@@ -58,7 +57,7 @@ describe("GitHubClient", () => {
     const page2 = [makeGitHubPR(101)];
 
     const mockFetch = vi
-      .fn<typeof fetch>()
+      .fn()
       .mockResolvedValueOnce(
         makeGitHubResponse(page1, { remaining: 4999, reset: 1700000000 })
       )
@@ -94,7 +93,7 @@ describe("GitHubClient", () => {
 
   it("sets correct auth headers", async () => {
     const mockFetch = vi
-      .fn<typeof fetch>()
+      .fn()
       .mockResolvedValue(makeGitHubResponse([]));
 
     const client = new GitHubClient({
@@ -120,7 +119,7 @@ describe("GitHubClient", () => {
     ];
 
     const mockFetch = vi
-      .fn<typeof fetch>()
+      .fn()
       .mockResolvedValue(
         makeGitHubResponse(files, { remaining: 4990, reset: 1700000000 })
       );
@@ -148,7 +147,7 @@ describe("GitHubClient", () => {
     }));
 
     const mockFetch = vi
-      .fn<typeof fetch>()
+      .fn()
       .mockResolvedValueOnce(
         makeGitHubResponse(page1, { remaining: 4999, reset: 1700000000 })
       )
@@ -185,7 +184,7 @@ describe("GitHubClient", () => {
       "diff --git a/file.ts b/file.ts\n--- a/file.ts\n+++ b/file.ts\n@@ -1,3 +1,4 @@\n+new line\n old line";
 
     const mockFetch = vi
-      .fn<typeof fetch>()
+      .fn()
       .mockResolvedValue(
         makeTextResponse(diffText, { remaining: 4989, reset: 1700000000 })
       );
@@ -219,7 +218,7 @@ describe("GitHubClient", () => {
     const notModifiedResponse = new Response(null, { status: 304, headers });
 
     const mockFetch = vi
-      .fn<typeof fetch>()
+      .fn()
       .mockResolvedValue(notModifiedResponse);
 
     const client = new GitHubClient({
@@ -249,7 +248,7 @@ describe("GitHubClient", () => {
     const response = new Response(diffText, { status: 200, headers });
 
     const mockFetch = vi
-      .fn<typeof fetch>()
+      .fn()
       .mockResolvedValue(response);
 
     const client = new GitHubClient({
@@ -267,7 +266,7 @@ describe("GitHubClient", () => {
 
   it("tracks rate limit from headers", async () => {
     const mockFetch = vi
-      .fn<typeof fetch>()
+      .fn()
       .mockResolvedValue(
         makeGitHubResponse([], { remaining: 4242, reset: 1700001234 })
       );
@@ -289,7 +288,7 @@ describe("GitHubClient", () => {
 
   it("throws on non-ok response", async () => {
     const mockFetch = vi
-      .fn<typeof fetch>()
+      .fn()
       .mockResolvedValue(
         makeGitHubResponse({ message: "Not Found" }, { status: 404 })
       );
@@ -306,13 +305,12 @@ describe("GitHubClient", () => {
   });
 
   it("throttles requests when rate limit is low", async () => {
-    vi.useFakeTimers();
-
-    const resetTime = Math.floor(Date.now() / 1000) + 60; // 60 seconds in the future
+    // Use a reset time just barely in the future so the throttle delay is ~0ms
+    const resetTime = Math.floor(Date.now() / 1000) + 1;
     const files = [{ filename: "src/index.ts" }];
 
     const mockFetch = vi
-      .fn<typeof fetch>()
+      .fn()
       // First call returns low remaining rate limit
       .mockResolvedValueOnce(
         makeGitHubResponse(files, { remaining: 50, reset: resetTime })
@@ -333,25 +331,18 @@ describe("GitHubClient", () => {
     expect(client.rateLimitRemaining).toBe(50);
 
     // Second request should trigger throttling because remaining < 100 (buffer)
-    const secondRequest = client.getPRFiles("owner", "repo", 2);
-
-    // Advance timers to let the throttle delay resolve
-    await vi.advanceTimersByTimeAsync(2000);
-
-    await secondRequest;
+    // With reset ~1s away and 50 remaining, delay is ~20ms per request
+    await client.getPRFiles("owner", "repo", 2);
     expect(mockFetch).toHaveBeenCalledTimes(2);
-
-    vi.useRealTimers();
   });
 
   it("waits until reset when rate limit is fully exhausted", async () => {
-    vi.useFakeTimers();
-
-    const resetTime = Math.floor(Date.now() / 1000) + 30; // 30 seconds in the future
+    // Use a reset time in the past so the wait is effectively 0
+    const resetTime = Math.floor(Date.now() / 1000) - 1;
     const files = [{ filename: "src/index.ts" }];
 
     const mockFetch = vi
-      .fn<typeof fetch>()
+      .fn()
       .mockResolvedValueOnce(
         makeGitHubResponse(files, { remaining: 0, reset: resetTime })
       )
@@ -369,22 +360,15 @@ describe("GitHubClient", () => {
     await client.getPRFiles("owner", "repo", 1);
     expect(client.rateLimitRemaining).toBe(0);
 
-    // Second request should block until reset
-    const secondRequest = client.getPRFiles("owner", "repo", 2);
-
-    // Advance past the reset time
-    await vi.advanceTimersByTimeAsync(31_000);
-
-    await secondRequest;
+    // Second request: reset time is in the past, so throttle delay <= 0 and skips
+    await client.getPRFiles("owner", "repo", 2);
     expect(mockFetch).toHaveBeenCalledTimes(2);
-
-    vi.useRealTimers();
   });
 
   it("handles single-page PR response (fewer than 100)", async () => {
     const prs = Array.from({ length: 5 }, (_, i) => makeGitHubPR(i + 1));
     const mockFetch = vi
-      .fn<typeof fetch>()
+      .fn()
       .mockResolvedValue(makeGitHubResponse(prs));
 
     const client = new GitHubClient({

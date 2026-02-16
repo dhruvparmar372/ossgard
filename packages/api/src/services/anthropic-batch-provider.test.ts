@@ -1,4 +1,3 @@
-import { describe, it, expect, vi } from "vitest";
 import { AnthropicBatchProvider } from "./anthropic-batch-provider.js";
 
 function mockFetch(responseBody: unknown): typeof fetch {
@@ -52,7 +51,7 @@ describe("AnthropicBatchProvider", () => {
         { role: "user", content: "hello" },
       ]);
 
-      const callArgs = vi.mocked(fetchFn).mock.calls[0];
+      const callArgs = (fetchFn as any).mock.calls[0];
       const body = JSON.parse(callArgs[1]!.body as string);
 
       expect(body.system).toEqual([
@@ -437,7 +436,7 @@ describe("AnthropicBatchProvider", () => {
         },
       ]);
 
-      const createCall = vi.mocked(fetchFn).mock.calls[0];
+      const createCall = (fetchFn as any).mock.calls[0];
       const body = JSON.parse(createCall[1]!.body as string);
 
       // Verify system uses cache_control

@@ -1,4 +1,3 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { IngestProcessor } from "./ingest.js";
 import { Database } from "../db/database.js";
 import type { GitHubClient, FetchedPR } from "../services/github-client.js";
@@ -44,15 +43,15 @@ describe("IngestProcessor", () => {
     scanId = scan.id;
 
     mockGitHub = {
-      listOpenPRs: vi.fn<GitHubClient["listOpenPRs"]>(),
-      getPRFiles: vi.fn<GitHubClient["getPRFiles"]>(),
-      getPRDiff: vi.fn<GitHubClient["getPRDiff"]>(),
+      listOpenPRs: vi.fn(),
+      getPRFiles: vi.fn(),
+      getPRDiff: vi.fn(),
       rateLimitRemaining: 5000,
       rateLimitReset: 0,
     } as unknown as GitHubClient;
 
     mockQueue = {
-      enqueue: vi.fn<JobQueue["enqueue"]>().mockResolvedValue("job-123"),
+      enqueue: vi.fn().mockResolvedValue("job-123"),
       getStatus: vi.fn(),
       dequeue: vi.fn(),
       complete: vi.fn(),
@@ -85,12 +84,12 @@ describe("IngestProcessor", () => {
 
   it("fetches PRs and stores them in the database", async () => {
     const prs = [makeFetchedPR(1), makeFetchedPR(2)];
-    vi.mocked(mockGitHub.listOpenPRs).mockResolvedValue(prs);
-    vi.mocked(mockGitHub.getPRFiles).mockResolvedValue([
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
+    (mockGitHub.getPRFiles as any).mockResolvedValue([
       "src/index.ts",
       "src/utils.ts",
     ]);
-    vi.mocked(mockGitHub.getPRDiff)
+    (mockGitHub.getPRDiff as any)
       .mockResolvedValueOnce({ diff: makeDiff(1), etag: '"etag1"' })
       .mockResolvedValueOnce({ diff: makeDiff(2), etag: '"etag2"' });
 
@@ -109,9 +108,9 @@ describe("IngestProcessor", () => {
   it("computes diff hashes correctly", async () => {
     const prs = [makeFetchedPR(1)];
     const diff = makeDiff(1);
-    vi.mocked(mockGitHub.listOpenPRs).mockResolvedValue(prs);
-    vi.mocked(mockGitHub.getPRFiles).mockResolvedValue(["file1.ts"]);
-    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue({ diff, etag: '"etag1"' });
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
+    (mockGitHub.getPRFiles as any).mockResolvedValue(["file1.ts"]);
+    (mockGitHub.getPRDiff as any).mockResolvedValue({ diff, etag: '"etag1"' });
 
     await processor.process(makeJob());
 
@@ -122,9 +121,9 @@ describe("IngestProcessor", () => {
   });
 
   it("enqueues embed job after completion", async () => {
-    vi.mocked(mockGitHub.listOpenPRs).mockResolvedValue([makeFetchedPR(1)]);
-    vi.mocked(mockGitHub.getPRFiles).mockResolvedValue(["file.ts"]);
-    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue({ diff: makeDiff(1), etag: '"etag1"' });
+    (mockGitHub.listOpenPRs as any).mockResolvedValue([makeFetchedPR(1)]);
+    (mockGitHub.getPRFiles as any).mockResolvedValue(["file.ts"]);
+    (mockGitHub.getPRDiff as any).mockResolvedValue({ diff: makeDiff(1), etag: '"etag1"' });
 
     await processor.process(makeJob());
 
@@ -136,7 +135,7 @@ describe("IngestProcessor", () => {
   });
 
   it("updates scan status to ingesting", async () => {
-    vi.mocked(mockGitHub.listOpenPRs).mockResolvedValue([]);
+    (mockGitHub.listOpenPRs as any).mockResolvedValue([]);
 
     await processor.process(makeJob());
 
@@ -146,9 +145,9 @@ describe("IngestProcessor", () => {
 
   it("updates scan prCount", async () => {
     const prs = [makeFetchedPR(1), makeFetchedPR(2), makeFetchedPR(3)];
-    vi.mocked(mockGitHub.listOpenPRs).mockResolvedValue(prs);
-    vi.mocked(mockGitHub.getPRFiles).mockResolvedValue([]);
-    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue({ diff: makeDiff(1), etag: null });
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
+    (mockGitHub.getPRFiles as any).mockResolvedValue([]);
+    (mockGitHub.getPRDiff as any).mockResolvedValue({ diff: makeDiff(1), etag: null });
 
     await processor.process(makeJob());
 
@@ -157,7 +156,7 @@ describe("IngestProcessor", () => {
   });
 
   it("calls GitHub API with correct owner and repo", async () => {
-    vi.mocked(mockGitHub.listOpenPRs).mockResolvedValue([]);
+    (mockGitHub.listOpenPRs as any).mockResolvedValue([]);
 
     await processor.process(makeJob());
 
@@ -165,9 +164,9 @@ describe("IngestProcessor", () => {
   });
 
   it("passes maxPrs to listOpenPRs when present", async () => {
-    vi.mocked(mockGitHub.listOpenPRs).mockResolvedValue([makeFetchedPR(1)]);
-    vi.mocked(mockGitHub.getPRFiles).mockResolvedValue([]);
-    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue({ diff: makeDiff(1), etag: null });
+    (mockGitHub.listOpenPRs as any).mockResolvedValue([makeFetchedPR(1)]);
+    (mockGitHub.getPRFiles as any).mockResolvedValue([]);
+    (mockGitHub.getPRDiff as any).mockResolvedValue({ diff: makeDiff(1), etag: null });
 
     const job: Job = {
       ...makeJob(),
@@ -181,9 +180,9 @@ describe("IngestProcessor", () => {
 
   it("calls getPRFiles and getPRDiff for each PR", async () => {
     const prs = [makeFetchedPR(10), makeFetchedPR(20)];
-    vi.mocked(mockGitHub.listOpenPRs).mockResolvedValue(prs);
-    vi.mocked(mockGitHub.getPRFiles).mockResolvedValue([]);
-    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue({ diff: makeDiff(1), etag: null });
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
+    (mockGitHub.getPRFiles as any).mockResolvedValue([]);
+    (mockGitHub.getPRDiff as any).mockResolvedValue({ diff: makeDiff(1), etag: null });
 
     await processor.process(makeJob());
 

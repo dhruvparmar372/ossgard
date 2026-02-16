@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createApp } from "../src/app.js";
 import { Database } from "../src/db/database.js";
 import type { Hono } from "hono";

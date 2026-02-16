@@ -1,4 +1,3 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ScanOrchestrator } from "./scan-orchestrator.js";
 import { Database } from "../db/database.js";
 import type { JobQueue } from "../queue/types.js";
@@ -19,7 +18,7 @@ describe("ScanOrchestrator", () => {
     scanId = scan.id;
 
     mockQueue = {
-      enqueue: vi.fn<JobQueue["enqueue"]>().mockResolvedValue("job-456"),
+      enqueue: vi.fn().mockResolvedValue("job-456"),
       getStatus: vi.fn(),
       dequeue: vi.fn(),
       complete: vi.fn(),
@@ -123,7 +122,7 @@ describe("ScanOrchestrator", () => {
   it("omits maxPrs when not present in payload", async () => {
     await orchestrator.process(makeJob());
 
-    const call = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    const call = (mockQueue.enqueue as any).mock.calls[0][0];
     expect(call.payload).not.toHaveProperty("maxPrs");
   });
 

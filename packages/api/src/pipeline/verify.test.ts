@@ -1,4 +1,3 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { VerifyProcessor } from "./verify.js";
 import { Database } from "../db/database.js";
 import type { ChatProvider, BatchChatProvider } from "../services/llm-provider.js";
@@ -102,7 +101,7 @@ describe("VerifyProcessor", () => {
     const pr1 = insertPR(1);
     const pr2 = insertPR(2);
 
-    vi.mocked(mockChat.chat).mockResolvedValue({
+    (mockChat.chat as any).mockResolvedValue({
       groups: [
         {
           prIds: [pr1.id, pr2.id],
@@ -120,7 +119,7 @@ describe("VerifyProcessor", () => {
 
     expect(mockChat.chat).toHaveBeenCalledTimes(1);
 
-    const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
     expect(enqueueCall.type).toBe("rank");
 
     const verifiedGroups = (
@@ -147,7 +146,7 @@ describe("VerifyProcessor", () => {
     const pr1 = insertPR(1);
     const pr2 = insertPR(2);
 
-    vi.mocked(mockChat.chat).mockResolvedValue({
+    (mockChat.chat as any).mockResolvedValue({
       groups: [
         {
           prIds: [pr1.id], // Only 1 PR - should be filtered
@@ -163,7 +162,7 @@ describe("VerifyProcessor", () => {
       makeJob([{ prNumbers: [1, 2], prIds: [pr1.id, pr2.id] }])
     );
 
-    const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
     const verifiedGroups = (
       enqueueCall.payload as { verifiedGroups: unknown[] }
     ).verifiedGroups;
@@ -177,7 +176,7 @@ describe("VerifyProcessor", () => {
     const pr3 = insertPR(3);
     const pr4 = insertPR(4);
 
-    vi.mocked(mockChat.chat)
+    (mockChat.chat as any)
       .mockResolvedValueOnce({
         groups: [
           {
@@ -210,7 +209,7 @@ describe("VerifyProcessor", () => {
 
     expect(mockChat.chat).toHaveBeenCalledTimes(2);
 
-    const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
     const verifiedGroups = (
       enqueueCall.payload as {
         verifiedGroups: Array<{ prIds: number[]; label: string }>;
@@ -242,7 +241,7 @@ describe("VerifyProcessor", () => {
     const pr1 = insertPR(1);
     const pr2 = insertPR(2);
 
-    vi.mocked(mockChat.chat).mockResolvedValue({
+    (mockChat.chat as any).mockResolvedValue({
       groups: [],
       unrelated: [pr1.id, pr2.id],
     });
@@ -252,7 +251,7 @@ describe("VerifyProcessor", () => {
     );
 
     // Verify the LLM was called with messages containing PR data
-    const chatCall = vi.mocked(mockChat.chat).mock.calls[0][0];
+    const chatCall = (mockChat.chat as any).mock.calls[0][0];
     expect(chatCall).toHaveLength(2); // system + user
     expect(chatCall[0].role).toBe("system");
     expect(chatCall[1].role).toBe("user");
@@ -287,7 +286,7 @@ describe("VerifyProcessor", () => {
       const pr3 = insertPR(3);
       const pr4 = insertPR(4);
 
-      vi.mocked(batchChat.chatBatch).mockResolvedValue([
+      (batchChat.chatBatch as any).mockResolvedValue([
         {
           id: "verify-0",
           response: {
@@ -318,7 +317,7 @@ describe("VerifyProcessor", () => {
       expect(batchChat.chatBatch).toHaveBeenCalledTimes(1);
       expect(batchChat.chat).not.toHaveBeenCalled();
 
-      const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+      const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
       const verifiedGroups = (
         enqueueCall.payload as { verifiedGroups: Array<{ label: string }> }
       ).verifiedGroups;
@@ -332,7 +331,7 @@ describe("VerifyProcessor", () => {
       const pr1 = insertPR(1);
       const pr2 = insertPR(2);
 
-      vi.mocked(batchChat.chat).mockResolvedValue({
+      (batchChat.chat as any).mockResolvedValue({
         groups: [
           { prIds: [pr1.id, pr2.id], label: "Solo Group", confidence: 0.9, relationship: "near_duplicate" },
         ],

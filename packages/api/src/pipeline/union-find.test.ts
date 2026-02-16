@@ -1,4 +1,3 @@
-import { describe, it, expect } from "vitest";
 import { UnionFind } from "./union-find.js";
 
 describe("UnionFind", () => {

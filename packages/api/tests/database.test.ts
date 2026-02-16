@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { Database } from "../src/db/database.js";
 
 describe("Database", () => {

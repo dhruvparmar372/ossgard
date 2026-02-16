@@ -7,9 +7,6 @@
     "build": "bun run --filter '*' build",
     "test": "bun run --filter '*' test",
     "dev": "bun run --cwd packages/api dev",
-    "test:e2e": "vitest run --config e2e/vitest.config.ts"
-  },
-  "devDependencies": {
-    "vitest": "^3.2.4"
+    "test:e2e": "bun test e2e/"
   }
 }

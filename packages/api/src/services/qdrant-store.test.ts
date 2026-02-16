@@ -1,4 +1,3 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QdrantStore, toUUID, type QdrantClient } from "./qdrant-store.js";
 
 function createMockClient(): QdrantClient {
@@ -27,7 +26,7 @@ describe("QdrantStore", () => {
 
   describe("ensureCollection", () => {
     it("creates collection if it does not exist", async () => {
-      vi.mocked(mockClient.getCollections).mockResolvedValue({
+      (mockClient.getCollections as any).mockResolvedValue({
         collections: [],
       });
 
@@ -40,10 +39,10 @@ describe("QdrantStore", () => {
     });
 
     it("skips creation if collection already exists with matching dimensions", async () => {
-      vi.mocked(mockClient.getCollections).mockResolvedValue({
+      (mockClient.getCollections as any).mockResolvedValue({
         collections: [{ name: "test-collection" }],
       });
-      vi.mocked(mockClient.getCollection).mockResolvedValue({
+      (mockClient.getCollection as any).mockResolvedValue({
         config: { params: { vectors: { size: 768, distance: "Cosine" } } },
       });
 
@@ -54,10 +53,10 @@ describe("QdrantStore", () => {
     });
 
     it("recreates collection if dimensions mismatch", async () => {
-      vi.mocked(mockClient.getCollections).mockResolvedValue({
+      (mockClient.getCollections as any).mockResolvedValue({
         collections: [{ name: "test-collection" }],
       });
-      vi.mocked(mockClient.getCollection).mockResolvedValue({
+      (mockClient.getCollection as any).mockResolvedValue({
         config: { params: { vectors: { size: 768, distance: "Cosine" } } },
       });
 
@@ -107,7 +106,7 @@ describe("QdrantStore", () => {
 
   describe("search", () => {
     it("returns search results with id, score, and payload", async () => {
-      vi.mocked(mockClient.search).mockResolvedValue([
+      (mockClient.search as any).mockResolvedValue([
         { id: "point-1", score: 0.95, payload: { repoId: 1 } },
         { id: "point-2", score: 0.87, payload: { repoId: 2 } },
       ]);
@@ -132,7 +131,7 @@ describe("QdrantStore", () => {
     });
 
     it("passes filter to the client", async () => {
-      vi.mocked(mockClient.search).mockResolvedValue([]);
+      (mockClient.search as any).mockResolvedValue([]);
       const filter = { must: [{ key: "repoId", match: { value: 1 } }] };
 
       await store.search("my-collection", [0.1], { limit: 5, filter });
@@ -146,7 +145,7 @@ describe("QdrantStore", () => {
     });
 
     it("handles results with missing payload", async () => {
-      vi.mocked(mockClient.search).mockResolvedValue([
+      (mockClient.search as any).mockResolvedValue([
         { id: "point-1", score: 0.9 },
       ]);
 
@@ -158,7 +157,7 @@ describe("QdrantStore", () => {
     });
 
     it("converts numeric IDs to strings", async () => {
-      vi.mocked(mockClient.search).mockResolvedValue([
+      (mockClient.search as any).mockResolvedValue([
         { id: 42, score: 0.8, payload: {} },
       ]);
 
@@ -185,7 +184,7 @@ describe("QdrantStore", () => {
 
   describe("getVector", () => {
     it("returns vector when point exists", async () => {
-      vi.mocked(mockClient.retrieve).mockResolvedValue([
+      (mockClient.retrieve as any).mockResolvedValue([
         { id: "point-1", vector: [0.1, 0.2, 0.3] },
       ]);
 
@@ -199,7 +198,7 @@ describe("QdrantStore", () => {
     });
 
     it("returns null when point does not exist", async () => {
-      vi.mocked(mockClient.retrieve).mockResolvedValue([]);
+      (mockClient.retrieve as any).mockResolvedValue([]);
 
       const vector = await store.getVector("my-collection", "nonexistent");
 

@@ -1,4 +1,3 @@
-import { describe, it, expect, vi } from "vitest";
 import { AnthropicProvider } from "./anthropic-provider.js";
 
 function mockFetch(responseBody: unknown): typeof fetch {
@@ -79,7 +78,7 @@ describe("AnthropicProvider", () => {
         { role: "user", content: "Review this PR." },
       ]);
 
-      const callArgs = vi.mocked(fetchFn).mock.calls[0];
+      const callArgs = (fetchFn as any).mock.calls[0];
       const body = JSON.parse(callArgs[1]!.body as string);
 
       expect(body.system).toEqual([
@@ -109,7 +108,7 @@ describe("AnthropicProvider", () => {
 
       await provider.chat([{ role: "user", content: "Hello" }]);
 
-      const callArgs = vi.mocked(fetchFn).mock.calls[0];
+      const callArgs = (fetchFn as any).mock.calls[0];
       const body = JSON.parse(callArgs[1]!.body as string);
 
       expect(body.system).toBeUndefined();
@@ -127,7 +126,7 @@ describe("AnthropicProvider", () => {
 
       await provider.chat([{ role: "user", content: "test" }]);
 
-      const callArgs = vi.mocked(fetchFn).mock.calls[0];
+      const callArgs = (fetchFn as any).mock.calls[0];
       const body = JSON.parse(callArgs[1]!.body as string);
 
       expect(body.model).toBe("claude-sonnet-4-20250514");

@@ -1,4 +1,3 @@
-import { describe, it, expect } from "vitest";
 import { normalizeDiff, hashDiff } from "./normalize-diff.js";
 
 const sampleDiff = `diff --git a/src/utils.ts b/src/utils.ts

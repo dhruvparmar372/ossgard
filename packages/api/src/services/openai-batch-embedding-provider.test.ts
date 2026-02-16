@@ -1,4 +1,3 @@
-import { describe, it, expect, vi } from "vitest";
 import { OpenAIBatchEmbeddingProvider } from "./openai-batch-embedding-provider.js";
 
 describe("OpenAIBatchEmbeddingProvider", () => {

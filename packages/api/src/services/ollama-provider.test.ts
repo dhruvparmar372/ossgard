@@ -1,4 +1,3 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import { OllamaProvider } from "./ollama-provider.js";
 
 function mockFetch(responseBody: unknown): typeof fetch {

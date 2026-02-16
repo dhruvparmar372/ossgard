@@ -1,4 +1,3 @@
-import { describe, it, expect } from "vitest";
 import { ServiceFactory, type ServiceConfig } from "./factory.js";
 
 function makeConfig(overrides: Partial<ServiceConfig> = {}): ServiceConfig {

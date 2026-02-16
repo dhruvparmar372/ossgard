@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Database } from "../db/database.js";
 import { LocalJobQueue } from "./local-job-queue.js";
 import { WorkerLoop } from "./worker.js";

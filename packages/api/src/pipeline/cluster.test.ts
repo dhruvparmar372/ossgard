@@ -1,4 +1,3 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ClusterProcessor } from "./cluster.js";
 import { Database } from "../db/database.js";
 import type { VectorStore } from "../services/vector-store.js";
@@ -103,7 +102,7 @@ describe("ClusterProcessor", () => {
 
     await processor.process(makeJob());
 
-    const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
     const candidateGroups = (
       enqueueCall.payload as { candidateGroups: Array<{ prNumbers: number[]; prIds: number[] }> }
     ).candidateGroups;
@@ -120,7 +119,7 @@ describe("ClusterProcessor", () => {
 
     await processor.process(makeJob());
 
-    const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
     const candidateGroups = (
       enqueueCall.payload as { candidateGroups: Array<{ prNumbers: number[]; prIds: number[] }> }
     ).candidateGroups;
@@ -134,10 +133,10 @@ describe("ClusterProcessor", () => {
     const pr2 = insertPR(2, { diffHash: "hash-2" });
 
     // Mock getVector to return a fake vector
-    vi.mocked(mockVectorStore.getVector).mockResolvedValue([0.1, 0.2, 0.3]);
+    (mockVectorStore.getVector as any).mockResolvedValue([0.1, 0.2, 0.3]);
 
     // Mock vector search to return high similarity between PR 1 and PR 2
-    vi.mocked(mockVectorStore.search).mockImplementation(
+    (mockVectorStore.search as any).mockImplementation(
       async (collection, _vector, _opts) => {
         if (collection === "ossgard-code") {
           // For PR 1 query, return PR 2 as highly similar
@@ -162,12 +161,12 @@ describe("ClusterProcessor", () => {
     await processor.process(makeJob());
 
     // Verify search is called with actual vectors, NOT []
-    const searchCalls = vi.mocked(mockVectorStore.search).mock.calls;
+    const searchCalls = (mockVectorStore.search as any).mock.calls;
     for (const call of searchCalls) {
       expect(call[1]).toEqual([0.1, 0.2, 0.3]);
     }
 
-    const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
     const candidateGroups = (
       enqueueCall.payload as { candidateGroups: Array<{ prNumbers: number[]; prIds: number[] }> }
     ).candidateGroups;
@@ -181,14 +180,14 @@ describe("ClusterProcessor", () => {
     insertPR(2, { diffHash: "hash-2" });
 
     // No embeddings stored for any PR
-    vi.mocked(mockVectorStore.getVector).mockResolvedValue(null);
+    (mockVectorStore.getVector as any).mockResolvedValue(null);
 
     await processor.process(makeJob());
 
     // search should never be called since no vectors are available
     expect(mockVectorStore.search).not.toHaveBeenCalled();
 
-    const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
     const candidateGroups = (
       enqueueCall.payload as { candidateGroups: unknown[] }
     ).candidateGroups;
@@ -200,7 +199,7 @@ describe("ClusterProcessor", () => {
     insertPR(2, { diffHash: "hash-2" });
 
     // Mock vector search with below-threshold similarity
-    vi.mocked(mockVectorStore.search).mockResolvedValue([
+    (mockVectorStore.search as any).mockResolvedValue([
       {
         id: `${repoId}-2-code`,
         score: 0.50, // Below both thresholds
@@ -210,7 +209,7 @@ describe("ClusterProcessor", () => {
 
     await processor.process(makeJob());
 
-    const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
     const candidateGroups = (
       enqueueCall.payload as { candidateGroups: Array<{ prNumbers: number[]; prIds: number[] }> }
     ).candidateGroups;
@@ -238,7 +237,7 @@ describe("ClusterProcessor", () => {
     await processor.process(makeJob());
 
     expect(mockQueue.enqueue).toHaveBeenCalledTimes(1);
-    const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
     expect(enqueueCall.type).toBe("verify");
     expect(enqueueCall.payload).toMatchObject({
       repoId,
@@ -255,7 +254,7 @@ describe("ClusterProcessor", () => {
     await processor.process(makeJob());
 
     expect(mockQueue.enqueue).toHaveBeenCalledTimes(1);
-    const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
     const candidateGroups = (
       enqueueCall.payload as { candidateGroups: unknown[] }
     ).candidateGroups;
@@ -271,7 +270,7 @@ describe("ClusterProcessor", () => {
 
     await processor.process(makeJob());
 
-    const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
     const candidateGroups = (
       enqueueCall.payload as { candidateGroups: Array<{ prNumbers: number[] }> }
     ).candidateGroups;
