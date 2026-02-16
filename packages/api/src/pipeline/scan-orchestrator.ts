@@ -12,9 +12,10 @@ export class ScanOrchestrator implements JobProcessor {
   ) {}
 
   async process(job: Job): Promise<void> {
-    const { repoId, scanId } = job.payload as {
+    const { repoId, scanId, maxPrs } = job.payload as {
       repoId: number;
       scanId: number;
+      maxPrs?: number;
     };
 
     // Look up the repo to get owner/name
@@ -31,6 +32,7 @@ export class ScanOrchestrator implements JobProcessor {
         scanId,
         owner: repo.owner,
         repo: repo.name,
+        ...(maxPrs !== undefined && { maxPrs }),
       },
     });
   }

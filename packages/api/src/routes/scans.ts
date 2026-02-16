@@ -15,10 +15,14 @@ scans.post("/repos/:owner/:name/scan", async (c) => {
 
   // Parse optional body for scan options
   let full = false;
+  let maxPrs: number | undefined;
   try {
     const body = await c.req.json();
     if (body && typeof body.full === "boolean") {
       full = body.full;
+    }
+    if (body && typeof body.maxPrs === "number" && body.maxPrs > 0) {
+      maxPrs = body.maxPrs;
     }
   } catch {
     // No body or invalid JSON is fine - defaults to incremental
@@ -28,7 +32,7 @@ scans.post("/repos/:owner/:name/scan", async (c) => {
 
   const jobId = await queue.enqueue({
     type: "scan",
-    payload: { scanId: scan.id, repoId: repo.id, full },
+    payload: { scanId: scan.id, repoId: repo.id, full, ...(maxPrs !== undefined && { maxPrs }) },
   });
 
   return c.json({ scanId: scan.id, jobId, status: "queued" }, 202);

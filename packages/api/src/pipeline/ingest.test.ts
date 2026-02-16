@@ -161,7 +161,22 @@ describe("IngestProcessor", () => {
 
     await processor.process(makeJob());
 
-    expect(mockGitHub.listOpenPRs).toHaveBeenCalledWith("facebook", "react");
+    expect(mockGitHub.listOpenPRs).toHaveBeenCalledWith("facebook", "react", undefined);
+  });
+
+  it("passes maxPrs to listOpenPRs when present", async () => {
+    vi.mocked(mockGitHub.listOpenPRs).mockResolvedValue([makeFetchedPR(1)]);
+    vi.mocked(mockGitHub.getPRFiles).mockResolvedValue([]);
+    vi.mocked(mockGitHub.getPRDiff).mockResolvedValue({ diff: makeDiff(1), etag: null });
+
+    const job: Job = {
+      ...makeJob(),
+      payload: { repoId, scanId, owner: "facebook", repo: "react", maxPrs: 5 },
+    };
+
+    await processor.process(job);
+
+    expect(mockGitHub.listOpenPRs).toHaveBeenCalledWith("facebook", "react", 5);
   });
 
   it("calls getPRFiles and getPRDiff for each PR", async () => {

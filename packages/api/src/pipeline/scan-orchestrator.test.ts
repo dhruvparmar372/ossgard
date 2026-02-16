@@ -100,6 +100,33 @@ describe("ScanOrchestrator", () => {
     expect(mockQueue.enqueue).not.toHaveBeenCalled();
   });
 
+  it("forwards maxPrs when present in payload", async () => {
+    const job: Job = {
+      ...makeJob(),
+      payload: { repoId, scanId, maxPrs: 10 },
+    };
+
+    await orchestrator.process(job);
+
+    expect(mockQueue.enqueue).toHaveBeenCalledWith({
+      type: "ingest",
+      payload: {
+        repoId,
+        scanId,
+        owner: "facebook",
+        repo: "react",
+        maxPrs: 10,
+      },
+    });
+  });
+
+  it("omits maxPrs when not present in payload", async () => {
+    await orchestrator.process(makeJob());
+
+    const call = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+    expect(call.payload).not.toHaveProperty("maxPrs");
+  });
+
   it("has type 'scan'", () => {
     expect(orchestrator.type).toBe("scan");
   });

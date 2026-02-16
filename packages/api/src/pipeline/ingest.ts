@@ -15,18 +15,19 @@ export class IngestProcessor implements JobProcessor {
   ) {}
 
   async process(job: Job): Promise<void> {
-    const { repoId, scanId, owner, repo } = job.payload as {
+    const { repoId, scanId, owner, repo, maxPrs } = job.payload as {
       repoId: number;
       scanId: number;
       owner: string;
       repo: string;
+      maxPrs?: number;
     };
 
     // Update scan status to "ingesting"
     this.db.updateScanStatus(scanId, "ingesting");
 
-    // Fetch all open PRs from GitHub
-    const fetchedPRs = await this.github.listOpenPRs(owner, repo);
+    // Fetch open PRs from GitHub (optionally limited)
+    const fetchedPRs = await this.github.listOpenPRs(owner, repo, maxPrs);
 
     // For each PR, fetch files and diff, compute hash, upsert
     for (const pr of fetchedPRs) {
