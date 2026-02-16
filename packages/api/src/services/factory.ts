@@ -10,10 +10,9 @@ import { QdrantStore, type QdrantClient } from "./qdrant-store.js";
 
 export interface ServiceConfig {
   github: { token: string };
-  llm: { provider: string; model: string; apiKey: string; batch?: boolean };
-  embedding: { provider: string; model: string; apiKey: string; batch?: boolean };
-  ollamaUrl: string;
-  qdrantUrl: string;
+  llm: { provider: string; url: string; model: string; apiKey: string; batch?: boolean };
+  embedding: { provider: string; url: string; model: string; apiKey: string; batch?: boolean };
+  vectorStoreUrl: string;
 }
 
 export class ServiceFactory {
@@ -36,7 +35,7 @@ export class ServiceFactory {
 
     // Default to Ollama for chat (batch flag ignored — Ollama has no batch API)
     return new OllamaProvider({
-      baseUrl: this.config.ollamaUrl,
+      baseUrl: this.config.llm.url,
       embeddingModel: this.config.embedding.model,
       chatModel: this.config.llm.model,
     });
@@ -59,7 +58,7 @@ export class ServiceFactory {
 
     // Default to Ollama for embeddings (batch flag ignored — Ollama has no batch API)
     return new OllamaProvider({
-      baseUrl: this.config.ollamaUrl,
+      baseUrl: this.config.embedding.url,
       embeddingModel: this.config.embedding.model,
       chatModel: this.config.llm.model,
     });
@@ -73,7 +72,7 @@ export class ServiceFactory {
   /** Create a vector store backed by Qdrant. Uses dynamic import for the Qdrant client. */
   async createVectorStore(): Promise<VectorStore> {
     const { QdrantClient: RealQdrantClient } = await import("@qdrant/js-client-rest");
-    const realClient = new RealQdrantClient({ url: this.config.qdrantUrl });
+    const realClient = new RealQdrantClient({ url: this.config.vectorStoreUrl });
 
     // Adapt the real Qdrant client to our minimal QdrantClient interface
     const adapter: QdrantClient = {
