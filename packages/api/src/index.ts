@@ -1,5 +1,4 @@
 import { readFileSync, existsSync } from "node:fs";
-import { serve } from "@hono/node-server";
 import TOML from "@iarna/toml";
 import { createApp } from "./app.js";
 import { Database } from "./db/database.js";
@@ -114,14 +113,14 @@ async function main() {
   });
 
   const port = Number(process.env.PORT) || 3400;
-  serve({ fetch: app.fetch, port }, () => {
-    console.log(`ossgard-api listening on http://localhost:${port}`);
-    ctx.worker.start();
-    console.log("Worker loop started");
-  });
+  const server = Bun.serve({ fetch: app.fetch, port });
+  console.log(`ossgard-api listening on http://localhost:${server.port}`);
+  ctx.worker.start();
+  console.log("Worker loop started");
 
   const shutdown = () => {
     console.log("Shutting down gracefully...");
+    server.stop();
     ctx.worker.stop();
     db.close();
     process.exit(0);
