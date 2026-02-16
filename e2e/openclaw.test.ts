@@ -136,10 +136,9 @@ describe("E2E: openclaw/openclaw", () => {
 
     const factory = new ServiceFactory({
       github: { token: githubToken },
-      llm: { provider: "ollama", model: "llama3", apiKey: "" },
-      embedding: { provider: "ollama", model: "nomic-embed-text", apiKey: "" },
-      ollamaUrl: OLLAMA_URL,
-      qdrantUrl: QDRANT_URL,
+      llm: { provider: "ollama", url: OLLAMA_URL, model: "llama3", apiKey: "" },
+      embedding: { provider: "ollama", url: OLLAMA_URL, model: "nomic-embed-text", apiKey: "" },
+      vectorStoreUrl: QDRANT_URL,
     });
 
     // Create GitHub client directly with rateLimitBuffer: 0 to avoid
