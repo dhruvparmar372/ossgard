@@ -49,6 +49,7 @@ export class OllamaProvider implements LLMProvider {
         messages,
         stream: false,
         format: "json",
+        options: { num_ctx: 8192 },
       }),
     });
 
