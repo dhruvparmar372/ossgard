@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { Config } from "../config.js";
 
@@ -5,6 +6,19 @@ export function registerConfigCommand(program: Command): void {
   const configCmd = program
     .command("config")
     .description("Manage ossgard configuration");
+
+  configCmd
+    .command("show")
+    .description("Display the entire current configuration")
+    .option("--json", "Output as JSON")
+    .action((opts: { json?: boolean }) => {
+      const config = new Config();
+      if (opts.json) {
+        console.log(JSON.stringify(config.load(), null, 2));
+      } else {
+        console.log(config.raw());
+      }
+    });
 
   configCmd
     .command("get <key>")

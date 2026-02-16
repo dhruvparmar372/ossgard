@@ -131,6 +131,14 @@ export class Config {
     writeFileSync(this.configPath, stringify(config as any), "utf-8");
   }
 
+  /** Return the raw TOML config file contents, or a serialised default. */
+  raw(): string {
+    if (existsSync(this.configPath)) {
+      return readFileSync(this.configPath, "utf-8");
+    }
+    return stringify(structuredClone(DEFAULT_CONFIG) as any);
+  }
+
   /** Check if the config file exists. */
   exists(): boolean {
     return existsSync(this.configPath);
