@@ -1,27 +1,18 @@
-FROM node:22-slim AS base
-
-RUN npm install -g pnpm@10
+FROM oven/bun:latest AS base
 
 WORKDIR /app
 
-# Copy workspace config
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
-
-# Copy package manifests for install
+COPY package.json bun.lock tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/api/package.json packages/api/
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN bun install --frozen-lockfile
 
-# Copy source code
 COPY packages/shared/ packages/shared/
 COPY packages/api/ packages/api/
 
-# Build shared first, then api
-RUN pnpm --filter @ossgard/shared build && \
-    pnpm --filter @ossgard/api build
+RUN cd packages/shared && bun run build && cd ../api && bun run build
 
 EXPOSE 3400
 
-CMD ["node", "packages/api/dist/index.js"]
+CMD ["bun", "packages/api/dist/index.js"]
