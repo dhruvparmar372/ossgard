@@ -79,17 +79,17 @@ export class ServiceFactory {
     const adapter: QdrantClient = {
       getCollections: () => realClient.getCollections(),
       createCollection: (name, opts) =>
-        realClient.createCollection(name, opts) as Promise<void>,
+        realClient.createCollection(name, opts as any) as unknown as Promise<void>,
       getCollection: (name) =>
         realClient.getCollection(name) as Promise<any>,
       deleteCollection: (name) =>
-        realClient.deleteCollection(name) as Promise<void>,
+        realClient.deleteCollection(name) as unknown as Promise<void>,
       upsert: (collection, opts) =>
-        realClient.upsert(collection, opts) as Promise<void>,
+        realClient.upsert(collection, opts) as unknown as Promise<void>,
       search: (collection, opts) =>
         realClient.search(collection, opts) as Promise<any>,
       delete: (collection, opts) =>
-        realClient.delete(collection, opts) as Promise<void>,
+        realClient.delete(collection, opts) as unknown as Promise<void>,
       retrieve: (collection, opts) =>
         realClient.retrieve(collection, opts) as Promise<any>,
     };

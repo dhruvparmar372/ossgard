@@ -2,20 +2,12 @@
   "name": "ossgard",
   "private": true,
   "type": "module",
+  "workspaces": ["packages/*"],
   "scripts": {
-    "build": "pnpm -r build",
-    "test": "pnpm -r test",
-    "dev": "pnpm --filter @ossgard/api dev",
+    "build": "bun run --filter '*' build",
+    "test": "bun run --filter '*' test",
+    "dev": "bun run --cwd packages/api dev",
     "test:e2e": "vitest run --config e2e/vitest.config.ts"
-  },
-  "engines": {
-    "node": ">=22"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "esbuild"
-    ]
   },
   "devDependencies": {
     "vitest": "^3.2.4"
