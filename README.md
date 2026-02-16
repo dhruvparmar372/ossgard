@@ -46,43 +46,86 @@ Jobs are queued in SQLite and processed by an in-process worker loop, making sca
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) >= 1.0
+- [Docker](https://docs.docker.com/get-docker/) (for the API server)
 - A [Qdrant](https://qdrant.tech) instance (local or cloud)
 - An LLM/embedding provider: [Ollama](https://ollama.ai) (local) or cloud (Anthropic/OpenAI)
 - A GitHub Personal Access Token (PAT)
+- [Bun](https://bun.sh) >= 1.0 (only needed to build from source)
 
 ### Install and run
 
 ```bash
-# Clone and install dependencies
+# Clone and build
 git clone https://github.com/your-org/ossgard.git
 cd ossgard
 bun install
 bun run build
-
-# Compile standalone CLI binary
 bun run build:cli
 
+# Add the CLI to your PATH
+sudo cp ./packages/cli/dist/ossgard /usr/local/bin/ossgard
+
 # Initialize config (creates ~/.ossgard/config.toml, prompts for GitHub PAT)
-./packages/cli/dist/ossgard init
+ossgard init
+```
 
-# Start services (example using Docker, but any method works)
-docker run -d -p 6333:6333 qdrant/qdrant:latest
-docker run -d -p 11434:11434 ollama/ollama:latest
+### Start the API server (required)
 
-# Pull Ollama models (if using Ollama)
-ollama pull nomic-embed-text
-ollama pull llama3
+The API server is the core of ossgard — the CLI talks to it over HTTP.
 
-# Start the API server
-bun run dev
+```bash
+docker compose -f deploy/docker-compose.yml up -d    # start
+docker compose -f deploy/docker-compose.yml down      # stop
+docker compose -f deploy/docker-compose.yml down -v   # stop and remove data
+```
 
-# Track a repo and scan it
-./packages/cli/dist/ossgard track facebook/react
-./packages/cli/dist/ossgard scan facebook/react
+Or run it directly without Docker:
 
-# View duplicate groups
-./packages/cli/dist/ossgard dupes facebook/react
+```bash
+bun run dev    # starts API on :3400
+```
+
+### Local AI stack (optional)
+
+ossgard needs a vector store (Qdrant) and an LLM/embedding provider. You can use cloud-hosted services, native installs, or the provided Docker Compose for a fully local setup:
+
+```bash
+# Start Qdrant and Ollama locally
+docker compose -f deploy/docker-compose.local-ai.yml up -d
+
+# Pull the required Ollama models
+ollama pull nomic-embed-text    # embeddings
+ollama pull llama3              # LLM for verify/rank
+```
+
+The default config already points to `localhost:6333` (Qdrant) and `localhost:11434` (Ollama), so no config changes are needed if you run them locally.
+
+To stop the local AI stack:
+
+```bash
+docker compose -f deploy/docker-compose.local-ai.yml down      # stop
+docker compose -f deploy/docker-compose.local-ai.yml down -v   # stop and remove data
+```
+
+If you prefer cloud providers instead, update your config:
+
+```bash
+ossgard config set vector_store.url "https://your-qdrant-cloud-url"
+ossgard config set vector_store.api_key "your-api-key"
+ossgard config set llm.provider "anthropic"
+ossgard config set llm.api_key "your-api-key"
+ossgard config set embedding.provider "openai"
+ossgard config set embedding.api_key "your-api-key"
+```
+
+### Usage
+
+```bash
+ossgard track facebook/react       # start tracking a repo
+ossgard scan facebook/react        # run a duplicate scan
+ossgard dupes facebook/react       # view duplicate groups
+ossgard status                     # list tracked repos
+ossgard config show                # view current configuration
 ```
 
 ### Configuration
@@ -138,19 +181,14 @@ A small set of env vars are supported for deployment flexibility:
 
 **Note:** Switching embedding providers changes vector dimensions. ossgard automatically detects dimension mismatches in Qdrant and recreates collections as needed (existing vectors will be lost — a re-scan is required).
 
-#### Docker Compose (optional)
+#### Docker networking note
 
-A convenience `docker-compose.yml` is provided in `deploy/` for running the full stack in Docker:
+When the API server runs in Docker and needs to reach services on the host (e.g. Ollama), use `host.docker.internal` instead of `localhost`:
 
 ```bash
-cd deploy
-docker compose up -d
+ossgard config set llm.url "http://host.docker.internal:11434"
+ossgard config set embedding.url "http://host.docker.internal:11434"
 ```
-
-When using Docker Compose, set the service URLs in your config to use Docker networking:
-- `llm.url = "http://ollama:11434"`
-- `embedding.url = "http://ollama:11434"`
-- `vector_store.url = "http://qdrant:6333"`
 
 ### Development
 
@@ -166,8 +204,9 @@ bun run build:cli # Compile standalone CLI binary
 ```
 packages/
   api/       Hono HTTP server, pipeline processors, services, SQLite DB
-  cli/       Commander-based CLI (init, config, track, scan, dupes, status)
+  cli/       Commander-based CLI (init, config show/get/set, track, scan, dupes, status)
   shared/    Types and Zod schemas shared across packages
 deploy/
-  docker-compose.yml   Optional Docker Compose for full-stack deployment
+  docker-compose.yml          API server (required)
+  docker-compose.local-ai.yml Local Qdrant + Ollama (optional)
 ```

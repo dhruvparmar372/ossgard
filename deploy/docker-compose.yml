@@ -1,27 +1,12 @@
+name: ossgard
+
 services:
-  qdrant:
-    image: qdrant/qdrant:latest
-    ports:
-      - "6333:6333"
-    volumes:
-      - ossgard-vectors:/qdrant/storage
-
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ossgard-models:/root/.ollama
-
   api:
     build:
       context: ..
       dockerfile: packages/api/Dockerfile
     ports:
       - "3400:3400"
-    depends_on:
-      - qdrant
-      - ollama
     volumes:
       - ossgard-data:/data
       - ${HOME}/.ossgard:/config:ro
@@ -30,6 +15,4 @@ services:
       CONFIG_PATH: /config/config.toml
 
 volumes:
-  ossgard-vectors:
-  ossgard-models:
   ossgard-data:
