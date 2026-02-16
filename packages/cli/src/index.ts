@@ -2,7 +2,6 @@
 import { Command } from "commander";
 import { ApiClient } from "./client.js";
 import { Config } from "./config.js";
-import { trackCommand, untrackCommand } from "./commands/track.js";
 import { statusCommand } from "./commands/status.js";
 import { registerSetupCommand } from "./commands/setup.js";
 import { registerConfigCommand } from "./commands/config.js";
@@ -24,8 +23,6 @@ program
 registerSetupCommand(program);
 registerConfigCommand(program);
 
-program.addCommand(trackCommand(client));
-program.addCommand(untrackCommand(client));
 program.addCommand(statusCommand(client));
 program.addCommand(scanCommand(client));
 program.addCommand(dupesCommand(client));

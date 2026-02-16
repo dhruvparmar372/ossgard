@@ -57,35 +57,66 @@ describe("scans routes", () => {
       expect(job!.status).toBe("queued");
     });
 
-    it("returns 404 for untracked repo", async () => {
+    it("auto-tracks untracked repo and creates scan", async () => {
       const res = await app.request("/repos/facebook/react/scan", {
         method: "POST",
         headers: AUTH_HEADER,
       });
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(202);
       const body = (await res.json()) as any;
-      expect(body.error).toContain("not tracked");
+      expect(body.scanId).toBeTruthy();
+      expect(body.status).toBe("queued");
+      expect(body.jobId).toBeTruthy();
+
+      // Verify repo was auto-tracked
+      const repo = db.getRepoByOwnerName("facebook", "react");
+      expect(repo).not.toBeNull();
     });
 
-    it("creates multiple scans for the same repo", async () => {
+    it("returns existing scan if one is active", async () => {
       db.insertRepo("facebook", "react");
 
       const res1 = await app.request("/repos/facebook/react/scan", {
         method: "POST",
         headers: AUTH_HEADER,
       });
+      expect(res1.status).toBe(202);
+      const body1 = (await res1.json()) as any;
+
       const res2 = await app.request("/repos/facebook/react/scan", {
         method: "POST",
         headers: AUTH_HEADER,
       });
-
-      expect(res1.status).toBe(202);
-      expect(res2.status).toBe(202);
-
-      const body1 = (await res1.json()) as any;
+      expect(res2.status).toBe(200);
       const body2 = (await res2.json()) as any;
-      expect(body1.scanId).not.toBe(body2.scanId);
-      expect(body1.jobId).not.toBe(body2.jobId);
+
+      expect(body2.scanId).toBe(body1.scanId);
+      expect(body2.status).toBe("queued");
+      expect(body2.jobId).toBeUndefined();
+    });
+
+    it("creates new scan after previous one completes", async () => {
+      db.insertRepo("facebook", "react");
+
+      const res1 = await app.request("/repos/facebook/react/scan", {
+        method: "POST",
+        headers: AUTH_HEADER,
+      });
+      expect(res1.status).toBe(202);
+      const body1 = (await res1.json()) as any;
+
+      // Complete the first scan
+      db.updateScanStatus(body1.scanId, "done", { completedAt: new Date().toISOString() });
+
+      const res2 = await app.request("/repos/facebook/react/scan", {
+        method: "POST",
+        headers: AUTH_HEADER,
+      });
+      expect(res2.status).toBe(202);
+      const body2 = (await res2.json()) as any;
+
+      expect(body2.scanId).not.toBe(body1.scanId);
+      expect(body2.jobId).toBeTruthy();
     });
   });
 

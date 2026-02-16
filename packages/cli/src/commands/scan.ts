@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { ApiClient, ApiError } from "../client.js";
+import { ApiClient } from "../client.js";
 import { requireSetup } from "../guard.js";
 import { parseSlug } from "./track.js";
 import type { Scan, ScanStatus } from "@ossgard/shared";
@@ -35,26 +35,19 @@ export function scanCommand(client: ApiClient): Command {
         if (!requireSetup()) return;
         const { owner, name } = parseSlug(slug);
 
-        let scanId: number;
-        try {
-          const result = await client.post<{
-            scanId: number;
-            jobId: string;
-            status: string;
-          }>(`/repos/${owner}/${name}/scan`, opts.full ? { full: true } : undefined);
-          scanId = result.scanId;
-        } catch (err) {
-          if (err instanceof ApiError && err.status === 404) {
-            console.error(
-              `${owner}/${name} is not tracked. Run \`ossgard track ${owner}/${name}\` first.`
-            );
-            process.exitCode = 1;
-            return;
-          }
-          throw err;
-        }
+        const result = await client.post<{
+          scanId: number;
+          jobId?: string;
+          status: string;
+        }>(`/repos/${owner}/${name}/scan`, opts.full ? { full: true } : undefined);
+        const scanId = result.scanId;
+        const alreadyRunning = !result.jobId;
 
-        console.log(`Scan #${scanId} started for ${owner}/${name}`);
+        if (alreadyRunning) {
+          console.log(`Scan #${scanId} already in progress for ${owner}/${name}`);
+        } else {
+          console.log(`Scan #${scanId} started for ${owner}/${name}`);
+        }
 
         // --no-wait: just print the scan ID and exit
         if (opts.wait === false) {

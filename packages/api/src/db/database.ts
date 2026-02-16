@@ -409,6 +409,14 @@ export class Database {
     return row ? mapScanRow(row) : null;
   }
 
+  getActiveScan(repoId: number, accountId: number): Scan | null {
+    const stmt = this.raw.prepare(
+      "SELECT * FROM scans WHERE repo_id = ? AND account_id = ? AND status NOT IN ('done', 'failed') ORDER BY id DESC LIMIT 1"
+    );
+    const row = stmt.get(repoId, accountId) as ScanRow | null;
+    return row ? mapScanRow(row) : null;
+  }
+
   close(): void {
     this.raw.close();
   }

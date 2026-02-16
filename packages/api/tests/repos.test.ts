@@ -36,16 +36,30 @@ describe("repos routes", () => {
       expect(body).toEqual([]);
     });
 
-    it("returns all tracked repos", async () => {
-      db.insertRepo("facebook", "react");
+    it("returns all tracked repos with activeScanStatus", async () => {
+      const repo1 = db.insertRepo("facebook", "react");
       db.insertRepo("vercel", "next.js");
+      db.createScan(repo1.id, account.id);
 
       const res = await app.request("/repos", { headers: AUTH_HEADER });
       expect(res.status).toBe(200);
       const body = (await res.json()) as any[];
       expect(body).toHaveLength(2);
       expect(body[0].owner).toBe("facebook");
+      expect(body[0].activeScanStatus).toBe("queued");
       expect(body[1].owner).toBe("vercel");
+      expect(body[1].activeScanStatus).toBeNull();
+    });
+
+    it("returns null activeScanStatus when scan is completed", async () => {
+      const repo = db.insertRepo("facebook", "react");
+      const scan = db.createScan(repo.id, account.id);
+      db.updateScanStatus(scan.id, "done", { completedAt: new Date().toISOString() });
+
+      const res = await app.request("/repos", { headers: AUTH_HEADER });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any[];
+      expect(body[0].activeScanStatus).toBeNull();
     });
   });
 

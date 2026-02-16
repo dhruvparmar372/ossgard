@@ -12,9 +12,10 @@ scans.post("/repos/:owner/:name/scan", async (c) => {
   const account = c.get("account");
   const { owner, name } = c.req.param();
 
-  const repo = db.getRepoByOwnerName(owner, name);
+  let repo = db.getRepoByOwnerName(owner, name);
   if (!repo) {
-    return c.json({ error: `${owner}/${name} is not tracked` }, 404);
+    repo = db.insertRepo(owner, name);
+    scansLog.info("Auto-tracked repo", { repo: `${owner}/${name}` });
   }
 
   // Parse optional body for scan options
@@ -30,6 +31,13 @@ scans.post("/repos/:owner/:name/scan", async (c) => {
     }
   } catch {
     // No body or invalid JSON is fine - defaults to incremental
+  }
+
+  // If a scan is already running, return it instead of creating a new one
+  const activeScan = db.getActiveScan(repo.id, account.id);
+  if (activeScan) {
+    scansLog.info("Scan already active", { repo: `${owner}/${name}`, scanId: activeScan.id });
+    return c.json({ scanId: activeScan.id, status: activeScan.status }, 200);
   }
 
   const scan = db.createScan(repo.id, account.id);
