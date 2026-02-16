@@ -1,12 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { RankProcessor } from "./rank.js";
 import { Database } from "../db/database.js";
-import type { ChatProvider } from "../services/llm-provider.js";
+import type { ChatProvider, BatchChatProvider } from "../services/llm-provider.js";
 import type { Job } from "@ossgard/shared";
 
 function createMockChat(): ChatProvider {
   return {
     chat: vi.fn().mockResolvedValue({ rankings: [] }),
+  };
+}
+
+function createMockBatchChat(): BatchChatProvider {
+  return {
+    batch: true as const,
+    chat: vi.fn().mockResolvedValue({ rankings: [] }),
+    chatBatch: vi.fn().mockResolvedValue([]),
   };
 }
 
@@ -338,5 +346,87 @@ describe("RankProcessor", () => {
 
     const groups = db.listDupeGroups(scanId);
     expect(groups).toHaveLength(0);
+  });
+
+  describe("batch path", () => {
+    let batchChat: BatchChatProvider;
+    let batchProcessor: RankProcessor;
+
+    beforeEach(() => {
+      batchChat = createMockBatchChat();
+      batchProcessor = new RankProcessor(db, batchChat);
+    });
+
+    it("uses chatBatch when provider is batch and multiple groups exist", async () => {
+      const pr1 = insertPR(1);
+      const pr2 = insertPR(2);
+      const pr3 = insertPR(3);
+      const pr4 = insertPR(4);
+
+      vi.mocked(batchChat.chatBatch).mockResolvedValue([
+        {
+          id: "rank-0",
+          response: {
+            rankings: [
+              { prNumber: 1, score: 85, codeQuality: 45, completeness: 40, rationale: "Good" },
+              { prNumber: 2, score: 70, codeQuality: 35, completeness: 35, rationale: "OK" },
+            ],
+          },
+        },
+        {
+          id: "rank-1",
+          response: {
+            rankings: [
+              { prNumber: 3, score: 90, codeQuality: 45, completeness: 45, rationale: "Excellent" },
+              { prNumber: 4, score: 50, codeQuality: 25, completeness: 25, rationale: "Basic" },
+            ],
+          },
+        },
+      ]);
+
+      await batchProcessor.process(
+        makeJob([
+          { prIds: [pr1.id, pr2.id], label: "Group A", confidence: 0.9, relationship: "near_duplicate" },
+          { prIds: [pr3.id, pr4.id], label: "Group B", confidence: 0.85, relationship: "exact_duplicate" },
+        ])
+      );
+
+      expect(batchChat.chatBatch).toHaveBeenCalledTimes(1);
+      expect(batchChat.chat).not.toHaveBeenCalled();
+
+      const groups = db.listDupeGroups(scanId);
+      expect(groups).toHaveLength(2);
+      expect(groups[0].label).toBe("Group A");
+      expect(groups[1].label).toBe("Group B");
+
+      // Verify rankings stored correctly
+      const membersA = db.listDupeGroupMembers(groups[0].id);
+      expect(membersA[0].score).toBe(85);
+      expect(membersA[1].score).toBe(70);
+    });
+
+    it("falls back to sequential chat when only one group", async () => {
+      const pr1 = insertPR(1);
+      const pr2 = insertPR(2);
+
+      vi.mocked(batchChat.chat).mockResolvedValue({
+        rankings: [
+          { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
+          { prNumber: 2, score: 60, codeQuality: 30, completeness: 30, rationale: "Fair" },
+        ],
+      });
+
+      await batchProcessor.process(
+        makeJob([
+          { prIds: [pr1.id, pr2.id], label: "Solo", confidence: 0.9, relationship: "near_duplicate" },
+        ])
+      );
+
+      expect(batchChat.chat).toHaveBeenCalledTimes(1);
+      expect(batchChat.chatBatch).not.toHaveBeenCalled();
+
+      const groups = db.listDupeGroups(scanId);
+      expect(groups).toHaveLength(1);
+    });
   });
 });

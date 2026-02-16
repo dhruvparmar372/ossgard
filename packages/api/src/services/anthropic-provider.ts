@@ -32,7 +32,13 @@ export class AnthropicProvider implements ChatProvider {
     };
 
     if (systemMessage) {
-      body.system = systemMessage.content;
+      body.system = [
+        {
+          type: "text",
+          text: systemMessage.content,
+          cache_control: { type: "ephemeral" },
+        },
+      ];
     }
 
     const response = await this.fetchFn(
@@ -43,6 +49,7 @@ export class AnthropicProvider implements ChatProvider {
           "Content-Type": "application/json",
           "x-api-key": this.apiKey,
           "anthropic-version": "2023-06-01",
+          "anthropic-beta": "prompt-caching-2024-07-31",
         },
         body: JSON.stringify(body),
       }

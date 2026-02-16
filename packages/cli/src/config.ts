@@ -5,8 +5,8 @@ import { parse, stringify } from "@iarna/toml";
 
 export interface OssgardConfig {
   github: { token: string };
-  llm: { provider: string; model: string; api_key: string };
-  embedding: { provider: string; model: string; api_key: string };
+  llm: { provider: string; model: string; api_key: string; batch?: boolean };
+  embedding: { provider: string; model: string; api_key: string; batch?: boolean };
   scan: {
     concurrency: number;
     code_similarity_threshold: number;

@@ -1,6 +1,7 @@
 import type { Job, PR } from "@ossgard/shared";
 import type { Database } from "../db/database.js";
-import type { ChatProvider } from "../services/llm-provider.js";
+import type { ChatProvider, Message } from "../services/llm-provider.js";
+import { isBatchChatProvider } from "../services/llm-provider.js";
 import type { JobProcessor } from "../queue/worker.js";
 import { buildRankPrompt } from "./prompts.js";
 
@@ -17,6 +18,13 @@ interface RankingResult {
   codeQuality: number;
   completeness: number;
   rationale: string;
+}
+
+interface PreparedGroup {
+  groupIndex: number;
+  group: VerifiedGroup;
+  prs: PR[];
+  messages: Message[];
 }
 
 export class RankProcessor implements JobProcessor {
@@ -39,32 +47,58 @@ export class RankProcessor implements JobProcessor {
     // Update scan status to "ranking"
     this.db.updateScanStatus(scanId, "ranking");
 
-    let totalGroups = 0;
-
-    for (const group of verifiedGroups) {
-      // Look up full PR data
+    // 1. Build all messages upfront
+    const prepared: PreparedGroup[] = [];
+    for (let i = 0; i < verifiedGroups.length; i++) {
+      const group = verifiedGroups[i];
       const prs: PR[] = [];
       for (const prId of group.prIds) {
         const pr = this.db.getPR(prId);
-        if (pr) {
-          prs.push(pr);
-        }
+        if (pr) prs.push(pr);
       }
-
       if (prs.length < 2) continue;
+      prepared.push({
+        groupIndex: i,
+        group,
+        prs,
+        messages: buildRankPrompt(prs, group.label),
+      });
+    }
 
-      // Send to LLM with buildRankPrompt
-      const messages = buildRankPrompt(prs, group.label);
-      const response = (await this.llm.chat(messages)) as {
-        rankings: RankingResult[];
-      };
+    // 2. Call LLM (batch or sequential)
+    let responses: Array<{ rankings: RankingResult[] }>;
 
-      // Sort by score descending
+    if (isBatchChatProvider(this.llm) && prepared.length > 1) {
+      const results = await this.llm.chatBatch(
+        prepared.map((p) => ({
+          id: `rank-${p.groupIndex}`,
+          messages: p.messages,
+        }))
+      );
+      responses = results.map(
+        (r) => r.response as { rankings: RankingResult[] }
+      );
+    } else {
+      responses = [];
+      for (const p of prepared) {
+        const response = (await this.llm.chat(p.messages)) as {
+          rankings: RankingResult[];
+        };
+        responses.push(response);
+      }
+    }
+
+    // 3. Store results
+    let totalGroups = 0;
+
+    for (let i = 0; i < prepared.length; i++) {
+      const { group, prs } = prepared[i];
+      const response = responses[i];
+
       const sortedRankings = [...response.rankings].sort(
         (a, b) => b.score - a.score
       );
 
-      // Insert dupe_group
       const dupeGroup = this.db.insertDupeGroup(
         scanId,
         repoId,
@@ -72,18 +106,15 @@ export class RankProcessor implements JobProcessor {
         prs.length
       );
 
-      // Insert dupe_group_members
       for (let rank = 0; rank < sortedRankings.length; rank++) {
         const ranking = sortedRankings[rank];
-
-        // Find the PR ID for this PR number
         const pr = prs.find((p) => p.number === ranking.prNumber);
         if (!pr) continue;
 
         this.db.insertDupeGroupMember(
           dupeGroup.id,
           pr.id,
-          rank + 1, // 1-indexed rank
+          rank + 1,
           ranking.score,
           ranking.rationale
         );

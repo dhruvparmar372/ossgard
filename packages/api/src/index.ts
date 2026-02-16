@@ -13,8 +13,8 @@ import { RankProcessor } from "./pipeline/rank.js";
 
 interface TomlConfig {
   github?: { token?: string };
-  llm?: { provider?: string; model?: string; api_key?: string };
-  embedding?: { provider?: string; model?: string; api_key?: string };
+  llm?: { provider?: string; model?: string; api_key?: string; batch?: boolean };
+  embedding?: { provider?: string; model?: string; api_key?: string; batch?: boolean };
   scan?: {
     code_similarity_threshold?: number;
     intent_similarity_threshold?: number;
@@ -47,6 +47,7 @@ async function main() {
       provider: process.env.LLM_PROVIDER || toml.llm?.provider || "ollama",
       model: process.env.LLM_MODEL || toml.llm?.model || "llama3",
       apiKey: process.env.LLM_API_KEY || toml.llm?.api_key || "",
+      batch: process.env.LLM_BATCH === "true" || toml.llm?.batch || false,
     },
     embedding: {
       provider:
@@ -55,6 +56,7 @@ async function main() {
         process.env.EMBEDDING_MODEL || toml.embedding?.model || "nomic-embed-text",
       apiKey:
         process.env.EMBEDDING_API_KEY || toml.embedding?.api_key || "",
+      batch: process.env.EMBEDDING_BATCH === "true" || toml.embedding?.batch || false,
     },
     ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434",
     qdrantUrl: process.env.QDRANT_URL || "http://localhost:6333",

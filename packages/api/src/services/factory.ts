@@ -2,14 +2,16 @@ import type { EmbeddingProvider, ChatProvider } from "./llm-provider.js";
 import type { VectorStore } from "./vector-store.js";
 import { OllamaProvider } from "./ollama-provider.js";
 import { AnthropicProvider } from "./anthropic-provider.js";
+import { AnthropicBatchProvider } from "./anthropic-batch-provider.js";
 import { OpenAIEmbeddingProvider } from "./openai-embedding-provider.js";
+import { OpenAIBatchEmbeddingProvider } from "./openai-batch-embedding-provider.js";
 import { GitHubClient } from "./github-client.js";
 import { QdrantStore, type QdrantClient } from "./qdrant-store.js";
 
 export interface ServiceConfig {
   github: { token: string };
-  llm: { provider: string; model: string; apiKey: string };
-  embedding: { provider: string; model: string; apiKey: string };
+  llm: { provider: string; model: string; apiKey: string; batch?: boolean };
+  embedding: { provider: string; model: string; apiKey: string; batch?: boolean };
   ollamaUrl: string;
   qdrantUrl: string;
 }
@@ -20,13 +22,19 @@ export class ServiceFactory {
   /** Create the chat provider (Ollama or Anthropic based on config). */
   createLLMProvider(): ChatProvider {
     if (this.config.llm.provider === "anthropic") {
+      if (this.config.llm.batch) {
+        return new AnthropicBatchProvider({
+          apiKey: this.config.llm.apiKey,
+          model: this.config.llm.model,
+        });
+      }
       return new AnthropicProvider({
         apiKey: this.config.llm.apiKey,
         model: this.config.llm.model,
       });
     }
 
-    // Default to Ollama for chat
+    // Default to Ollama for chat (batch flag ignored — Ollama has no batch API)
     return new OllamaProvider({
       baseUrl: this.config.ollamaUrl,
       embeddingModel: this.config.embedding.model,
@@ -37,13 +45,19 @@ export class ServiceFactory {
   /** Create the embedding provider (Ollama or OpenAI based on config). */
   createEmbeddingProvider(): EmbeddingProvider {
     if (this.config.embedding.provider === "openai") {
+      if (this.config.embedding.batch) {
+        return new OpenAIBatchEmbeddingProvider({
+          apiKey: this.config.embedding.apiKey,
+          model: this.config.embedding.model,
+        });
+      }
       return new OpenAIEmbeddingProvider({
         apiKey: this.config.embedding.apiKey,
         model: this.config.embedding.model,
       });
     }
 
-    // Default to Ollama for embeddings
+    // Default to Ollama for embeddings (batch flag ignored — Ollama has no batch API)
     return new OllamaProvider({
       baseUrl: this.config.ollamaUrl,
       embeddingModel: this.config.embedding.model,

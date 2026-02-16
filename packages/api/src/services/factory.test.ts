@@ -35,6 +35,22 @@ describe("ServiceFactory", () => {
       const llm = factory.createLLMProvider();
       expect(llm.constructor.name).toBe("OllamaProvider");
     });
+
+    it("returns AnthropicBatchProvider when provider is anthropic with batch=true", () => {
+      const factory = new ServiceFactory(
+        makeConfig({ llm: { provider: "anthropic", model: "claude-sonnet-4-20250514", apiKey: "sk-test", batch: true } })
+      );
+      const llm = factory.createLLMProvider();
+      expect(llm.constructor.name).toBe("AnthropicBatchProvider");
+    });
+
+    it("ignores batch flag for Ollama (no batch API)", () => {
+      const factory = new ServiceFactory(
+        makeConfig({ llm: { provider: "ollama", model: "llama3", apiKey: "", batch: true } })
+      );
+      const llm = factory.createLLMProvider();
+      expect(llm.constructor.name).toBe("OllamaProvider");
+    });
   });
 
   describe("createEmbeddingProvider", () => {
@@ -58,6 +74,26 @@ describe("ServiceFactory", () => {
       const factory = new ServiceFactory(
         makeConfig({
           embedding: { provider: "unknown", model: "some-model", apiKey: "" },
+        })
+      );
+      const embedding = factory.createEmbeddingProvider();
+      expect(embedding.constructor.name).toBe("OllamaProvider");
+    });
+
+    it("returns OpenAIBatchEmbeddingProvider when provider is openai with batch=true", () => {
+      const factory = new ServiceFactory(
+        makeConfig({
+          embedding: { provider: "openai", model: "text-embedding-3-large", apiKey: "sk-test", batch: true },
+        })
+      );
+      const embedding = factory.createEmbeddingProvider();
+      expect(embedding.constructor.name).toBe("OpenAIBatchEmbeddingProvider");
+    });
+
+    it("ignores batch flag for Ollama embeddings (no batch API)", () => {
+      const factory = new ServiceFactory(
+        makeConfig({
+          embedding: { provider: "ollama", model: "nomic-embed-text", apiKey: "", batch: true },
         })
       );
       const embedding = factory.createEmbeddingProvider();

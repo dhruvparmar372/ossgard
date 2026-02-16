@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EmbedProcessor } from "./embed.js";
 import { Database } from "../db/database.js";
-import type { EmbeddingProvider } from "../services/llm-provider.js";
+import type { EmbeddingProvider, BatchEmbeddingProvider } from "../services/llm-provider.js";
 import type { VectorStore } from "../services/vector-store.js";
 import type { JobQueue } from "../queue/types.js";
 import type { Job } from "@ossgard/shared";
@@ -10,6 +10,15 @@ function createMockEmbeddingProvider(): EmbeddingProvider {
   return {
     dimensions: 768,
     embed: vi.fn().mockResolvedValue([]),
+  };
+}
+
+function createMockBatchEmbeddingProvider(): BatchEmbeddingProvider {
+  return {
+    batch: true as const,
+    dimensions: 768,
+    embed: vi.fn().mockResolvedValue([]),
+    embedBatch: vi.fn().mockResolvedValue([]),
   };
 }
 
@@ -258,5 +267,80 @@ describe("EmbedProcessor", () => {
     await processorNoQueue.process(makeJob());
 
     expect(mockVectorStore.upsert).toHaveBeenCalled();
+  });
+
+  describe("batch path", () => {
+    let batchEmbedding: BatchEmbeddingProvider;
+    let batchProcessor: EmbedProcessor;
+
+    beforeEach(() => {
+      batchEmbedding = createMockBatchEmbeddingProvider();
+      batchProcessor = new EmbedProcessor(db, batchEmbedding, mockVectorStore, mockQueue);
+    });
+
+    it("uses embedBatch when provider is batch and PRs exist", async () => {
+      insertPR(1);
+      insertPR(2);
+
+      const vec1 = makeVector(1);
+      const vec2 = makeVector(2);
+
+      vi.mocked(batchEmbedding.embedBatch).mockResolvedValue([
+        { id: "code-0", embeddings: [vec1, vec2] },
+        { id: "intent-0", embeddings: [vec1, vec2] },
+      ]);
+
+      await batchProcessor.process(makeJob());
+
+      expect(batchEmbedding.embedBatch).toHaveBeenCalledTimes(1);
+      expect(batchEmbedding.embed).not.toHaveBeenCalled();
+
+      // 2 requests: code-0, intent-0
+      const batchCall = vi.mocked(batchEmbedding.embedBatch).mock.calls[0][0];
+      expect(batchCall).toHaveLength(2);
+      expect(batchCall[0].id).toBe("code-0");
+      expect(batchCall[1].id).toBe("intent-0");
+
+      // Vectors upserted
+      expect(mockVectorStore.upsert).toHaveBeenCalledTimes(2);
+    });
+
+    it("creates multiple batch requests for many PRs", async () => {
+      for (let i = 1; i <= 75; i++) {
+        insertPR(i);
+      }
+
+      vi.mocked(batchEmbedding.embedBatch).mockImplementation(
+        async (requests) => {
+          return requests.map((req) => ({
+            id: req.id,
+            embeddings: req.texts.map((_, i) => makeVector(i)),
+          }));
+        }
+      );
+
+      await batchProcessor.process(makeJob());
+
+      expect(batchEmbedding.embedBatch).toHaveBeenCalledTimes(1);
+
+      // 2 batches * 2 types = 4 requests
+      const batchCall = vi.mocked(batchEmbedding.embedBatch).mock.calls[0][0];
+      expect(batchCall).toHaveLength(4);
+      expect(batchCall[0].id).toBe("code-0");
+      expect(batchCall[0].texts).toHaveLength(50);
+      expect(batchCall[1].id).toBe("intent-0");
+      expect(batchCall[1].texts).toHaveLength(50);
+      expect(batchCall[2].id).toBe("code-1");
+      expect(batchCall[2].texts).toHaveLength(25);
+      expect(batchCall[3].id).toBe("intent-1");
+      expect(batchCall[3].texts).toHaveLength(25);
+    });
+
+    it("does not use batch path when no PRs exist", async () => {
+      await batchProcessor.process(makeJob());
+
+      expect(batchEmbedding.embedBatch).not.toHaveBeenCalled();
+      expect(batchEmbedding.embed).not.toHaveBeenCalled();
+    });
   });
 });

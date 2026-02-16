@@ -1,13 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { VerifyProcessor } from "./verify.js";
 import { Database } from "../db/database.js";
-import type { ChatProvider } from "../services/llm-provider.js";
+import type { ChatProvider, BatchChatProvider } from "../services/llm-provider.js";
 import type { JobQueue } from "../queue/types.js";
 import type { Job } from "@ossgard/shared";
 
 function createMockChat(): ChatProvider {
   return {
     chat: vi.fn().mockResolvedValue({ groups: [], unrelated: [] }),
+  };
+}
+
+function createMockBatchChat(): BatchChatProvider {
+  return {
+    batch: true as const,
+    chat: vi.fn().mockResolvedValue({ groups: [], unrelated: [] }),
+    chatBatch: vi.fn().mockResolvedValue([]),
   };
 }
 
@@ -262,5 +270,81 @@ describe("VerifyProcessor", () => {
 
     // Should not call LLM since only 1 PR was found
     expect(mockChat.chat).not.toHaveBeenCalled();
+  });
+
+  describe("batch path", () => {
+    let batchChat: BatchChatProvider;
+    let batchProcessor: VerifyProcessor;
+
+    beforeEach(() => {
+      batchChat = createMockBatchChat();
+      batchProcessor = new VerifyProcessor(db, batchChat, mockQueue);
+    });
+
+    it("uses chatBatch when provider is batch and multiple candidates exist", async () => {
+      const pr1 = insertPR(1);
+      const pr2 = insertPR(2);
+      const pr3 = insertPR(3);
+      const pr4 = insertPR(4);
+
+      vi.mocked(batchChat.chatBatch).mockResolvedValue([
+        {
+          id: "verify-0",
+          response: {
+            groups: [
+              { prIds: [pr1.id, pr2.id], label: "Group A", confidence: 0.9, relationship: "near_duplicate" },
+            ],
+            unrelated: [],
+          },
+        },
+        {
+          id: "verify-1",
+          response: {
+            groups: [
+              { prIds: [pr3.id, pr4.id], label: "Group B", confidence: 0.85, relationship: "exact_duplicate" },
+            ],
+            unrelated: [],
+          },
+        },
+      ]);
+
+      await batchProcessor.process(
+        makeJob([
+          { prNumbers: [1, 2], prIds: [pr1.id, pr2.id] },
+          { prNumbers: [3, 4], prIds: [pr3.id, pr4.id] },
+        ])
+      );
+
+      expect(batchChat.chatBatch).toHaveBeenCalledTimes(1);
+      expect(batchChat.chat).not.toHaveBeenCalled();
+
+      const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
+      const verifiedGroups = (
+        enqueueCall.payload as { verifiedGroups: Array<{ label: string }> }
+      ).verifiedGroups;
+
+      expect(verifiedGroups).toHaveLength(2);
+      expect(verifiedGroups[0].label).toBe("Group A");
+      expect(verifiedGroups[1].label).toBe("Group B");
+    });
+
+    it("falls back to sequential chat when only one candidate", async () => {
+      const pr1 = insertPR(1);
+      const pr2 = insertPR(2);
+
+      vi.mocked(batchChat.chat).mockResolvedValue({
+        groups: [
+          { prIds: [pr1.id, pr2.id], label: "Solo Group", confidence: 0.9, relationship: "near_duplicate" },
+        ],
+        unrelated: [],
+      });
+
+      await batchProcessor.process(
+        makeJob([{ prNumbers: [1, 2], prIds: [pr1.id, pr2.id] }])
+      );
+
+      expect(batchChat.chat).toHaveBeenCalledTimes(1);
+      expect(batchChat.chatBatch).not.toHaveBeenCalled();
+    });
   });
 });

@@ -38,7 +38,7 @@ describe("AnthropicProvider", () => {
       expect(result).toEqual(chatResponse);
     });
 
-    it("sends correct headers including x-api-key and anthropic-version", async () => {
+    it("sends correct headers including x-api-key, anthropic-version, and prompt caching beta", async () => {
       const fetchFn = mockFetch({
         content: [{ type: "text", text: '{"ok": true}' }],
       });
@@ -58,6 +58,7 @@ describe("AnthropicProvider", () => {
             "Content-Type": "application/json",
             "x-api-key": "sk-my-secret-key",
             "anthropic-version": "2023-06-01",
+            "anthropic-beta": "prompt-caching-2024-07-31",
           },
         })
       );
@@ -81,7 +82,13 @@ describe("AnthropicProvider", () => {
       const callArgs = vi.mocked(fetchFn).mock.calls[0];
       const body = JSON.parse(callArgs[1]!.body as string);
 
-      expect(body.system).toBe("You are a code reviewer.");
+      expect(body.system).toEqual([
+        {
+          type: "text",
+          text: "You are a code reviewer.",
+          cache_control: { type: "ephemeral" },
+        },
+      ]);
       expect(body.messages).toEqual([
         { role: "user", content: "Review this PR." },
       ]);
