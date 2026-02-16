@@ -64,6 +64,16 @@ describe("UnionFind", () => {
     expect(uf.find("c")).toBe(root);
   });
 
+  it("has returns true for added elements and false for unknown", () => {
+    const uf = new UnionFind<number>();
+    uf.add(1);
+    uf.add(2);
+
+    expect(uf.has(1)).toBe(true);
+    expect(uf.has(2)).toBe(true);
+    expect(uf.has(99)).toBe(false);
+  });
+
   it("find throws for unknown element", () => {
     const uf = new UnionFind<number>();
 

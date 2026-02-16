@@ -82,11 +82,13 @@ export class ClusterProcessor implements JobProcessor {
         );
 
         for (const result of codeResults) {
+          const neighborPR = result.payload.prNumber as number;
           if (
             result.score >= this.config.codeSimilarityThreshold &&
-            result.payload.prNumber !== pr.number
+            neighborPR !== pr.number &&
+            uf.has(neighborPR)
           ) {
-            uf.union(pr.number, result.payload.prNumber as number);
+            uf.union(pr.number, neighborPR);
           }
         }
       }
@@ -106,11 +108,13 @@ export class ClusterProcessor implements JobProcessor {
         );
 
         for (const result of intentResults) {
+          const neighborPR = result.payload.prNumber as number;
           if (
             result.score >= this.config.intentSimilarityThreshold &&
-            result.payload.prNumber !== pr.number
+            neighborPR !== pr.number &&
+            uf.has(neighborPR)
           ) {
-            uf.union(pr.number, result.payload.prNumber as number);
+            uf.union(pr.number, neighborPR);
           }
         }
       }

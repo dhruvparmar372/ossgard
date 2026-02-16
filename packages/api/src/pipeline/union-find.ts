@@ -9,6 +9,10 @@ export class UnionFind<T> {
     }
   }
 
+  has(x: T): boolean {
+    return this.parent.has(x);
+  }
+
   find(x: T): T {
     if (!this.parent.has(x)) {
       throw new Error(`Element not found in UnionFind: ${x}`);

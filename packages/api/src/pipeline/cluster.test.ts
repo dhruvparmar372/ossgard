@@ -261,6 +261,46 @@ describe("ClusterProcessor", () => {
     expect(candidateGroups).toHaveLength(0);
   });
 
+  it("skips stale vectors for PRs not in current open set", async () => {
+    insertPR(1, { diffHash: "hash-1" });
+    insertPR(2, { diffHash: "hash-2" });
+    // PR #999 is NOT in the database — simulates a stale Qdrant vector
+
+    (mockVectorStore.getVector as any).mockResolvedValue([0.1, 0.2, 0.3]);
+
+    (mockVectorStore.search as any).mockImplementation(
+      async (collection: string) => {
+        if (collection === "ossgard-code") {
+          return [
+            {
+              id: `${repoId}-999-code`,
+              score: 0.95,
+              payload: { repoId, prNumber: 999 }, // stale PR not in UnionFind
+            },
+            {
+              id: `${repoId}-2-code`,
+              score: 0.90,
+              payload: { repoId, prNumber: 2 },
+            },
+          ];
+        }
+        return [];
+      }
+    );
+
+    // Should NOT throw "Element not found in UnionFind: 999"
+    await processor.process(makeJob());
+
+    const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
+    const candidateGroups = (
+      enqueueCall.payload as { candidateGroups: Array<{ prNumbers: number[] }> }
+    ).candidateGroups;
+
+    // PRs 1 and 2 should be grouped (via code similarity), PR 999 should be ignored
+    expect(candidateGroups).toHaveLength(1);
+    expect(candidateGroups[0].prNumbers).toEqual([1, 2]);
+  });
+
   it("handles multiple separate duplicate groups", async () => {
     insertPR(1, { diffHash: "hash-a" });
     insertPR(2, { diffHash: "hash-a" });
