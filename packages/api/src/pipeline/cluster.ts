@@ -4,9 +4,12 @@ import type { ServiceResolver } from "../services/service-resolver.js";
 import type { JobQueue } from "../queue/types.js";
 import type { JobProcessor } from "../queue/worker.js";
 import { UnionFind } from "./union-find.js";
+import { log } from "../logger.js";
 
 const CODE_COLLECTION = "ossgard-code";
 const INTENT_COLLECTION = "ossgard-intent";
+
+const clusterLog = log.child("cluster");
 
 export class ClusterProcessor implements JobProcessor {
   readonly type = "cluster";
@@ -28,6 +31,8 @@ export class ClusterProcessor implements JobProcessor {
 
     // Update scan status to "clustering"
     this.db.updateScanStatus(scanId, "clustering");
+
+    clusterLog.info("Cluster started", { scanId });
 
     // Resolve services from account config
     const { vectorStore, scanConfig } = await this.resolver.resolve(accountId);
@@ -52,6 +57,9 @@ export class ClusterProcessor implements JobProcessor {
         }
       }
     }
+
+    const diffHashGroups = [...hashGroups.values()].filter((g) => g.length > 1).length;
+    clusterLog.info("DiffHash groups", { scanId, groups: diffHashGroups });
 
     for (const group of hashGroups.values()) {
       for (let i = 1; i < group.length; i++) {
@@ -120,6 +128,7 @@ export class ClusterProcessor implements JobProcessor {
 
     // Extract connected components with 2+ members
     const groups = uf.getGroups(2);
+    clusterLog.info("Similarity clusters", { scanId, clusters: groups.length });
 
     // Build candidate groups: map PR numbers back to PR IDs
     const prByNumber = new Map<number, PR>();
@@ -139,12 +148,15 @@ export class ClusterProcessor implements JobProcessor {
       phaseCursor: { candidateGroups },
     });
 
+    clusterLog.info("Candidate groups", { scanId, count: candidateGroups.length });
+
     // Enqueue verify job with candidateGroups payload
     if (this.queue) {
       await this.queue.enqueue({
         type: "verify",
         payload: { repoId, scanId, accountId, owner, repo, candidateGroups },
       });
+      clusterLog.info("Enqueued verify", { scanId });
     }
   }
 }

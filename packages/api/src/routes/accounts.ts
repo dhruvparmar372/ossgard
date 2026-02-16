@@ -5,6 +5,7 @@ import type { AccountConfig } from "@ossgard/shared";
 import type { AppEnv } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { validateGitHubToken, checkOllamaHealth, checkQdrantHealth } from "../services/validators.js";
+import { log } from "../logger.js";
 
 function redactConfig(config: AccountConfig): Record<string, unknown> {
   const redact = (val: string) => (val.length > 4 ? "****" + val.slice(-4) : "****");
@@ -16,6 +17,8 @@ function redactConfig(config: AccountConfig): Record<string, unknown> {
     scan: config.scan,
   };
 }
+
+const accountsLog = log.child("accounts");
 
 const accounts = new Hono<AppEnv>();
 
@@ -62,6 +65,11 @@ accounts.post("/accounts", async (c) => {
 
   const apiKey = uuidv4();
   db.createAccount(apiKey, label ?? null, config);
+
+  accountsLog.info("Account registered", { label: label ?? "" });
+  if (warnings.length > 0) {
+    accountsLog.warn("Registration warnings", { warnings });
+  }
 
   return c.json({ apiKey, warnings }, 201);
 });

@@ -4,6 +4,9 @@ import type { ServiceResolver } from "../services/service-resolver.js";
 import type { JobQueue } from "../queue/types.js";
 import type { JobProcessor } from "../queue/worker.js";
 import { hashDiff } from "./normalize-diff.js";
+import { log } from "../logger.js";
+
+const ingestLog = log.child("ingest");
 
 export class IngestProcessor implements JobProcessor {
   readonly type = "ingest";
@@ -27,11 +30,15 @@ export class IngestProcessor implements JobProcessor {
     // Update scan status to "ingesting"
     this.db.updateScanStatus(scanId, "ingesting");
 
+    ingestLog.info("Ingest started", { scanId, repo: `${owner}/${repo}` });
+
     // Resolve the GitHub client from the account config
     const { github } = await this.resolver.resolve(accountId);
 
     // Fetch open PRs from GitHub (optionally limited)
     const fetchedPRs = await github.listOpenPRs(owner, repo, maxPrs);
+
+    let etagHits = 0;
 
     // For each PR, fetch files and diff, compute hash, upsert
     for (const pr of fetchedPRs) {
@@ -45,6 +52,7 @@ export class IngestProcessor implements JobProcessor {
       ]);
 
       // If diff hasn't changed (304), skip processing but still upsert metadata
+      if (!diffResult) etagHits++;
       const diffHash = diffResult ? hashDiff(diffResult.diff) : existingPR?.diffHash ?? null;
       const newEtag = diffResult?.etag ?? storedEtag;
 
@@ -67,6 +75,8 @@ export class IngestProcessor implements JobProcessor {
       }
     }
 
+    ingestLog.info("PRs fetched", { scanId, count: fetchedPRs.length, etagHits });
+
     // Update scan with PR count
     this.db.updateScanStatus(scanId, "ingesting", {
       prCount: fetchedPRs.length,
@@ -77,5 +87,7 @@ export class IngestProcessor implements JobProcessor {
       type: "embed",
       payload: { repoId, scanId, accountId, owner, repo },
     });
+
+    ingestLog.info("Enqueued embed", { scanId });
   }
 }

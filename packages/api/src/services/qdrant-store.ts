@@ -5,6 +5,7 @@ import type {
   SearchResult,
   SearchOptions,
 } from "./vector-store.js";
+import { log } from "../logger.js";
 
 /** Convert an arbitrary string ID to a deterministic UUID (v4-format from MD5 hash). */
 export function toUUID(id: string): string {
@@ -72,6 +73,8 @@ export interface QdrantClient {
   ): Promise<Array<{ id: string | number; vector?: number[] }>>;
 }
 
+const qdrantLog = log.child("qdrant");
+
 export class QdrantStore implements VectorStore {
   private client: QdrantClient;
 
@@ -87,9 +90,7 @@ export class QdrantStore implements VectorStore {
       const info = await this.client.getCollection(name);
       const existingSize = info.config.params.vectors.size;
       if (existingSize !== dimensions) {
-        console.warn(
-          `Qdrant collection "${name}" has dimension ${existingSize}, expected ${dimensions}. Recreating.`
-        );
+        qdrantLog.warn("Collection dimension mismatch, recreating", { collection: name, existing: existingSize, expected: dimensions });
         await this.client.deleteCollection(name);
         await this.client.createCollection(name, {
           vectors: { size: dimensions, distance: "Cosine" },
@@ -103,6 +104,7 @@ export class QdrantStore implements VectorStore {
   }
 
   async upsert(collection: string, points: VectorPoint[]): Promise<void> {
+    qdrantLog.debug("Upsert", { collection, points: points.length });
     await this.client.upsert(collection, {
       wait: true,
       points: points.map((p) => ({
@@ -118,6 +120,7 @@ export class QdrantStore implements VectorStore {
     vector: number[],
     opts: SearchOptions
   ): Promise<SearchResult[]> {
+    qdrantLog.debug("Search", { collection, limit: opts.limit });
     const results = await this.client.search(collection, {
       vector,
       limit: opts.limit,

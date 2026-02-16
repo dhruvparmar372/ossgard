@@ -167,6 +167,7 @@ A small set of env vars are supported for deployment flexibility:
 |----------|---------|
 | `DATABASE_PATH` | SQLite database location (default `~/.ossgard/ossgard.db`) |
 | `PORT` | API server port (default `3400`) |
+| `LOG_LEVEL` | Logging verbosity: `debug`, `info`, `warn`, `error` (default `info`) |
 
 All user configuration (GitHub token, LLM/embedding providers, vector store) is stored server-side per account. Run `ossgard setup` to register an account and configure services.
 

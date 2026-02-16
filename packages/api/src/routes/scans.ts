@@ -1,5 +1,8 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.js";
+import { log } from "../logger.js";
+
+const scansLog = log.child("scans");
 
 const scans = new Hono<AppEnv>();
 
@@ -35,6 +38,8 @@ scans.post("/repos/:owner/:name/scan", async (c) => {
     type: "scan",
     payload: { scanId: scan.id, repoId: repo.id, accountId: account.id, full, ...(maxPrs !== undefined && { maxPrs }) },
   });
+
+  scansLog.info("Scan started", { repo: `${owner}/${name}`, scanId: scan.id });
 
   return c.json({ scanId: scan.id, jobId, status: "queued" }, 202);
 });

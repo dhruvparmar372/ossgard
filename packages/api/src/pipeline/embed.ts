@@ -6,10 +6,13 @@ import type { VectorStore } from "../services/vector-store.js";
 import type { ServiceResolver } from "../services/service-resolver.js";
 import type { JobQueue } from "../queue/types.js";
 import type { JobProcessor } from "../queue/worker.js";
+import { log } from "../logger.js";
 
 const CODE_COLLECTION = "ossgard-code";
 const INTENT_COLLECTION = "ossgard-intent";
 const BATCH_SIZE = 50;
+
+const embedLog = log.child("embed");
 
 export class EmbedProcessor implements JobProcessor {
   readonly type = "embed";
@@ -44,10 +47,10 @@ export class EmbedProcessor implements JobProcessor {
     // Read all open PRs
     const prs = this.db.listOpenPRs(repoId);
 
-    if (
-      isBatchEmbeddingProvider(embeddingProvider) &&
-      prs.length > 0
-    ) {
+    const useBatch = isBatchEmbeddingProvider(embeddingProvider) && prs.length > 0;
+    embedLog.info("Embed started", { scanId, prCount: prs.length, mode: useBatch ? "batch" : "sequential" });
+
+    if (useBatch) {
       await this.processBatch(repoId, prs, embeddingProvider, vectorStore);
     } else {
       await this.processSequential(repoId, prs, embeddingProvider, vectorStore);
@@ -59,6 +62,7 @@ export class EmbedProcessor implements JobProcessor {
         type: "cluster",
         payload: { repoId, scanId, accountId, owner, repo },
       });
+      embedLog.info("Enqueued cluster", { scanId });
     }
   }
 

@@ -6,6 +6,7 @@ import type { ServiceResolver } from "../services/service-resolver.js";
 import type { JobQueue } from "../queue/types.js";
 import type { JobProcessor } from "../queue/worker.js";
 import { buildVerifyPrompt } from "./prompts.js";
+import { log } from "../logger.js";
 
 interface CandidateGroup {
   prNumbers: number[];
@@ -52,6 +53,8 @@ function collectVerifiedGroups(
   return result;
 }
 
+const verifyLog = log.child("verify");
+
 export class VerifyProcessor implements JobProcessor {
   readonly type = "verify";
 
@@ -74,6 +77,8 @@ export class VerifyProcessor implements JobProcessor {
     // Update scan status to "verifying"
     this.db.updateScanStatus(scanId, "verifying");
 
+    verifyLog.info("Verify started", { scanId, candidates: candidateGroups.length });
+
     // Resolve LLM from account config
     const { llm } = await this.resolver.resolve(accountId);
 
@@ -92,8 +97,10 @@ export class VerifyProcessor implements JobProcessor {
 
     // 2. Call LLM (batch or sequential)
     const verifiedGroups: VerifiedGroup[] = [];
+    const useBatch = isBatchChatProvider(llm) && prepared.length > 1;
+    verifyLog.info("LLM mode", { scanId, mode: useBatch ? "batch" : "sequential", prompts: prepared.length });
 
-    if (isBatchChatProvider(llm) && prepared.length > 1) {
+    if (useBatch) {
       const results = await llm.chatBatch(
         prepared.map((p) => ({
           id: `verify-${p.index}`,
@@ -114,12 +121,15 @@ export class VerifyProcessor implements JobProcessor {
       }
     }
 
+    verifyLog.info("Verified groups", { scanId, count: verifiedGroups.length });
+
     // Enqueue rank job with verifiedGroups
     if (this.queue) {
       await this.queue.enqueue({
         type: "rank",
         payload: { repoId, scanId, accountId, owner, repo, verifiedGroups },
       });
+      verifyLog.info("Enqueued rank", { scanId });
     }
   }
 }

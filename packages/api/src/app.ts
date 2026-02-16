@@ -10,6 +10,7 @@ import { accounts } from "./routes/accounts.js";
 import { repos } from "./routes/repos.js";
 import { scans } from "./routes/scans.js";
 import { dupes } from "./routes/dupes.js";
+import { log } from "./logger.js";
 
 export type AppEnv = {
   Variables: {
@@ -34,6 +35,20 @@ export function createApp(
   const worker = new WorkerLoop(queue, processors);
 
   const app = new Hono<AppEnv>();
+  const httpLog = log.child("http");
+
+  // Request logging
+  app.use("*", async (c, next) => {
+    const start = Date.now();
+    await next();
+    const ms = Date.now() - start;
+    const line = `← ${c.req.method} ${c.req.path} ${c.res.status} ${ms}ms`;
+    if (c.req.path === "/health") {
+      httpLog.debug(line);
+    } else {
+      httpLog.info(line);
+    }
+  });
 
   // Inject database and queue into context
   app.use("*", async (c, next) => {

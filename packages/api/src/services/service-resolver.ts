@@ -4,6 +4,7 @@ import type { ChatProvider } from "./llm-provider.js";
 import type { EmbeddingProvider } from "./llm-provider.js";
 import type { VectorStore } from "./vector-store.js";
 import { ServiceFactory } from "./factory.js";
+import { log } from "../logger.js";
 
 export interface ResolvedServices {
   github: GitHubClient;
@@ -19,9 +20,13 @@ export interface ResolvedServices {
 export class ServiceResolver {
   constructor(private db: Database) {}
 
+  private resolverLog = log.child("resolver");
+
   async resolve(accountId: number): Promise<ResolvedServices> {
     const account = this.db.getAccount(accountId);
     if (!account) throw new Error(`Account not found: ${accountId}`);
+
+    this.resolverLog.debug("Resolving services", { accountId });
 
     const cfg = account.config;
     const factory = new ServiceFactory({

@@ -10,6 +10,7 @@ import { EmbedProcessor } from "./pipeline/embed.js";
 import { ClusterProcessor } from "./pipeline/cluster.js";
 import { VerifyProcessor } from "./pipeline/verify.js";
 import { RankProcessor } from "./pipeline/rank.js";
+import { log } from "./logger.js";
 
 async function main() {
   const defaultDbDir = join(homedir(), ".ossgard");
@@ -48,12 +49,12 @@ async function main() {
 
   const port = Number(process.env.PORT) || 3400;
   const server = Bun.serve({ fetch: app.fetch, port });
-  console.log(`ossgard-api listening on http://localhost:${server.port}`);
+  log.info(`Listening on http://localhost:${server.port}`, { logLevel: process.env.LOG_LEVEL ?? "info" });
   ctx.worker.start();
-  console.log("Worker loop started");
+  log.info("Worker loop started");
 
   const shutdown = () => {
-    console.log("Shutting down gracefully...");
+    log.info("Shutting down gracefully...");
     server.stop();
     ctx.worker.stop();
     db.close();
@@ -63,6 +64,6 @@ async function main() {
   process.on("SIGINT", shutdown);
 }
 
-main().catch(console.error);
+main().catch((err) => log.error("Fatal startup error", { error: String(err) }));
 
 export { createApp };

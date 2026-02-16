@@ -2,6 +2,9 @@ import type { Job } from "@ossgard/shared";
 import type { Database } from "../db/database.js";
 import type { JobQueue } from "../queue/types.js";
 import type { JobProcessor } from "../queue/worker.js";
+import { log } from "../logger.js";
+
+const scanLog = log.child("scan");
 
 export class ScanOrchestrator implements JobProcessor {
   readonly type = "scan";
@@ -25,6 +28,8 @@ export class ScanOrchestrator implements JobProcessor {
       throw new Error(`Repo not found: ${repoId}`);
     }
 
+    scanLog.info("Scan started", { scanId, repo: `${repo.owner}/${repo.name}` });
+
     // Enqueue the ingest job
     await this.queue.enqueue({
       type: "ingest",
@@ -37,5 +42,7 @@ export class ScanOrchestrator implements JobProcessor {
         ...(maxPrs !== undefined && { maxPrs }),
       },
     });
+
+    scanLog.info("Enqueued ingest", { scanId });
   }
 }

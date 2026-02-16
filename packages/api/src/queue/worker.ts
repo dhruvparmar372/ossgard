@@ -1,5 +1,6 @@
 import type { Job } from "@ossgard/shared";
 import type { JobQueue } from "./types.js";
+import { log } from "../logger.js";
 
 export interface JobProcessor {
   type: string;
@@ -33,6 +34,8 @@ export class WorkerLoop {
     }
   }
 
+  private log = log.child("worker");
+
   /** Process one job from the queue. Returns true if a job was processed. */
   async tick(): Promise<boolean> {
     const job = await this.queue.dequeue();
@@ -46,9 +49,13 @@ export class WorkerLoop {
       return true;
     }
 
+    this.log.info("Job dequeued", { type: job.type, jobId: job.id, attempt: job.attempts });
+    const start = Date.now();
+
     try {
       await processor.process(job);
       await this.queue.complete(job.id);
+      this.log.info("Job completed", { type: job.type, jobId: job.id, durationMs: Date.now() - start });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
 
@@ -57,10 +64,12 @@ export class WorkerLoop {
         const backoffMs = 1000 * Math.pow(2, job.attempts - 1);
         const runAfter = new Date(Date.now() + backoffMs);
         await this.queue.pause(job.id, runAfter);
+        this.log.warn("Job retrying", { type: job.type, jobId: job.id, error: message, backoffMs });
       } else {
         // Max retries exhausted - mark as permanently failed
         await this.queue.fail(job.id, message);
         this.onJobFailed?.(job, message);
+        this.log.error("Job permanently failed", { type: job.type, jobId: job.id, error: message });
       }
     }
 

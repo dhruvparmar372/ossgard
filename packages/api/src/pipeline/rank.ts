@@ -5,6 +5,7 @@ import { isBatchChatProvider } from "../services/llm-provider.js";
 import type { ServiceResolver } from "../services/service-resolver.js";
 import type { JobProcessor } from "../queue/worker.js";
 import { buildRankPrompt } from "./prompts.js";
+import { log } from "../logger.js";
 
 interface VerifiedGroup {
   prIds: number[];
@@ -28,6 +29,8 @@ interface PreparedGroup {
   messages: Message[];
 }
 
+const rankLog = log.child("rank");
+
 export class RankProcessor implements JobProcessor {
   readonly type = "rank";
 
@@ -48,6 +51,8 @@ export class RankProcessor implements JobProcessor {
 
     // Update scan status to "ranking"
     this.db.updateScanStatus(scanId, "ranking");
+
+    rankLog.info("Rank started", { scanId, groups: verifiedGroups.length });
 
     // Resolve LLM from account config
     const { llm } = await this.resolver.resolve(accountId);
@@ -72,8 +77,10 @@ export class RankProcessor implements JobProcessor {
 
     // 2. Call LLM (batch or sequential)
     let responses: Array<{ rankings: RankingResult[] }>;
+    const useBatch = isBatchChatProvider(llm) && prepared.length > 1;
+    rankLog.info("LLM mode", { scanId, mode: useBatch ? "batch" : "sequential", prompts: prepared.length });
 
-    if (isBatchChatProvider(llm) && prepared.length > 1) {
+    if (useBatch) {
       const results = await llm.chatBatch(
         prepared.map((p) => ({
           id: `rank-${p.groupIndex}`,
@@ -136,5 +143,7 @@ export class RankProcessor implements JobProcessor {
 
     // Update the repo's last_scan_at timestamp
     this.db.updateRepoLastScanAt(repoId, new Date().toISOString());
+
+    rankLog.info("Scan complete", { scanId, dupeGroups: totalGroups });
   }
 }

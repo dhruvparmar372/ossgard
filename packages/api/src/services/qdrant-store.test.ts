@@ -70,7 +70,7 @@ describe("QdrantStore", () => {
         { vectors: { size: 3072, distance: "Cosine" } }
       );
       expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("dimension 768, expected 3072")
+        expect.stringContaining("existing=768 expected=3072")
       );
 
       warnSpy.mockRestore();
