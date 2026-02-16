@@ -6,7 +6,7 @@ import { parse, stringify } from "@iarna/toml";
 export interface OssgardConfig {
   github: { token: string };
   llm: { provider: string; model: string; api_key: string };
-  embedding: { model: string };
+  embedding: { provider: string; model: string; api_key: string };
   scan: {
     concurrency: number;
     code_similarity_threshold: number;
@@ -17,7 +17,7 @@ export interface OssgardConfig {
 const DEFAULT_CONFIG: OssgardConfig = {
   github: { token: "" },
   llm: { provider: "ollama", model: "llama3", api_key: "" },
-  embedding: { model: "nomic-embed-text" },
+  embedding: { provider: "ollama", model: "nomic-embed-text", api_key: "" },
   scan: {
     concurrency: 10,
     code_similarity_threshold: 0.85,

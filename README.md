@@ -37,7 +37,7 @@ Ingest ──► Embed ──► Cluster ──► Verify ──► Rank
 | Phase | What it does |
 |-------|-------------|
 | **Ingest** | Fetches open PRs, diffs, and file lists from GitHub (supports ETags for incremental scans) |
-| **Embed** | Generates two 768-dim vectors per PR via Ollama — a code fingerprint (from the diff) and an intent fingerprint (from title + body + files) |
+| **Embed** | Generates two embedding vectors per PR (code fingerprint from the diff, intent fingerprint from title + body + files). Supports Ollama (768-dim default) and OpenAI `text-embedding-3-large` (3072-dim) |
 | **Cluster** | Groups PRs by identical diff hashes (fast path) then by embedding similarity using union-find (code > 0.85, intent > 0.80) |
 | **Verify** | Sends candidate groups to the LLM to filter false positives and classify relationships |
 | **Rank** | Asks the LLM to score and rank PRs within each verified group by code quality and completeness |
@@ -94,13 +94,32 @@ token = "ghp_..."
 
 [llm]
 provider = "ollama"         # or "anthropic"
-model = "llama3"
+model = "llama3"            # or "claude-haiku-4-5-20251001"
+api_key = ""                # required for anthropic
 
 [embedding]
-model = "nomic-embed-text"
+provider = "ollama"         # or "openai"
+model = "nomic-embed-text"  # or "text-embedding-3-large"
+api_key = ""                # required for openai
 ```
 
-Environment variables (`GITHUB_TOKEN`, `LLM_PROVIDER`, `LLM_MODEL`, `QDRANT_URL`, `OLLAMA_URL`) override TOML values.
+The default stack uses local Ollama for both chat and embeddings — no API keys needed. To use cloud providers, set the provider and supply an API key.
+
+Environment variables override TOML values:
+
+| Variable | Purpose |
+|----------|---------|
+| `GITHUB_TOKEN` | GitHub Personal Access Token |
+| `LLM_PROVIDER` | Chat provider (`ollama` or `anthropic`) |
+| `LLM_MODEL` | Chat model name |
+| `LLM_API_KEY` | API key for chat provider |
+| `EMBEDDING_PROVIDER` | Embedding provider (`ollama` or `openai`) |
+| `EMBEDDING_MODEL` | Embedding model name |
+| `EMBEDDING_API_KEY` | API key for embedding provider |
+| `OLLAMA_URL` | Ollama base URL (default `http://localhost:11434`) |
+| `QDRANT_URL` | Qdrant base URL (default `http://localhost:6333`) |
+
+**Note:** Switching embedding providers changes vector dimensions. ossgard automatically detects dimension mismatches in Qdrant and recreates collections as needed (existing vectors will be lost — a re-scan is required).
 
 ### Development
 

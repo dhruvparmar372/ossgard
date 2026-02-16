@@ -138,7 +138,7 @@ describe("E2E: openclaw/openclaw", () => {
     const factory = new ServiceFactory({
       github: { token: githubToken },
       llm: { provider: "ollama", model: "llama3", apiKey: "" },
-      embedding: { model: "nomic-embed-text" },
+      embedding: { provider: "ollama", model: "nomic-embed-text", apiKey: "" },
       ollamaUrl: OLLAMA_URL,
       qdrantUrl: QDRANT_URL,
     });

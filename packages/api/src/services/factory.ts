@@ -1,14 +1,15 @@
-import type { LLMProvider } from "./llm-provider.js";
+import type { EmbeddingProvider, ChatProvider } from "./llm-provider.js";
 import type { VectorStore } from "./vector-store.js";
 import { OllamaProvider } from "./ollama-provider.js";
 import { AnthropicProvider } from "./anthropic-provider.js";
+import { OpenAIEmbeddingProvider } from "./openai-embedding-provider.js";
 import { GitHubClient } from "./github-client.js";
 import { QdrantStore, type QdrantClient } from "./qdrant-store.js";
 
 export interface ServiceConfig {
   github: { token: string };
   llm: { provider: string; model: string; apiKey: string };
-  embedding: { model: string };
+  embedding: { provider: string; model: string; apiKey: string };
   ollamaUrl: string;
   qdrantUrl: string;
 }
@@ -16,8 +17,8 @@ export interface ServiceConfig {
 export class ServiceFactory {
   constructor(private config: ServiceConfig) {}
 
-  /** Create the LLM provider for chat (Ollama or Anthropic based on config). */
-  createLLMProvider(): LLMProvider {
+  /** Create the chat provider (Ollama or Anthropic based on config). */
+  createLLMProvider(): ChatProvider {
     if (this.config.llm.provider === "anthropic") {
       return new AnthropicProvider({
         apiKey: this.config.llm.apiKey,
@@ -33,8 +34,16 @@ export class ServiceFactory {
     });
   }
 
-  /** Create the embedding provider (always Ollama). */
-  createEmbeddingProvider(): LLMProvider {
+  /** Create the embedding provider (Ollama or OpenAI based on config). */
+  createEmbeddingProvider(): EmbeddingProvider {
+    if (this.config.embedding.provider === "openai") {
+      return new OpenAIEmbeddingProvider({
+        apiKey: this.config.embedding.apiKey,
+        model: this.config.embedding.model,
+      });
+    }
+
+    // Default to Ollama for embeddings
     return new OllamaProvider({
       baseUrl: this.config.ollamaUrl,
       embeddingModel: this.config.embedding.model,
@@ -57,6 +66,10 @@ export class ServiceFactory {
       getCollections: () => realClient.getCollections(),
       createCollection: (name, opts) =>
         realClient.createCollection(name, opts) as Promise<void>,
+      getCollection: (name) =>
+        realClient.getCollection(name) as Promise<any>,
+      deleteCollection: (name) =>
+        realClient.deleteCollection(name) as Promise<void>,
       upsert: (collection, opts) =>
         realClient.upsert(collection, opts) as Promise<void>,
       search: (collection, opts) =>

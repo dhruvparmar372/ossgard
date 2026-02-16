@@ -17,6 +17,35 @@ function mockFetchError(status: number, statusText: string): typeof fetch {
 }
 
 describe("OllamaProvider", () => {
+  describe("dimensions", () => {
+    it("returns 768 for nomic-embed-text", () => {
+      const provider = new OllamaProvider({
+        baseUrl: "http://localhost:11434",
+        embeddingModel: "nomic-embed-text",
+        chatModel: "llama3",
+      });
+      expect(provider.dimensions).toBe(768);
+    });
+
+    it("returns 1024 for mxbai-embed-large", () => {
+      const provider = new OllamaProvider({
+        baseUrl: "http://localhost:11434",
+        embeddingModel: "mxbai-embed-large",
+        chatModel: "llama3",
+      });
+      expect(provider.dimensions).toBe(1024);
+    });
+
+    it("defaults to 768 for unknown models", () => {
+      const provider = new OllamaProvider({
+        baseUrl: "http://localhost:11434",
+        embeddingModel: "unknown-model",
+        chatModel: "llama3",
+      });
+      expect(provider.dimensions).toBe(768);
+    });
+  });
+
   describe("embed", () => {
     it("returns embedding vectors", async () => {
       const embeddings = [

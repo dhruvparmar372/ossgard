@@ -1,6 +1,6 @@
 import type { Job, PR } from "@ossgard/shared";
 import type { Database } from "../db/database.js";
-import type { LLMProvider } from "../services/llm-provider.js";
+import type { ChatProvider } from "../services/llm-provider.js";
 import type { JobProcessor } from "../queue/worker.js";
 import { buildRankPrompt } from "./prompts.js";
 
@@ -24,7 +24,7 @@ export class RankProcessor implements JobProcessor {
 
   constructor(
     private db: Database,
-    private llm: LLMProvider
+    private llm: ChatProvider
   ) {}
 
   async process(job: Job): Promise<void> {

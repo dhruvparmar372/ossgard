@@ -1,19 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { RankProcessor } from "./rank.js";
 import { Database } from "../db/database.js";
-import type { LLMProvider } from "../services/llm-provider.js";
+import type { ChatProvider } from "../services/llm-provider.js";
 import type { Job } from "@ossgard/shared";
 
-function createMockLLM(): LLMProvider {
+function createMockChat(): ChatProvider {
   return {
-    embed: vi.fn().mockResolvedValue([]),
     chat: vi.fn().mockResolvedValue({ rankings: [] }),
   };
 }
 
 describe("RankProcessor", () => {
   let db: Database;
-  let mockLLM: LLMProvider;
+  let mockChat: ChatProvider;
   let processor: RankProcessor;
   let repoId: number;
   let scanId: number;
@@ -25,8 +24,8 @@ describe("RankProcessor", () => {
     const scan = db.createScan(repoId);
     scanId = scan.id;
 
-    mockLLM = createMockLLM();
-    processor = new RankProcessor(db, mockLLM);
+    mockChat = createMockChat();
+    processor = new RankProcessor(db, mockChat);
   });
 
   afterEach(() => {
@@ -89,7 +88,7 @@ describe("RankProcessor", () => {
     const pr1 = insertPR(1);
     const pr2 = insertPR(2);
 
-    vi.mocked(mockLLM.chat).mockResolvedValue({
+    vi.mocked(mockChat.chat).mockResolvedValue({
       rankings: [
         {
           prNumber: 1,
@@ -144,7 +143,7 @@ describe("RankProcessor", () => {
     const pr2 = insertPR(2);
 
     // Return rankings in ascending order from LLM
-    vi.mocked(mockLLM.chat).mockResolvedValue({
+    vi.mocked(mockChat.chat).mockResolvedValue({
       rankings: [
         {
           prNumber: 2,
@@ -193,7 +192,7 @@ describe("RankProcessor", () => {
     const pr3 = insertPR(3);
     const pr4 = insertPR(4);
 
-    vi.mocked(mockLLM.chat).mockResolvedValue({
+    vi.mocked(mockChat.chat).mockResolvedValue({
       rankings: [
         { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
         { prNumber: 2, score: 70, codeQuality: 35, completeness: 35, rationale: "OK" },
@@ -229,7 +228,7 @@ describe("RankProcessor", () => {
     const pr3 = insertPR(3);
     const pr4 = insertPR(4);
 
-    vi.mocked(mockLLM.chat)
+    vi.mocked(mockChat.chat)
       .mockResolvedValueOnce({
         rankings: [
           { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
@@ -260,7 +259,7 @@ describe("RankProcessor", () => {
       ])
     );
 
-    expect(mockLLM.chat).toHaveBeenCalledTimes(2);
+    expect(mockChat.chat).toHaveBeenCalledTimes(2);
 
     const groups = db.listDupeGroups(scanId);
     expect(groups).toHaveLength(2);
@@ -272,7 +271,7 @@ describe("RankProcessor", () => {
     const pr1 = insertPR(1);
     const pr2 = insertPR(2);
 
-    vi.mocked(mockLLM.chat).mockResolvedValue({
+    vi.mocked(mockChat.chat).mockResolvedValue({
       rankings: [
         { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
         { prNumber: 2, score: 70, codeQuality: 35, completeness: 35, rationale: "OK" },
@@ -290,7 +289,7 @@ describe("RankProcessor", () => {
       ])
     );
 
-    const chatCall = vi.mocked(mockLLM.chat).mock.calls[0][0];
+    const chatCall = vi.mocked(mockChat.chat).mock.calls[0][0];
     expect(chatCall[0].role).toBe("system");
     expect(chatCall[0].content).toContain("Fix login bug");
     expect(chatCall[1].role).toBe("user");
@@ -335,7 +334,7 @@ describe("RankProcessor", () => {
     );
 
     // LLM should not be called
-    expect(mockLLM.chat).not.toHaveBeenCalled();
+    expect(mockChat.chat).not.toHaveBeenCalled();
 
     const groups = db.listDupeGroups(scanId);
     expect(groups).toHaveLength(0);

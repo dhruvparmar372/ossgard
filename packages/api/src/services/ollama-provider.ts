@@ -1,4 +1,10 @@
-import type { LLMProvider, Message } from "./llm-provider.js";
+import type { EmbeddingProvider, ChatProvider, Message } from "./llm-provider.js";
+
+const DIMENSION_MAP: Record<string, number> = {
+  "nomic-embed-text": 768,
+  "mxbai-embed-large": 1024,
+  "all-minilm": 384,
+};
 
 export interface OllamaProviderOptions {
   baseUrl: string;
@@ -7,7 +13,8 @@ export interface OllamaProviderOptions {
   fetchFn?: typeof fetch;
 }
 
-export class OllamaProvider implements LLMProvider {
+export class OllamaProvider implements EmbeddingProvider, ChatProvider {
+  readonly dimensions: number;
   private baseUrl: string;
   private embeddingModel: string;
   private chatModel: string;
@@ -18,6 +25,7 @@ export class OllamaProvider implements LLMProvider {
     this.embeddingModel = options.embeddingModel;
     this.chatModel = options.chatModel;
     this.fetchFn = options.fetchFn ?? fetch;
+    this.dimensions = DIMENSION_MAP[options.embeddingModel] ?? 768;
   }
 
   async embed(texts: string[]): Promise<number[][]> {

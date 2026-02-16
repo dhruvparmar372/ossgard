@@ -1,4 +1,4 @@
-import type { LLMProvider, Message } from "./llm-provider.js";
+import type { ChatProvider, Message } from "./llm-provider.js";
 
 export interface AnthropicProviderOptions {
   apiKey: string;
@@ -6,7 +6,7 @@ export interface AnthropicProviderOptions {
   fetchFn?: typeof fetch;
 }
 
-export class AnthropicProvider implements LLMProvider {
+export class AnthropicProvider implements ChatProvider {
   private apiKey: string;
   private model: string;
   private fetchFn: typeof fetch;
@@ -15,10 +15,6 @@ export class AnthropicProvider implements LLMProvider {
     this.apiKey = options.apiKey;
     this.model = options.model;
     this.fetchFn = options.fetchFn ?? fetch;
-  }
-
-  async embed(_texts: string[]): Promise<number[][]> {
-    throw new Error("Anthropic does not support embeddings");
   }
 
   async chat(messages: Message[]): Promise<Record<string, unknown>> {

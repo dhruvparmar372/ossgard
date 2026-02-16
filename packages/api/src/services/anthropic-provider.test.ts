@@ -17,19 +17,6 @@ function mockFetchError(status: number, statusText: string): typeof fetch {
 }
 
 describe("AnthropicProvider", () => {
-  describe("embed", () => {
-    it("throws an error stating Anthropic does not support embeddings", async () => {
-      const provider = new AnthropicProvider({
-        apiKey: "sk-test-key",
-        model: "claude-sonnet-4-20250514",
-      });
-
-      await expect(provider.embed(["test"])).rejects.toThrow(
-        "Anthropic does not support embeddings"
-      );
-    });
-  });
-
   describe("chat", () => {
     it("returns parsed JSON from response content", async () => {
       const chatResponse = {

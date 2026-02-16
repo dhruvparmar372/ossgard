@@ -1,6 +1,6 @@
 import type { Job, PR } from "@ossgard/shared";
 import type { Database } from "../db/database.js";
-import type { LLMProvider } from "../services/llm-provider.js";
+import type { ChatProvider } from "../services/llm-provider.js";
 import type { JobQueue } from "../queue/types.js";
 import type { JobProcessor } from "../queue/worker.js";
 import { buildVerifyPrompt } from "./prompts.js";
@@ -22,7 +22,7 @@ export class VerifyProcessor implements JobProcessor {
 
   constructor(
     private db: Database,
-    private llm: LLMProvider,
+    private llm: ChatProvider,
     private queue?: JobQueue
   ) {}
 

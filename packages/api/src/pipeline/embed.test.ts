@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EmbedProcessor } from "./embed.js";
 import { Database } from "../db/database.js";
-import type { LLMProvider } from "../services/llm-provider.js";
+import type { EmbeddingProvider } from "../services/llm-provider.js";
 import type { VectorStore } from "../services/vector-store.js";
 import type { JobQueue } from "../queue/types.js";
 import type { Job } from "@ossgard/shared";
 
-function createMockLLM(): LLMProvider {
+function createMockEmbeddingProvider(): EmbeddingProvider {
   return {
+    dimensions: 768,
     embed: vi.fn().mockResolvedValue([]),
-    chat: vi.fn().mockResolvedValue({}),
   };
 }
 
@@ -19,6 +19,7 @@ function createMockVectorStore(): VectorStore {
     upsert: vi.fn().mockResolvedValue(undefined),
     search: vi.fn().mockResolvedValue([]),
     deleteByFilter: vi.fn().mockResolvedValue(undefined),
+    getVector: vi.fn().mockResolvedValue(null),
   };
 }
 
@@ -39,7 +40,7 @@ function makeVector(seed: number): number[] {
 
 describe("EmbedProcessor", () => {
   let db: Database;
-  let mockLLM: LLMProvider;
+  let mockEmbedding: EmbeddingProvider;
   let mockVectorStore: VectorStore;
   let mockQueue: JobQueue;
   let processor: EmbedProcessor;
@@ -53,10 +54,10 @@ describe("EmbedProcessor", () => {
     const scan = db.createScan(repoId);
     scanId = scan.id;
 
-    mockLLM = createMockLLM();
+    mockEmbedding = createMockEmbeddingProvider();
     mockVectorStore = createMockVectorStore();
     mockQueue = createMockQueue();
-    processor = new EmbedProcessor(db, mockLLM, mockVectorStore, mockQueue);
+    processor = new EmbedProcessor(db, mockEmbedding, mockVectorStore, mockQueue);
   });
 
   afterEach(() => {
@@ -101,7 +102,7 @@ describe("EmbedProcessor", () => {
     expect(scan!.status).toBe("embedding");
   });
 
-  it("ensures both code and intent collections exist", async () => {
+  it("ensures both code and intent collections exist with provider dimensions", async () => {
     await processor.process(makeJob());
 
     expect(mockVectorStore.ensureCollection).toHaveBeenCalledTimes(2);
@@ -115,26 +116,42 @@ describe("EmbedProcessor", () => {
     );
   });
 
+  it("uses provider dimensions for collections", async () => {
+    (mockEmbedding as any).dimensions = 3072;
+    const processor3072 = new EmbedProcessor(db, mockEmbedding, mockVectorStore, mockQueue);
+
+    await processor3072.process(makeJob());
+
+    expect(mockVectorStore.ensureCollection).toHaveBeenCalledWith(
+      "ossgard-code",
+      3072
+    );
+    expect(mockVectorStore.ensureCollection).toHaveBeenCalledWith(
+      "ossgard-intent",
+      3072
+    );
+  });
+
   it("generates embeddings for each PR", async () => {
     insertPR(1);
     insertPR(2);
 
     const vec1 = makeVector(1);
     const vec2 = makeVector(2);
-    vi.mocked(mockLLM.embed)
+    vi.mocked(mockEmbedding.embed)
       .mockResolvedValueOnce([vec1, vec2]) // code embeddings
       .mockResolvedValueOnce([vec1, vec2]); // intent embeddings
 
     await processor.process(makeJob());
 
-    expect(mockLLM.embed).toHaveBeenCalledTimes(2);
+    expect(mockEmbedding.embed).toHaveBeenCalledTimes(2);
   });
 
   it("upserts to both code and intent collections", async () => {
     const pr1 = insertPR(1, { filePaths: ["src/a.ts"], diffHash: "abc123" });
     const vec1 = makeVector(1);
 
-    vi.mocked(mockLLM.embed)
+    vi.mocked(mockEmbedding.embed)
       .mockResolvedValueOnce([vec1]) // code
       .mockResolvedValueOnce([vec1]); // intent
 
@@ -165,18 +182,18 @@ describe("EmbedProcessor", () => {
     insertPR(1, { filePaths: ["src/a.ts", "src/b.ts"], diffHash: "diffhash1" });
 
     const vec = makeVector(1);
-    vi.mocked(mockLLM.embed)
+    vi.mocked(mockEmbedding.embed)
       .mockResolvedValueOnce([vec])
       .mockResolvedValueOnce([vec]);
 
     await processor.process(makeJob());
 
     // Code input: filePaths joined
-    const codeCall = vi.mocked(mockLLM.embed).mock.calls[0];
+    const codeCall = vi.mocked(mockEmbedding.embed).mock.calls[0];
     expect(codeCall[0]).toEqual(["src/a.ts\nsrc/b.ts"]);
 
     // Intent input: title + body + filePaths
-    const intentCall = vi.mocked(mockLLM.embed).mock.calls[1];
+    const intentCall = vi.mocked(mockEmbedding.embed).mock.calls[1];
     expect(intentCall[0]).toEqual([
       "PR #1\nBody of PR #1\nsrc/a.ts\nsrc/b.ts",
     ]);
@@ -199,29 +216,29 @@ describe("EmbedProcessor", () => {
     }
 
     // First batch: 50 code + 50 intent, second batch: 25 code + 25 intent
-    vi.mocked(mockLLM.embed).mockImplementation(async (texts) => {
+    vi.mocked(mockEmbedding.embed).mockImplementation(async (texts) => {
       return texts.map((_, i) => makeVector(i));
     });
 
     await processor.process(makeJob());
 
     // 2 batches * 2 types = 4 embed calls
-    expect(mockLLM.embed).toHaveBeenCalledTimes(4);
+    expect(mockEmbedding.embed).toHaveBeenCalledTimes(4);
 
     // First batch code: 50 texts
-    expect(vi.mocked(mockLLM.embed).mock.calls[0][0]).toHaveLength(50);
+    expect(vi.mocked(mockEmbedding.embed).mock.calls[0][0]).toHaveLength(50);
     // First batch intent: 50 texts
-    expect(vi.mocked(mockLLM.embed).mock.calls[1][0]).toHaveLength(50);
+    expect(vi.mocked(mockEmbedding.embed).mock.calls[1][0]).toHaveLength(50);
     // Second batch code: 25 texts
-    expect(vi.mocked(mockLLM.embed).mock.calls[2][0]).toHaveLength(25);
+    expect(vi.mocked(mockEmbedding.embed).mock.calls[2][0]).toHaveLength(25);
     // Second batch intent: 25 texts
-    expect(vi.mocked(mockLLM.embed).mock.calls[3][0]).toHaveLength(25);
+    expect(vi.mocked(mockEmbedding.embed).mock.calls[3][0]).toHaveLength(25);
   });
 
   it("handles no open PRs gracefully", async () => {
     await processor.process(makeJob());
 
-    expect(mockLLM.embed).not.toHaveBeenCalled();
+    expect(mockEmbedding.embed).not.toHaveBeenCalled();
     expect(mockVectorStore.upsert).not.toHaveBeenCalled();
     // Still enqueues cluster job
     expect(mockQueue.enqueue).toHaveBeenCalledTimes(1);
@@ -230,12 +247,12 @@ describe("EmbedProcessor", () => {
   it("works without a queue (queue is optional)", async () => {
     const processorNoQueue = new EmbedProcessor(
       db,
-      mockLLM,
+      mockEmbedding,
       mockVectorStore
     );
 
     insertPR(1);
-    vi.mocked(mockLLM.embed).mockResolvedValue([makeVector(1)]);
+    vi.mocked(mockEmbedding.embed).mockResolvedValue([makeVector(1)]);
 
     // Should not throw
     await processorNoQueue.process(makeJob());

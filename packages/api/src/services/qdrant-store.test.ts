@@ -5,6 +5,10 @@ function createMockClient(): QdrantClient {
   return {
     getCollections: vi.fn().mockResolvedValue({ collections: [] }),
     createCollection: vi.fn().mockResolvedValue(undefined),
+    getCollection: vi.fn().mockResolvedValue({
+      config: { params: { vectors: { size: 768, distance: "Cosine" } } },
+    }),
+    deleteCollection: vi.fn().mockResolvedValue(undefined),
     upsert: vi.fn().mockResolvedValue(undefined),
     search: vi.fn().mockResolvedValue([]),
     delete: vi.fn().mockResolvedValue(undefined),
@@ -35,14 +39,42 @@ describe("QdrantStore", () => {
       );
     });
 
-    it("skips creation if collection already exists", async () => {
+    it("skips creation if collection already exists with matching dimensions", async () => {
       vi.mocked(mockClient.getCollections).mockResolvedValue({
         collections: [{ name: "test-collection" }],
+      });
+      vi.mocked(mockClient.getCollection).mockResolvedValue({
+        config: { params: { vectors: { size: 768, distance: "Cosine" } } },
       });
 
       await store.ensureCollection("test-collection", 768);
 
       expect(mockClient.createCollection).not.toHaveBeenCalled();
+      expect(mockClient.deleteCollection).not.toHaveBeenCalled();
+    });
+
+    it("recreates collection if dimensions mismatch", async () => {
+      vi.mocked(mockClient.getCollections).mockResolvedValue({
+        collections: [{ name: "test-collection" }],
+      });
+      vi.mocked(mockClient.getCollection).mockResolvedValue({
+        config: { params: { vectors: { size: 768, distance: "Cosine" } } },
+      });
+
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      await store.ensureCollection("test-collection", 3072);
+
+      expect(mockClient.deleteCollection).toHaveBeenCalledWith("test-collection");
+      expect(mockClient.createCollection).toHaveBeenCalledWith(
+        "test-collection",
+        { vectors: { size: 3072, distance: "Cosine" } }
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("dimension 768, expected 3072")
+      );
+
+      warnSpy.mockRestore();
     });
   });
 

@@ -5,7 +5,7 @@ function makeConfig(overrides: Partial<ServiceConfig> = {}): ServiceConfig {
   return {
     github: { token: "gh-test-token" },
     llm: { provider: "ollama", model: "llama3", apiKey: "" },
-    embedding: { model: "nomic-embed-text" },
+    embedding: { provider: "ollama", model: "nomic-embed-text", apiKey: "" },
     ollamaUrl: "http://localhost:11434",
     qdrantUrl: "http://localhost:6333",
     ...overrides,
@@ -38,9 +38,27 @@ describe("ServiceFactory", () => {
   });
 
   describe("createEmbeddingProvider", () => {
-    it("always returns OllamaProvider", () => {
+    it("returns OllamaProvider when embedding provider is ollama", () => {
+      const factory = new ServiceFactory(makeConfig());
+      const embedding = factory.createEmbeddingProvider();
+      expect(embedding.constructor.name).toBe("OllamaProvider");
+    });
+
+    it("returns OpenAIEmbeddingProvider when embedding provider is openai", () => {
       const factory = new ServiceFactory(
-        makeConfig({ llm: { provider: "anthropic", model: "claude-sonnet-4-20250514", apiKey: "sk-test" } })
+        makeConfig({
+          embedding: { provider: "openai", model: "text-embedding-3-large", apiKey: "sk-test" },
+        })
+      );
+      const embedding = factory.createEmbeddingProvider();
+      expect(embedding.constructor.name).toBe("OpenAIEmbeddingProvider");
+    });
+
+    it("defaults to OllamaProvider for unknown embedding providers", () => {
+      const factory = new ServiceFactory(
+        makeConfig({
+          embedding: { provider: "unknown", model: "some-model", apiKey: "" },
+        })
       );
       const embedding = factory.createEmbeddingProvider();
       expect(embedding.constructor.name).toBe("OllamaProvider");

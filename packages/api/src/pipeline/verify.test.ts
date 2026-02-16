@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { VerifyProcessor } from "./verify.js";
 import { Database } from "../db/database.js";
-import type { LLMProvider } from "../services/llm-provider.js";
+import type { ChatProvider } from "../services/llm-provider.js";
 import type { JobQueue } from "../queue/types.js";
 import type { Job } from "@ossgard/shared";
 
-function createMockLLM(): LLMProvider {
+function createMockChat(): ChatProvider {
   return {
-    embed: vi.fn().mockResolvedValue([]),
     chat: vi.fn().mockResolvedValue({ groups: [], unrelated: [] }),
   };
 }
@@ -25,7 +24,7 @@ function createMockQueue(): JobQueue {
 
 describe("VerifyProcessor", () => {
   let db: Database;
-  let mockLLM: LLMProvider;
+  let mockChat: ChatProvider;
   let mockQueue: JobQueue;
   let processor: VerifyProcessor;
   let repoId: number;
@@ -38,9 +37,9 @@ describe("VerifyProcessor", () => {
     const scan = db.createScan(repoId);
     scanId = scan.id;
 
-    mockLLM = createMockLLM();
+    mockChat = createMockChat();
     mockQueue = createMockQueue();
-    processor = new VerifyProcessor(db, mockLLM, mockQueue);
+    processor = new VerifyProcessor(db, mockChat, mockQueue);
   });
 
   afterEach(() => {
@@ -95,7 +94,7 @@ describe("VerifyProcessor", () => {
     const pr1 = insertPR(1);
     const pr2 = insertPR(2);
 
-    vi.mocked(mockLLM.chat).mockResolvedValue({
+    vi.mocked(mockChat.chat).mockResolvedValue({
       groups: [
         {
           prIds: [pr1.id, pr2.id],
@@ -111,7 +110,7 @@ describe("VerifyProcessor", () => {
       makeJob([{ prNumbers: [1, 2], prIds: [pr1.id, pr2.id] }])
     );
 
-    expect(mockLLM.chat).toHaveBeenCalledTimes(1);
+    expect(mockChat.chat).toHaveBeenCalledTimes(1);
 
     const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
     expect(enqueueCall.type).toBe("rank");
@@ -140,7 +139,7 @@ describe("VerifyProcessor", () => {
     const pr1 = insertPR(1);
     const pr2 = insertPR(2);
 
-    vi.mocked(mockLLM.chat).mockResolvedValue({
+    vi.mocked(mockChat.chat).mockResolvedValue({
       groups: [
         {
           prIds: [pr1.id], // Only 1 PR - should be filtered
@@ -170,7 +169,7 @@ describe("VerifyProcessor", () => {
     const pr3 = insertPR(3);
     const pr4 = insertPR(4);
 
-    vi.mocked(mockLLM.chat)
+    vi.mocked(mockChat.chat)
       .mockResolvedValueOnce({
         groups: [
           {
@@ -201,7 +200,7 @@ describe("VerifyProcessor", () => {
       ])
     );
 
-    expect(mockLLM.chat).toHaveBeenCalledTimes(2);
+    expect(mockChat.chat).toHaveBeenCalledTimes(2);
 
     const enqueueCall = vi.mocked(mockQueue.enqueue).mock.calls[0][0];
     const verifiedGroups = (
@@ -235,7 +234,7 @@ describe("VerifyProcessor", () => {
     const pr1 = insertPR(1);
     const pr2 = insertPR(2);
 
-    vi.mocked(mockLLM.chat).mockResolvedValue({
+    vi.mocked(mockChat.chat).mockResolvedValue({
       groups: [],
       unrelated: [pr1.id, pr2.id],
     });
@@ -245,7 +244,7 @@ describe("VerifyProcessor", () => {
     );
 
     // Verify the LLM was called with messages containing PR data
-    const chatCall = vi.mocked(mockLLM.chat).mock.calls[0][0];
+    const chatCall = vi.mocked(mockChat.chat).mock.calls[0][0];
     expect(chatCall).toHaveLength(2); // system + user
     expect(chatCall[0].role).toBe("system");
     expect(chatCall[1].role).toBe("user");
@@ -262,6 +261,6 @@ describe("VerifyProcessor", () => {
     );
 
     // Should not call LLM since only 1 PR was found
-    expect(mockLLM.chat).not.toHaveBeenCalled();
+    expect(mockChat.chat).not.toHaveBeenCalled();
   });
 });

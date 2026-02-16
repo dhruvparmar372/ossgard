@@ -1,13 +1,12 @@
 import type { Job } from "@ossgard/shared";
 import type { Database } from "../db/database.js";
-import type { LLMProvider } from "../services/llm-provider.js";
+import type { EmbeddingProvider } from "../services/llm-provider.js";
 import type { VectorStore } from "../services/vector-store.js";
 import type { JobQueue } from "../queue/types.js";
 import type { JobProcessor } from "../queue/worker.js";
 
 const CODE_COLLECTION = "ossgard-code";
 const INTENT_COLLECTION = "ossgard-intent";
-const VECTOR_DIMENSIONS = 768;
 const BATCH_SIZE = 50;
 
 export class EmbedProcessor implements JobProcessor {
@@ -15,7 +14,7 @@ export class EmbedProcessor implements JobProcessor {
 
   constructor(
     private db: Database,
-    private llm: LLMProvider,
+    private embeddingProvider: EmbeddingProvider,
     private vectorStore: VectorStore,
     private queue?: JobQueue
   ) {}
@@ -31,11 +30,13 @@ export class EmbedProcessor implements JobProcessor {
     // Update scan status to "embedding"
     this.db.updateScanStatus(scanId, "embedding");
 
+    const dimensions = this.embeddingProvider.dimensions;
+
     // Ensure collections exist
-    await this.vectorStore.ensureCollection(CODE_COLLECTION, VECTOR_DIMENSIONS);
+    await this.vectorStore.ensureCollection(CODE_COLLECTION, dimensions);
     await this.vectorStore.ensureCollection(
       INTENT_COLLECTION,
-      VECTOR_DIMENSIONS
+      dimensions
     );
 
     // Read all open PRs
@@ -62,8 +63,8 @@ export class EmbedProcessor implements JobProcessor {
 
       // Generate embeddings
       const [codeEmbeddings, intentEmbeddings] = await Promise.all([
-        this.llm.embed(codeInputs),
-        this.llm.embed(intentInputs),
+        this.embeddingProvider.embed(codeInputs),
+        this.embeddingProvider.embed(intentInputs),
       ]);
 
       // Upsert code vectors

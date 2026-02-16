@@ -27,6 +27,12 @@ export interface QdrantClient {
       vectors: { size: number; distance: string };
     }
   ): Promise<void>;
+  getCollection(
+    name: string
+  ): Promise<{
+    config: { params: { vectors: { size: number; distance: string } } };
+  }>;
+  deleteCollection(name: string): Promise<void>;
   upsert(
     collection: string,
     opts: {
@@ -77,7 +83,19 @@ export class QdrantStore implements VectorStore {
     const { collections } = await this.client.getCollections();
     const exists = collections.some((c) => c.name === name);
 
-    if (!exists) {
+    if (exists) {
+      const info = await this.client.getCollection(name);
+      const existingSize = info.config.params.vectors.size;
+      if (existingSize !== dimensions) {
+        console.warn(
+          `Qdrant collection "${name}" has dimension ${existingSize}, expected ${dimensions}. Recreating.`
+        );
+        await this.client.deleteCollection(name);
+        await this.client.createCollection(name, {
+          vectors: { size: dimensions, distance: "Cosine" },
+        });
+      }
+    } else {
       await this.client.createCollection(name, {
         vectors: { size: dimensions, distance: "Cosine" },
       });
