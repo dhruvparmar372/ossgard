@@ -15,7 +15,7 @@ services:
 
   api:
     build:
-      context: .
+      context: ..
       dockerfile: packages/api/Dockerfile
     ports:
       - "3400:3400"
@@ -26,8 +26,6 @@ services:
       - ossgard-data:/data
       - ${HOME}/.ossgard:/config:ro
     environment:
-      QDRANT_URL: http://qdrant:6333
-      OLLAMA_URL: http://ollama:11434
       DATABASE_PATH: /data/ossgard.db
       CONFIG_PATH: /config/config.toml
 
