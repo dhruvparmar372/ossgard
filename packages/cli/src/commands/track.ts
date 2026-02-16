@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { ApiClient, ApiError } from "../client.js";
+import { requireSetup } from "../guard.js";
 import type { Repo } from "@ossgard/shared";
 
 function parseSlug(slug: string): { owner: string; name: string } {
@@ -17,6 +18,7 @@ export function trackCommand(client: ApiClient): Command {
     .description("Track a GitHub repository")
     .argument("<owner/repo>", "Repository slug (e.g. facebook/react)")
     .action(async (slug: string) => {
+      if (!requireSetup()) return;
       const { owner, name } = parseSlug(slug);
       try {
         const repo = await client.post<Repo>("/repos", { owner, name });
@@ -37,6 +39,7 @@ export function untrackCommand(client: ApiClient): Command {
     .description("Stop tracking a GitHub repository")
     .argument("<owner/repo>", "Repository slug (e.g. facebook/react)")
     .action(async (slug: string) => {
+      if (!requireSetup()) return;
       const { owner, name } = parseSlug(slug);
       try {
         await client.delete(`/repos/${owner}/${name}`);

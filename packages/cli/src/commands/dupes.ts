@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { ApiClient, ApiError } from "../client.js";
+import { requireSetup } from "../guard.js";
 import { parseSlug } from "./track.js";
 
 interface DupeMember {
@@ -39,6 +40,7 @@ export function dupesCommand(client: ApiClient): Command {
         slug: string,
         opts: { json?: boolean; minScore?: number }
       ) => {
+        if (!requireSetup()) return;
         const { owner, name } = parseSlug(slug);
 
         let data: DupesResponse;

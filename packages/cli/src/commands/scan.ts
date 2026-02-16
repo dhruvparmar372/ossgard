@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { ApiClient, ApiError } from "../client.js";
+import { requireSetup } from "../guard.js";
 import { parseSlug } from "./track.js";
 import type { Scan, ScanStatus } from "@ossgard/shared";
 
@@ -31,6 +32,7 @@ export function scanCommand(client: ApiClient): Command {
         slug: string,
         opts: { full?: boolean; wait?: boolean; json?: boolean }
       ) => {
+        if (!requireSetup()) return;
         const { owner, name } = parseSlug(slug);
 
         let scanId: number;

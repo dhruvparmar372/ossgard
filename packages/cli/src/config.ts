@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { parse, stringify } from "@iarna/toml";
 
 export interface OssgardConfig {
+  api: { url: string };
   github: { token: string };
   llm: {
     provider: string;
@@ -31,6 +32,7 @@ export interface OssgardConfig {
 }
 
 const DEFAULT_CONFIG: OssgardConfig = {
+  api: { url: "http://localhost:3400" },
   github: { token: "" },
   llm: {
     provider: "ollama",
@@ -142,5 +144,24 @@ export class Config {
   /** Check if the config file exists. */
   exists(): boolean {
     return existsSync(this.configPath);
+  }
+
+  /** Check if all required config fields are populated. */
+  isComplete(): boolean {
+    if (!this.exists()) return false;
+    const cfg = this.load();
+    return !!(
+      cfg.api.url &&
+      cfg.github.token &&
+      cfg.llm.provider &&
+      cfg.embedding.provider &&
+      cfg.vector_store.url
+    );
+  }
+
+  /** Write a full config object to disk. */
+  save(config: OssgardConfig): void {
+    mkdirSync(this.configDir, { recursive: true });
+    writeFileSync(this.configPath, stringify(config as any), "utf-8");
   }
 }

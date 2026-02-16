@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { ApiClient } from "../client.js";
+import { requireSetup } from "../guard.js";
 import type { Repo } from "@ossgard/shared";
 
 export function statusCommand(client: ApiClient): Command {
@@ -7,6 +8,7 @@ export function statusCommand(client: ApiClient): Command {
     .description("Show tracked repositories and their status")
     .option("--json", "Output as JSON")
     .action(async (opts: { json?: boolean }) => {
+      if (!requireSetup()) return;
       let repos: Repo[];
       try {
         repos = await client.get<Repo[]>("/repos");
