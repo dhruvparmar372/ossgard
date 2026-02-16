@@ -7,24 +7,22 @@ ossgard combines code-level similarity (embedding diffs) with intent-level analy
 ## Architecture
 
 ```
-┌──────────┐         ┌─────────────────────────────────────────────────┐
-│          │  HTTP   │              Docker Compose                     │
-│   CLI    │────────►│                                                 │
-│ (ossgard)│  :3400  │  ┌───────────┐  ┌─────────┐  ┌─────────────┐  │
-│          │◄────────│  │    API    │  │  Qdrant  │  │   Ollama    │  │
-└──────────┘         │  │  (Hono)   │  │ (vectors)│  │(LLM+embeds) │  │
-                     │  │           │──►│  :6333   │  │   :11434    │  │
-                     │  │  SQLite   │  └─────────┘  └─────────────┘  │
-                     │  │  (jobs+   │───────────────────────┘         │
-                     │  │   data)   │                                 │
-                     │  └─────┬─────┘                                 │
-                     └────────┼───────────────────────────────────────┘
-                              │
-                              ▼
-                     ┌─────────────┐
-                     │  GitHub API │
-                     └─────────────┘
+                     ┌───────────┐
+┌──────────┐  HTTP   │           │
+│   CLI    │────────►│    API    │──────► GitHub API
+│ (ossgard)│  :3400  │  (Hono)   │
+│          │◄────────│  SQLite   │
+└──────────┘         └─────┬─────┘
+                           │
+                     ┌─────┴──────┐
+                     │            │
+                ┌────▼────┐ ┌────▼─────┐
+                │  Qdrant │ │ LLM/Embed│
+                │(vectors)│ │ Provider │
+                └─────────┘ └──────────┘
 ```
+
+The API server connects to a vector store (Qdrant) and LLM/embedding providers (Ollama or cloud). These services run independently — start them however you like (native install, Docker, cloud-hosted, etc.).
 
 ### Pipeline
 
@@ -49,7 +47,8 @@ Jobs are queued in SQLite and processed by an in-process worker loop, making sca
 ### Prerequisites
 
 - [Bun](https://bun.sh) >= 1.0
-- Docker & Docker Compose
+- A [Qdrant](https://qdrant.tech) instance (local or cloud)
+- An LLM/embedding provider: [Ollama](https://ollama.ai) (local) or cloud (Anthropic/OpenAI)
 - A GitHub Personal Access Token (PAT)
 
 ### Install and run
@@ -67,8 +66,16 @@ bun run build:cli
 # Initialize config (creates ~/.ossgard/config.toml, prompts for GitHub PAT)
 ./packages/cli/dist/ossgard init
 
-# Start the stack (API + Qdrant + Ollama)
-./packages/cli/dist/ossgard up --detach
+# Start services (example using Docker, but any method works)
+docker run -d -p 6333:6333 qdrant/qdrant:latest
+docker run -d -p 11434:11434 ollama/ollama:latest
+
+# Pull Ollama models (if using Ollama)
+ollama pull nomic-embed-text
+ollama pull llama3
+
+# Start the API server
+bun run dev
 
 # Track a repo and scan it
 ./packages/cli/dist/ossgard track facebook/react
@@ -77,14 +84,6 @@ bun run build:cli
 # View duplicate groups
 ./packages/cli/dist/ossgard dupes facebook/react
 ```
-
-### Docker Compose services
-
-| Service | Port | Purpose |
-|---------|------|---------|
-| **api** | 3400 | Hono HTTP server + job worker |
-| **qdrant** | 6333 | Vector database for PR embeddings |
-| **ollama** | 11434 | Local LLM and embedding model |
 
 ### Configuration
 
@@ -95,19 +94,24 @@ Config lives at `~/.ossgard/config.toml`:
 token = "ghp_..."
 
 [llm]
-provider = "ollama"         # or "anthropic"
-model = "llama3"            # or "claude-haiku-4-5-20251001"
-api_key = ""                # required for anthropic
-batch = false               # enable batch processing (anthropic only)
+provider = "ollama"                    # "ollama" | "anthropic"
+url = "http://localhost:11434"         # provider base URL
+model = "llama3"
+api_key = ""
+batch = false
 
 [embedding]
-provider = "ollama"         # or "openai"
-model = "nomic-embed-text"  # or "text-embedding-3-large"
-api_key = ""                # required for openai
-batch = false               # enable batch processing (openai only)
+provider = "ollama"                    # "ollama" | "openai"
+url = "http://localhost:11434"         # provider base URL
+model = "nomic-embed-text"
+api_key = ""
+batch = false
+
+[vector_store]
+url = "http://localhost:6333"          # Qdrant URL
 ```
 
-The default stack uses local Ollama for both chat and embeddings — no API keys needed. To use cloud providers, set the provider and supply an API key.
+The default config uses local Ollama for both chat and embeddings — no API keys needed. To use cloud providers, set the provider, URL, and supply an API key.
 
 #### Batch processing
 
@@ -120,30 +124,39 @@ Batch mode is ignored for Ollama (no batch API). When only a single request exis
 
 **Prompt caching:** Anthropic providers (both sync and batch) automatically use [prompt caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) on system prompts. Since verify and rank use the same system prompt for every group in a scan, all calls after the first get a cache hit, reducing cost and latency.
 
-Environment variables override TOML values:
+#### Environment variables
+
+A small set of env vars are supported for deployment flexibility:
 
 | Variable | Purpose |
 |----------|---------|
-| `GITHUB_TOKEN` | GitHub Personal Access Token |
-| `LLM_PROVIDER` | Chat provider (`ollama` or `anthropic`) |
-| `LLM_MODEL` | Chat model name |
-| `LLM_API_KEY` | API key for chat provider |
-| `LLM_BATCH` | Enable LLM batch processing (`true` / `false`) |
-| `EMBEDDING_PROVIDER` | Embedding provider (`ollama` or `openai`) |
-| `EMBEDDING_MODEL` | Embedding model name |
-| `EMBEDDING_API_KEY` | API key for embedding provider |
-| `EMBEDDING_BATCH` | Enable embedding batch processing (`true` / `false`) |
-| `OLLAMA_URL` | Ollama base URL (default `http://localhost:11434`) |
-| `QDRANT_URL` | Qdrant base URL (default `http://localhost:6333`) |
+| `GITHUB_TOKEN` | Override config token (useful in CI/CD) |
+| `DATABASE_PATH` | SQLite database location (default `./ossgard.db`) |
+| `PORT` | API server port (default `3400`) |
+| `CONFIG_PATH` | Alternate config file location |
 
 **Note:** Switching embedding providers changes vector dimensions. ossgard automatically detects dimension mismatches in Qdrant and recreates collections as needed (existing vectors will be lost — a re-scan is required).
+
+#### Docker Compose (optional)
+
+A convenience `docker-compose.yml` is provided in `deploy/` for running the full stack in Docker:
+
+```bash
+cd deploy
+docker compose up -d
+```
+
+When using Docker Compose, set the service URLs in your config to use Docker networking:
+- `llm.url = "http://ollama:11434"`
+- `embedding.url = "http://ollama:11434"`
+- `vector_store.url = "http://qdrant:6333"`
 
 ### Development
 
 ```bash
 bun run dev       # Run API with hot reload
 bun run test      # Run unit tests across all packages
-bun run test:e2e  # Run end-to-end tests (requires running stack)
+bun run test:e2e  # Run end-to-end tests (requires Qdrant + Ollama)
 bun run build:cli # Compile standalone CLI binary
 ```
 
@@ -152,6 +165,8 @@ bun run build:cli # Compile standalone CLI binary
 ```
 packages/
   api/       Hono HTTP server, pipeline processors, services, SQLite DB
-  cli/       Commander-based CLI (track, scan, dupes, status, up/down)
+  cli/       Commander-based CLI (init, config, track, scan, dupes, status)
   shared/    Types and Zod schemas shared across packages
+deploy/
+  docker-compose.yml   Optional Docker Compose for full-stack deployment
 ```
