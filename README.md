@@ -175,7 +175,11 @@ When using cloud providers, enabling batch mode during setup uses asynchronous b
 
 Batch mode is ignored for Ollama (no batch API). When only a single request exists in a pipeline step, the provider falls back to the standard sync path automatically.
 
+Both batch providers use progressive poll intervals (starting at 10s, scaling up to a 120s cap) and tolerate up to 3 consecutive 5xx errors before failing, making them resilient to transient API issues. Batches are also resumable — if the server restarts mid-batch, the batch ID is persisted in `phaseCursor` so polling resumes where it left off instead of re-submitting.
+
 **Prompt caching:** Anthropic providers (both sync and batch) automatically use [prompt caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) on system prompts. Since verify and rank use the same system prompt for every group in a scan, all calls after the first get a cache hit, reducing cost and latency.
+
+**Smart embed skipping:** The embed phase tracks an `embed_hash` per PR (derived from diff hash, title, body, and file paths). On subsequent scans, PRs whose embedding-relevant fields haven't changed are skipped entirely, avoiding redundant embedding API calls.
 
 #### Token counting and usage tracking
 
