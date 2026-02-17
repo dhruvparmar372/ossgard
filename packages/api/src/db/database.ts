@@ -417,6 +417,15 @@ export class Database {
     return row ? mapScanRow(row) : null;
   }
 
+  reset(): void {
+    this.raw.run("DELETE FROM dupe_group_members");
+    this.raw.run("DELETE FROM dupe_groups");
+    this.raw.run("DELETE FROM prs");
+    this.raw.run("DELETE FROM scans");
+    this.raw.run("DELETE FROM repos");
+    this.raw.run("DELETE FROM jobs");
+  }
+
   close(): void {
     this.raw.close();
   }

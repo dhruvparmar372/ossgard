@@ -10,6 +10,7 @@ import { accounts } from "./routes/accounts.js";
 import { repos } from "./routes/repos.js";
 import { scans } from "./routes/scans.js";
 import { dupes } from "./routes/dupes.js";
+import { reset } from "./routes/reset.js";
 import { log } from "./logger.js";
 
 export type AppEnv = {
@@ -64,11 +65,13 @@ export function createApp(
   // Auth middleware for all other routes
   app.use("/repos/*", authMiddleware);
   app.use("/scans/*", authMiddleware);
+  app.use("/reset", authMiddleware);
 
   // Authenticated routes
   app.route("/", repos);
   app.route("/", scans);
   app.route("/", dupes);
+  app.route("/", reset);
 
   return { app, ctx: { db: database, queue, worker } };
 }
