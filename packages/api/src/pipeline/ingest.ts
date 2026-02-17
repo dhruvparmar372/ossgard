@@ -42,6 +42,7 @@ export class IngestProcessor implements JobProcessor {
     ingestLog.info("Fetched PR list", { scanId, total: fetchedPRs.length });
 
     let etagHits = 0;
+    let diffTooLarge = 0;
 
     // For each PR, fetch files and diff, compute hash, upsert
     for (let i = 0; i < fetchedPRs.length; i++) {
@@ -49,6 +50,15 @@ export class IngestProcessor implements JobProcessor {
       // Look up existing PR for its stored etag
       const existingPR = this.db.getPRByNumber(repoId, pr.number);
       const storedEtag = existingPR?.githubEtag ?? null;
+
+      ingestLog.info("Fetching PR data", {
+        scanId,
+        pr: pr.number,
+        author: pr.author,
+        hasEtag: !!storedEtag,
+      });
+
+      const prStart = Date.now();
 
       let filePaths: string[];
       let diffResult: { diff: string; etag: string | null } | null;
@@ -62,13 +72,15 @@ export class IngestProcessor implements JobProcessor {
           ingestLog.warn("Diff too large, skipping diff", { scanId, pr: pr.number });
           filePaths = await github.getPRFiles(owner, repo, pr.number);
           diffResult = null;
+          diffTooLarge++;
         } else {
           throw err;
         }
       }
 
       // If diff hasn't changed (304) or was too large, skip processing but still upsert metadata
-      if (!diffResult) etagHits++;
+      const cached = !diffResult;
+      if (cached) etagHits++;
       const diffHash = diffResult ? hashDiff(diffResult.diff) : existingPR?.diffHash ?? null;
       const newEtag = diffResult?.etag ?? storedEtag;
 
@@ -90,12 +102,17 @@ export class IngestProcessor implements JobProcessor {
         this.db.updatePREtag(upserted.id, newEtag);
       }
 
-      if (i % 10 === 0 || i === fetchedPRs.length - 1) {
-        ingestLog.info("Ingesting PRs", { scanId, progress: `${i + 1}/${fetchedPRs.length}` });
-      }
+      ingestLog.info("PR ingested", {
+        scanId,
+        pr: pr.number,
+        files: filePaths.length,
+        cached,
+        durationMs: Date.now() - prStart,
+        progress: `${i + 1}/${fetchedPRs.length}`,
+      });
     }
 
-    ingestLog.info("PRs fetched", { scanId, count: fetchedPRs.length, etagHits });
+    ingestLog.info("Ingest complete", { scanId, count: fetchedPRs.length, etagHits, diffTooLarge });
 
     // Update scan with PR count
     this.db.updateScanStatus(scanId, "ingesting", {
