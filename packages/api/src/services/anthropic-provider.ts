@@ -1,4 +1,4 @@
-import type { ChatProvider, Message } from "./llm-provider.js";
+import type { ChatProvider, ChatResult, Message } from "./llm-provider.js";
 
 export interface AnthropicProviderOptions {
   apiKey: string;
@@ -17,7 +17,7 @@ export class AnthropicProvider implements ChatProvider {
     this.fetchFn = options.fetchFn ?? fetch;
   }
 
-  async chat(messages: Message[]): Promise<Record<string, unknown>> {
+  async chat(messages: Message[]): Promise<ChatResult> {
     // Extract system message if present
     const systemMessage = messages.find((m) => m.role === "system");
     const nonSystemMessages = messages.filter((m) => m.role !== "system");
@@ -63,11 +63,18 @@ export class AnthropicProvider implements ChatProvider {
 
     const data = (await response.json()) as {
       content: Array<{ type: string; text: string }>;
+      usage: { input_tokens: number; output_tokens: number };
     };
 
     const raw = data.content[0].text;
     try {
-      return JSON.parse(raw) as Record<string, unknown>;
+      return {
+        response: JSON.parse(raw) as Record<string, unknown>,
+        usage: {
+          inputTokens: data.usage.input_tokens,
+          outputTokens: data.usage.output_tokens,
+        },
+      };
     } catch {
       throw new Error(
         `LLM returned invalid JSON: ${raw.slice(0, 200)}`

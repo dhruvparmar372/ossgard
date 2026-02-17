@@ -2,7 +2,9 @@ import type {
   BatchChatProvider,
   BatchChatRequest,
   BatchChatResult,
+  ChatResult,
   Message,
+  TokenUsage,
 } from "./llm-provider.js";
 
 export interface AnthropicBatchProviderOptions {
@@ -30,7 +32,7 @@ export class AnthropicBatchProvider implements BatchChatProvider {
     this.fetchFn = options.fetchFn ?? fetch;
   }
 
-  async chat(messages: Message[]): Promise<Record<string, unknown>> {
+  async chat(messages: Message[]): Promise<ChatResult> {
     const systemMessage = messages.find((m) => m.role === "system");
     const nonSystemMessages = messages.filter((m) => m.role !== "system");
 
@@ -75,11 +77,18 @@ export class AnthropicBatchProvider implements BatchChatProvider {
 
     const data = (await response.json()) as {
       content: Array<{ type: string; text: string }>;
+      usage: { input_tokens: number; output_tokens: number };
     };
 
     const raw = data.content[0].text;
     try {
-      return JSON.parse(raw) as Record<string, unknown>;
+      return {
+        response: JSON.parse(raw) as Record<string, unknown>,
+        usage: {
+          inputTokens: data.usage.input_tokens,
+          outputTokens: data.usage.output_tokens,
+        },
+      };
     } catch {
       throw new Error(`LLM returned invalid JSON: ${raw.slice(0, 200)}`);
     }
@@ -90,8 +99,8 @@ export class AnthropicBatchProvider implements BatchChatProvider {
 
     // Single request: use sync path for efficiency
     if (requests.length === 1) {
-      const response = await this.chat(requests[0].messages);
-      return [{ id: requests[0].id, response }];
+      const result = await this.chat(requests[0].messages);
+      return [{ id: requests[0].id, response: result.response, usage: result.usage }];
     }
 
     // Build batch requests
@@ -203,7 +212,7 @@ export class AnthropicBatchProvider implements BatchChatProvider {
     }
 
     const resultsText = await resultsRes.text();
-    const resultMap = new Map<string, Record<string, unknown>>();
+    const resultMap = new Map<string, { response: Record<string, unknown>; usage: TokenUsage }>();
 
     for (const line of resultsText.split("\n")) {
       if (!line.trim()) continue;
@@ -212,7 +221,10 @@ export class AnthropicBatchProvider implements BatchChatProvider {
         custom_id: string;
         result: {
           type: string;
-          message?: { content: Array<{ type: string; text: string }> };
+          message?: {
+            content: Array<{ type: string; text: string }>;
+            usage: { input_tokens: number; output_tokens: number };
+          };
           error?: { message: string };
         };
       };
@@ -223,9 +235,16 @@ export class AnthropicBatchProvider implements BatchChatProvider {
         );
       }
 
-      const raw = parsed.result.message!.content[0].text;
+      const msg = parsed.result.message!;
+      const raw = msg.content[0].text;
       try {
-        resultMap.set(parsed.custom_id, JSON.parse(raw));
+        resultMap.set(parsed.custom_id, {
+          response: JSON.parse(raw),
+          usage: {
+            inputTokens: msg.usage?.input_tokens ?? 0,
+            outputTokens: msg.usage?.output_tokens ?? 0,
+          },
+        });
       } catch {
         throw new Error(
           `LLM returned invalid JSON for ${parsed.custom_id}: ${raw.slice(0, 200)}`
@@ -234,10 +253,10 @@ export class AnthropicBatchProvider implements BatchChatProvider {
     }
 
     // Map results back in input order
-    return requests.map((req) => ({
-      id: req.id,
-      response: resultMap.get(req.id)!,
-    }));
+    return requests.map((req) => {
+      const entry = resultMap.get(req.id)!;
+      return { id: req.id, response: entry.response, usage: entry.usage };
+    });
   }
 
   private sleep(ms: number): Promise<void> {

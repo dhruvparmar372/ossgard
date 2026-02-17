@@ -6,14 +6,20 @@ import type { Job } from "@ossgard/shared";
 
 function createMockChat(): ChatProvider {
   return {
-    chat: vi.fn().mockResolvedValue({ groups: [], unrelated: [] }),
+    chat: vi.fn().mockResolvedValue({
+      response: { groups: [], unrelated: [] },
+      usage: { inputTokens: 0, outputTokens: 0 },
+    }),
   };
 }
 
 function createMockBatchChat(): BatchChatProvider {
   return {
     batch: true as const,
-    chat: vi.fn().mockResolvedValue({ groups: [], unrelated: [] }),
+    chat: vi.fn().mockResolvedValue({
+      response: { groups: [], unrelated: [] },
+      usage: { inputTokens: 0, outputTokens: 0 },
+    }),
     chatBatch: vi.fn().mockResolvedValue([]),
   };
 }
@@ -116,15 +122,18 @@ describe("VerifyProcessor", () => {
     const pr2 = insertPR(2);
 
     (mockChat.chat as any).mockResolvedValue({
-      groups: [
-        {
-          prIds: [pr1.id, pr2.id],
-          label: "Fix login bug",
-          confidence: 0.95,
-          relationship: "near_duplicate",
-        },
-      ],
-      unrelated: [],
+      response: {
+        groups: [
+          {
+            prIds: [pr1.id, pr2.id],
+            label: "Fix login bug",
+            confidence: 0.95,
+            relationship: "near_duplicate",
+          },
+        ],
+        unrelated: [],
+      },
+      usage: { inputTokens: 500, outputTokens: 100 },
     });
 
     await processor.process(
@@ -161,15 +170,18 @@ describe("VerifyProcessor", () => {
     const pr2 = insertPR(2);
 
     (mockChat.chat as any).mockResolvedValue({
-      groups: [
-        {
-          prIds: [pr1.id], // Only 1 PR - should be filtered
-          label: "Solo PR",
-          confidence: 0.5,
-          relationship: "related",
-        },
-      ],
-      unrelated: [pr2.id],
+      response: {
+        groups: [
+          {
+            prIds: [pr1.id], // Only 1 PR - should be filtered
+            label: "Solo PR",
+            confidence: 0.5,
+            relationship: "related",
+          },
+        ],
+        unrelated: [pr2.id],
+      },
+      usage: { inputTokens: 100, outputTokens: 20 },
     });
 
     await processor.process(
@@ -192,26 +204,32 @@ describe("VerifyProcessor", () => {
 
     (mockChat.chat as any)
       .mockResolvedValueOnce({
-        groups: [
-          {
-            prIds: [pr1.id, pr2.id],
-            label: "Group A",
-            confidence: 0.9,
-            relationship: "exact_duplicate",
-          },
-        ],
-        unrelated: [],
+        response: {
+          groups: [
+            {
+              prIds: [pr1.id, pr2.id],
+              label: "Group A",
+              confidence: 0.9,
+              relationship: "exact_duplicate",
+            },
+          ],
+          unrelated: [],
+        },
+        usage: { inputTokens: 300, outputTokens: 60 },
       })
       .mockResolvedValueOnce({
-        groups: [
-          {
-            prIds: [pr3.id, pr4.id],
-            label: "Group B",
-            confidence: 0.85,
-            relationship: "near_duplicate",
-          },
-        ],
-        unrelated: [],
+        response: {
+          groups: [
+            {
+              prIds: [pr3.id, pr4.id],
+              label: "Group B",
+              confidence: 0.85,
+              relationship: "near_duplicate",
+            },
+          ],
+          unrelated: [],
+        },
+        usage: { inputTokens: 300, outputTokens: 60 },
       });
 
     await processor.process(
@@ -257,8 +275,11 @@ describe("VerifyProcessor", () => {
     const pr2 = insertPR(2);
 
     (mockChat.chat as any).mockResolvedValue({
-      groups: [],
-      unrelated: [pr1.id, pr2.id],
+      response: {
+        groups: [],
+        unrelated: [pr1.id, pr2.id],
+      },
+      usage: { inputTokens: 100, outputTokens: 20 },
     });
 
     await processor.process(
@@ -272,6 +293,34 @@ describe("VerifyProcessor", () => {
     expect(chatCall[1].role).toBe("user");
     expect(chatCall[1].content).toContain("PR #1");
     expect(chatCall[1].content).toContain("PR #2");
+  });
+
+  it("stores accumulated token usage on scan", async () => {
+    const pr1 = insertPR(1);
+    const pr2 = insertPR(2);
+    const pr3 = insertPR(3);
+    const pr4 = insertPR(4);
+
+    (mockChat.chat as any)
+      .mockResolvedValueOnce({
+        response: { groups: [], unrelated: [] },
+        usage: { inputTokens: 300, outputTokens: 60 },
+      })
+      .mockResolvedValueOnce({
+        response: { groups: [], unrelated: [] },
+        usage: { inputTokens: 200, outputTokens: 40 },
+      });
+
+    await processor.process(
+      makeJob([
+        { prNumbers: [1, 2], prIds: [pr1.id, pr2.id] },
+        { prNumbers: [3, 4], prIds: [pr3.id, pr4.id] },
+      ])
+    );
+
+    const scan = db.getScan(scanId);
+    expect(scan!.inputTokens).toBe(500);
+    expect(scan!.outputTokens).toBe(100);
   });
 
   it("skips candidate groups with fewer than 2 PRs found", async () => {
@@ -313,6 +362,7 @@ describe("VerifyProcessor", () => {
             ],
             unrelated: [],
           },
+          usage: { inputTokens: 400, outputTokens: 80 },
         },
         {
           id: "verify-1",
@@ -322,6 +372,7 @@ describe("VerifyProcessor", () => {
             ],
             unrelated: [],
           },
+          usage: { inputTokens: 400, outputTokens: 80 },
         },
       ]);
 
@@ -350,10 +401,13 @@ describe("VerifyProcessor", () => {
       const pr2 = insertPR(2);
 
       (batchChat.chat as any).mockResolvedValue({
-        groups: [
-          { prIds: [pr1.id, pr2.id], label: "Solo Group", confidence: 0.9, relationship: "near_duplicate" },
-        ],
-        unrelated: [],
+        response: {
+          groups: [
+            { prIds: [pr1.id, pr2.id], label: "Solo Group", confidence: 0.9, relationship: "near_duplicate" },
+          ],
+          unrelated: [],
+        },
+        usage: { inputTokens: 200, outputTokens: 40 },
       });
 
       await batchProcessor.process(

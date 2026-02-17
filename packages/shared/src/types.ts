@@ -39,6 +39,8 @@ export interface Scan {
   phaseCursor: Record<string, unknown> | null;
   prCount: number;
   dupeGroupCount: number;
+  inputTokens: number;
+  outputTokens: number;
   startedAt: string;
   completedAt: string | null;
   error: string | null;

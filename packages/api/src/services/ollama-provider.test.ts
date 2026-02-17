@@ -104,7 +104,7 @@ describe("OllamaProvider", () => {
   });
 
   describe("chat", () => {
-    it("returns parsed JSON from response", async () => {
+    it("returns ChatResult with parsed JSON and zero token usage", async () => {
       const chatResponse = { groups: [{ id: 1, label: "test" }] };
       const fetchFn = mockFetch({
         message: { content: JSON.stringify(chatResponse) },
@@ -120,7 +120,8 @@ describe("OllamaProvider", () => {
         { role: "user", content: "analyze this" },
       ]);
 
-      expect(result).toEqual(chatResponse);
+      expect(result.response).toEqual(chatResponse);
+      expect(result.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
     });
 
     it("calls the correct endpoint with correct body", async () => {

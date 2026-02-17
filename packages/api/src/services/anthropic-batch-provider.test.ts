@@ -18,10 +18,11 @@ describe("AnthropicBatchProvider", () => {
   });
 
   describe("chat (sync fallback)", () => {
-    it("returns parsed JSON from response content", async () => {
+    it("returns ChatResult with parsed JSON and token usage", async () => {
       const chatResponse = { groups: [{ prIds: [1, 2] }] };
       const fetchFn = mockFetch({
         content: [{ type: "text", text: JSON.stringify(chatResponse) }],
+        usage: { input_tokens: 200, output_tokens: 80 },
       });
       const provider = new AnthropicBatchProvider({
         apiKey: "sk-test",
@@ -33,12 +34,14 @@ describe("AnthropicBatchProvider", () => {
         { role: "user", content: "analyze" },
       ]);
 
-      expect(result).toEqual(chatResponse);
+      expect(result.response).toEqual(chatResponse);
+      expect(result.usage).toEqual({ inputTokens: 200, outputTokens: 80 });
     });
 
     it("sends system as content block array with cache_control", async () => {
       const fetchFn = mockFetch({
         content: [{ type: "text", text: '{"ok": true}' }],
+        usage: { input_tokens: 10, output_tokens: 5 },
       });
       const provider = new AnthropicBatchProvider({
         apiKey: "sk-test",
@@ -97,6 +100,7 @@ describe("AnthropicBatchProvider", () => {
       const chatResponse = { result: "ok" };
       const fetchFn = mockFetch({
         content: [{ type: "text", text: JSON.stringify(chatResponse) }],
+        usage: { input_tokens: 50, output_tokens: 20 },
       });
       const provider = new AnthropicBatchProvider({
         apiKey: "sk-test",
@@ -111,7 +115,9 @@ describe("AnthropicBatchProvider", () => {
         },
       ]);
 
-      expect(results).toEqual([{ id: "req-1", response: chatResponse }]);
+      expect(results).toEqual([
+        { id: "req-1", response: chatResponse, usage: { inputTokens: 50, outputTokens: 20 } },
+      ]);
       // Only 1 fetch call (the sync chat call), not 3 (create+poll+results)
       expect(fetchFn).toHaveBeenCalledTimes(1);
       expect(fetchFn).toHaveBeenCalledWith(
@@ -148,6 +154,7 @@ describe("AnthropicBatchProvider", () => {
                       content: [
                         { type: "text", text: '{"score": 70}' },
                       ],
+                      usage: { input_tokens: 120, output_tokens: 30 },
                     },
                   },
                 }),
@@ -159,6 +166,7 @@ describe("AnthropicBatchProvider", () => {
                       content: [
                         { type: "text", text: '{"score": 90}' },
                       ],
+                      usage: { input_tokens: 110, output_tokens: 25 },
                     },
                   },
                 }),
@@ -186,8 +194,8 @@ describe("AnthropicBatchProvider", () => {
 
       // Results returned in input order
       expect(results).toEqual([
-        { id: "req-1", response: { score: 90 } },
-        { id: "req-2", response: { score: 70 } },
+        { id: "req-1", response: { score: 90 }, usage: { inputTokens: 110, outputTokens: 25 } },
+        { id: "req-2", response: { score: 70 }, usage: { inputTokens: 120, outputTokens: 30 } },
       ]);
 
       // Verify 3 fetch calls: create, poll, results
@@ -240,15 +248,28 @@ describe("AnthropicBatchProvider", () => {
           ok: true,
           text: () =>
             Promise.resolve(
-              JSON.stringify({
-                custom_id: "req-1",
-                result: {
-                  type: "succeeded",
-                  message: {
-                    content: [{ type: "text", text: '{"ok": true}' }],
+              [
+                JSON.stringify({
+                  custom_id: "req-1",
+                  result: {
+                    type: "succeeded",
+                    message: {
+                      content: [{ type: "text", text: '{"ok": true}' }],
+                      usage: { input_tokens: 50, output_tokens: 10 },
+                    },
                   },
-                },
-              })
+                }),
+                JSON.stringify({
+                  custom_id: "req-2",
+                  result: {
+                    type: "succeeded",
+                    message: {
+                      content: [{ type: "text", text: '{"ok": true}' }],
+                      usage: { input_tokens: 50, output_tokens: 10 },
+                    },
+                  },
+                }),
+              ].join("\n")
             ),
         }) as unknown as typeof fetch;
 
@@ -396,6 +417,7 @@ describe("AnthropicBatchProvider", () => {
                   type: "succeeded",
                   message: {
                     content: [{ type: "text", text: '{"ok": true}' }],
+                    usage: { input_tokens: 40, output_tokens: 10 },
                   },
                 },
               }) +
@@ -406,6 +428,7 @@ describe("AnthropicBatchProvider", () => {
                     type: "succeeded",
                     message: {
                       content: [{ type: "text", text: '{"ok": true}' }],
+                      usage: { input_tokens: 40, output_tokens: 10 },
                     },
                   },
                 })

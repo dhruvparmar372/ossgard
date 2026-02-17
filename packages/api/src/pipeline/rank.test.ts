@@ -5,14 +5,20 @@ import type { Job } from "@ossgard/shared";
 
 function createMockChat(): ChatProvider {
   return {
-    chat: vi.fn().mockResolvedValue({ rankings: [] }),
+    chat: vi.fn().mockResolvedValue({
+      response: { rankings: [] },
+      usage: { inputTokens: 0, outputTokens: 0 },
+    }),
   };
 }
 
 function createMockBatchChat(): BatchChatProvider {
   return {
     batch: true as const,
-    chat: vi.fn().mockResolvedValue({ rankings: [] }),
+    chat: vi.fn().mockResolvedValue({
+      response: { rankings: [] },
+      usage: { inputTokens: 0, outputTokens: 0 },
+    }),
     chatBatch: vi.fn().mockResolvedValue([]),
   };
 }
@@ -110,22 +116,25 @@ describe("RankProcessor", () => {
     const pr2 = insertPR(2);
 
     (mockChat.chat as any).mockResolvedValue({
-      rankings: [
-        {
-          prNumber: 1,
-          score: 85,
-          codeQuality: 45,
-          completeness: 40,
-          rationale: "Well-structured code with tests",
-        },
-        {
-          prNumber: 2,
-          score: 70,
-          codeQuality: 35,
-          completeness: 35,
-          rationale: "Good but missing edge cases",
-        },
-      ],
+      response: {
+        rankings: [
+          {
+            prNumber: 1,
+            score: 85,
+            codeQuality: 45,
+            completeness: 40,
+            rationale: "Well-structured code with tests",
+          },
+          {
+            prNumber: 2,
+            score: 70,
+            codeQuality: 35,
+            completeness: 35,
+            rationale: "Good but missing edge cases",
+          },
+        ],
+      },
+      usage: { inputTokens: 500, outputTokens: 100 },
     });
 
     await processor.process(
@@ -165,22 +174,25 @@ describe("RankProcessor", () => {
 
     // Return rankings in ascending order from LLM
     (mockChat.chat as any).mockResolvedValue({
-      rankings: [
-        {
-          prNumber: 2,
-          score: 60,
-          codeQuality: 30,
-          completeness: 30,
-          rationale: "Basic implementation",
-        },
-        {
-          prNumber: 1,
-          score: 90,
-          codeQuality: 45,
-          completeness: 45,
-          rationale: "Excellent implementation",
-        },
-      ],
+      response: {
+        rankings: [
+          {
+            prNumber: 2,
+            score: 60,
+            codeQuality: 30,
+            completeness: 30,
+            rationale: "Basic implementation",
+          },
+          {
+            prNumber: 1,
+            score: 90,
+            codeQuality: 45,
+            completeness: 45,
+            rationale: "Excellent implementation",
+          },
+        ],
+      },
+      usage: { inputTokens: 400, outputTokens: 80 },
     });
 
     await processor.process(
@@ -214,10 +226,13 @@ describe("RankProcessor", () => {
     const pr4 = insertPR(4);
 
     (mockChat.chat as any).mockResolvedValue({
-      rankings: [
-        { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
-        { prNumber: 2, score: 70, codeQuality: 35, completeness: 35, rationale: "OK" },
-      ],
+      response: {
+        rankings: [
+          { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
+          { prNumber: 2, score: 70, codeQuality: 35, completeness: 35, rationale: "OK" },
+        ],
+      },
+      usage: { inputTokens: 300, outputTokens: 60 },
     });
 
     await processor.process(
@@ -251,16 +266,22 @@ describe("RankProcessor", () => {
 
     (mockChat.chat as any)
       .mockResolvedValueOnce({
-        rankings: [
-          { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
-          { prNumber: 2, score: 70, codeQuality: 35, completeness: 35, rationale: "OK" },
-        ],
+        response: {
+          rankings: [
+            { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
+            { prNumber: 2, score: 70, codeQuality: 35, completeness: 35, rationale: "OK" },
+          ],
+        },
+        usage: { inputTokens: 300, outputTokens: 60 },
       })
       .mockResolvedValueOnce({
-        rankings: [
-          { prNumber: 3, score: 90, codeQuality: 45, completeness: 45, rationale: "Excellent" },
-          { prNumber: 4, score: 50, codeQuality: 25, completeness: 25, rationale: "Basic" },
-        ],
+        response: {
+          rankings: [
+            { prNumber: 3, score: 90, codeQuality: 45, completeness: 45, rationale: "Excellent" },
+            { prNumber: 4, score: 50, codeQuality: 25, completeness: 25, rationale: "Basic" },
+          ],
+        },
+        usage: { inputTokens: 300, outputTokens: 60 },
       });
 
     await processor.process(
@@ -293,10 +314,13 @@ describe("RankProcessor", () => {
     const pr2 = insertPR(2);
 
     (mockChat.chat as any).mockResolvedValue({
-      rankings: [
-        { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
-        { prNumber: 2, score: 70, codeQuality: 35, completeness: 35, rationale: "OK" },
-      ],
+      response: {
+        rankings: [
+          { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
+          { prNumber: 2, score: 70, codeQuality: 35, completeness: 35, rationale: "OK" },
+        ],
+      },
+      usage: { inputTokens: 300, outputTokens: 60 },
     });
 
     await processor.process(
@@ -327,6 +351,44 @@ describe("RankProcessor", () => {
 
     const groups = db.listDupeGroups(scanId);
     expect(groups).toHaveLength(0);
+  });
+
+  it("stores accumulated token usage on scan", async () => {
+    const pr1 = insertPR(1);
+    const pr2 = insertPR(2);
+    const pr3 = insertPR(3);
+    const pr4 = insertPR(4);
+
+    (mockChat.chat as any)
+      .mockResolvedValueOnce({
+        response: {
+          rankings: [
+            { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
+            { prNumber: 2, score: 70, codeQuality: 35, completeness: 35, rationale: "OK" },
+          ],
+        },
+        usage: { inputTokens: 400, outputTokens: 80 },
+      })
+      .mockResolvedValueOnce({
+        response: {
+          rankings: [
+            { prNumber: 3, score: 90, codeQuality: 45, completeness: 45, rationale: "Excellent" },
+            { prNumber: 4, score: 50, codeQuality: 25, completeness: 25, rationale: "Basic" },
+          ],
+        },
+        usage: { inputTokens: 300, outputTokens: 60 },
+      });
+
+    await processor.process(
+      makeJob([
+        { prIds: [pr1.id, pr2.id], label: "Group A", confidence: 0.9, relationship: "near_duplicate" },
+        { prIds: [pr3.id, pr4.id], label: "Group B", confidence: 0.85, relationship: "exact_duplicate" },
+      ])
+    );
+
+    const scan = db.getScan(scanId);
+    expect(scan!.inputTokens).toBe(700);
+    expect(scan!.outputTokens).toBe(140);
   });
 
   it("updates repo last_scan_at after scan completes", async () => {
@@ -388,6 +450,7 @@ describe("RankProcessor", () => {
               { prNumber: 2, score: 70, codeQuality: 35, completeness: 35, rationale: "OK" },
             ],
           },
+          usage: { inputTokens: 400, outputTokens: 80 },
         },
         {
           id: "rank-1",
@@ -397,6 +460,7 @@ describe("RankProcessor", () => {
               { prNumber: 4, score: 50, codeQuality: 25, completeness: 25, rationale: "Basic" },
             ],
           },
+          usage: { inputTokens: 400, outputTokens: 80 },
         },
       ]);
 
@@ -426,10 +490,13 @@ describe("RankProcessor", () => {
       const pr2 = insertPR(2);
 
       (batchChat.chat as any).mockResolvedValue({
-        rankings: [
-          { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
-          { prNumber: 2, score: 60, codeQuality: 30, completeness: 30, rationale: "Fair" },
-        ],
+        response: {
+          rankings: [
+            { prNumber: 1, score: 80, codeQuality: 40, completeness: 40, rationale: "Good" },
+            { prNumber: 2, score: 60, codeQuality: 30, completeness: 30, rationale: "Fair" },
+          ],
+        },
+        usage: { inputTokens: 300, outputTokens: 60 },
       });
 
       await batchProcessor.process(

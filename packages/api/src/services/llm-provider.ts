@@ -3,13 +3,23 @@ export interface Message {
   content: string;
 }
 
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface ChatResult {
+  response: Record<string, unknown>;
+  usage: TokenUsage;
+}
+
 export interface EmbeddingProvider {
   readonly dimensions: number;
   embed(texts: string[]): Promise<number[][]>;
 }
 
 export interface ChatProvider {
-  chat(messages: Message[]): Promise<Record<string, unknown>>;
+  chat(messages: Message[]): Promise<ChatResult>;
 }
 
 // --- Batch variants ---
@@ -22,6 +32,7 @@ export interface BatchChatRequest {
 export interface BatchChatResult {
   id: string;
   response: Record<string, unknown>;
+  usage: TokenUsage;
 }
 
 export interface BatchChatProvider extends ChatProvider {

@@ -48,6 +48,8 @@ interface ScanRow {
   phase_cursor: string | null;
   pr_count: number;
   dupe_group_count: number;
+  input_tokens: number;
+  output_tokens: number;
   started_at: string;
   completed_at: string | null;
   error: string | null;
@@ -61,6 +63,8 @@ function mapScanRow(row: ScanRow): Scan {
     phaseCursor: row.phase_cursor ? JSON.parse(row.phase_cursor) : null,
     prCount: row.pr_count,
     dupeGroupCount: row.dupe_group_count,
+    inputTokens: row.input_tokens,
+    outputTokens: row.output_tokens,
     startedAt: row.started_at,
     completedAt: row.completed_at,
     error: row.error,
@@ -290,6 +294,13 @@ export class Database {
     const stmt = this.raw.prepare(sql);
     const result = stmt.run(...params);
     return result.changes > 0;
+  }
+
+  addScanTokens(scanId: number, inputTokens: number, outputTokens: number): void {
+    const stmt = this.raw.prepare(
+      "UPDATE scans SET input_tokens = input_tokens + ?, output_tokens = output_tokens + ? WHERE id = ?"
+    );
+    stmt.run(inputTokens, outputTokens, scanId);
   }
 
   upsertPR(input: UpsertPRInput): PR {

@@ -97,6 +97,8 @@ export class VerifyProcessor implements JobProcessor {
 
     // 2. Call LLM (batch or sequential)
     const verifiedGroups: VerifiedGroup[] = [];
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
     const useBatch = isBatchChatProvider(llm) && prepared.length > 1;
     verifyLog.info("LLM mode", { scanId, mode: useBatch ? "batch" : "sequential", prompts: prepared.length });
 
@@ -111,6 +113,8 @@ export class VerifyProcessor implements JobProcessor {
       );
       verifyLog.info("Batch verification complete", { scanId, durationMs: Date.now() - batchStart });
       for (const result of results) {
+        totalInputTokens += result.usage.inputTokens;
+        totalOutputTokens += result.usage.outputTokens;
         verifiedGroups.push(
           ...collectVerifiedGroups(result.response as VerifyResponse)
         );
@@ -125,10 +129,10 @@ export class VerifyProcessor implements JobProcessor {
           prs: candidate.prNumbers,
         });
         const groupStart = Date.now();
-        const response = (await llm.chat(
-          p.messages
-        )) as VerifyResponse;
-        const verified = collectVerifiedGroups(response);
+        const chatResult = await llm.chat(p.messages);
+        totalInputTokens += chatResult.usage.inputTokens;
+        totalOutputTokens += chatResult.usage.outputTokens;
+        const verified = collectVerifiedGroups(chatResult.response as VerifyResponse);
         verifiedGroups.push(...verified);
         verifyLog.info("Group verified", {
           scanId,
@@ -139,7 +143,12 @@ export class VerifyProcessor implements JobProcessor {
       }
     }
 
-    verifyLog.info("Verified groups", { scanId, count: verifiedGroups.length });
+    // Store accumulated token usage
+    if (totalInputTokens > 0 || totalOutputTokens > 0) {
+      this.db.addScanTokens(scanId, totalInputTokens, totalOutputTokens);
+    }
+
+    verifyLog.info("Verified groups", { scanId, count: verifiedGroups.length, inputTokens: totalInputTokens, outputTokens: totalOutputTokens });
 
     // Enqueue rank job with verifiedGroups
     if (this.queue) {

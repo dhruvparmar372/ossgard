@@ -17,12 +17,13 @@ function mockFetchError(status: number, statusText: string): typeof fetch {
 
 describe("AnthropicProvider", () => {
   describe("chat", () => {
-    it("returns parsed JSON from response content", async () => {
+    it("returns ChatResult with parsed JSON and token usage", async () => {
       const chatResponse = {
         groups: [{ prIds: [1, 2], label: "duplicate" }],
       };
       const fetchFn = mockFetch({
         content: [{ type: "text", text: JSON.stringify(chatResponse) }],
+        usage: { input_tokens: 100, output_tokens: 50 },
       });
       const provider = new AnthropicProvider({
         apiKey: "sk-test-key",
@@ -34,12 +35,14 @@ describe("AnthropicProvider", () => {
         { role: "user", content: "analyze this" },
       ]);
 
-      expect(result).toEqual(chatResponse);
+      expect(result.response).toEqual(chatResponse);
+      expect(result.usage).toEqual({ inputTokens: 100, outputTokens: 50 });
     });
 
     it("sends correct headers including x-api-key, anthropic-version, and prompt caching beta", async () => {
       const fetchFn = mockFetch({
         content: [{ type: "text", text: '{"ok": true}' }],
+        usage: { input_tokens: 10, output_tokens: 5 },
       });
       const provider = new AnthropicProvider({
         apiKey: "sk-my-secret-key",
@@ -66,6 +69,7 @@ describe("AnthropicProvider", () => {
     it("extracts system message and sends it separately", async () => {
       const fetchFn = mockFetch({
         content: [{ type: "text", text: '{"result": "ok"}' }],
+        usage: { input_tokens: 10, output_tokens: 5 },
       });
       const provider = new AnthropicProvider({
         apiKey: "sk-test-key",
@@ -99,6 +103,7 @@ describe("AnthropicProvider", () => {
     it("does not include system field when no system message", async () => {
       const fetchFn = mockFetch({
         content: [{ type: "text", text: '{"result": "ok"}' }],
+        usage: { input_tokens: 10, output_tokens: 5 },
       });
       const provider = new AnthropicProvider({
         apiKey: "sk-test-key",
@@ -117,6 +122,7 @@ describe("AnthropicProvider", () => {
     it("sends the correct model in the body", async () => {
       const fetchFn = mockFetch({
         content: [{ type: "text", text: '{"ok": true}' }],
+        usage: { input_tokens: 10, output_tokens: 5 },
       });
       const provider = new AnthropicProvider({
         apiKey: "sk-test-key",

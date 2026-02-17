@@ -1,4 +1,4 @@
-import type { EmbeddingProvider, ChatProvider, Message } from "./llm-provider.js";
+import type { EmbeddingProvider, ChatProvider, ChatResult, Message } from "./llm-provider.js";
 
 const DIMENSION_MAP: Record<string, number> = {
   "nomic-embed-text": 768,
@@ -48,7 +48,7 @@ export class OllamaProvider implements EmbeddingProvider, ChatProvider {
     return data.embeddings;
   }
 
-  async chat(messages: Message[]): Promise<Record<string, unknown>> {
+  async chat(messages: Message[]): Promise<ChatResult> {
     const response = await this.fetchFn(`${this.baseUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -73,7 +73,10 @@ export class OllamaProvider implements EmbeddingProvider, ChatProvider {
 
     const raw = data.message.content;
     try {
-      return JSON.parse(raw) as Record<string, unknown>;
+      return {
+        response: JSON.parse(raw) as Record<string, unknown>,
+        usage: { inputTokens: 0, outputTokens: 0 },
+      };
     } catch {
       throw new Error(
         `LLM returned invalid JSON: ${raw.slice(0, 200)}`

@@ -77,6 +77,8 @@ export class RankProcessor implements JobProcessor {
 
     // 2. Call LLM (batch or sequential)
     let responses: Array<{ rankings: RankingResult[] }>;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
     const useBatch = isBatchChatProvider(llm) && prepared.length > 1;
     rankLog.info("LLM mode", { scanId, mode: useBatch ? "batch" : "sequential", prompts: prepared.length });
 
@@ -90,9 +92,11 @@ export class RankProcessor implements JobProcessor {
         }))
       );
       rankLog.info("Batch ranking complete", { scanId, durationMs: Date.now() - batchStart });
-      responses = results.map(
-        (r) => r.response as { rankings: RankingResult[] }
-      );
+      responses = results.map((r) => {
+        totalInputTokens += r.usage.inputTokens;
+        totalOutputTokens += r.usage.outputTokens;
+        return r.response as { rankings: RankingResult[] };
+      });
     } else {
       responses = [];
       for (let i = 0; i < prepared.length; i++) {
@@ -104,16 +108,21 @@ export class RankProcessor implements JobProcessor {
           prs: p.prs.length,
         });
         const groupStart = Date.now();
-        const response = (await llm.chat(p.messages)) as {
-          rankings: RankingResult[];
-        };
-        responses.push(response);
+        const chatResult = await llm.chat(p.messages);
+        totalInputTokens += chatResult.usage.inputTokens;
+        totalOutputTokens += chatResult.usage.outputTokens;
+        responses.push(chatResult.response as { rankings: RankingResult[] });
         rankLog.info("Group ranked", {
           scanId,
           group: `${i + 1}/${prepared.length}`,
           durationMs: Date.now() - groupStart,
         });
       }
+    }
+
+    // Store accumulated token usage
+    if (totalInputTokens > 0 || totalOutputTokens > 0) {
+      this.db.addScanTokens(scanId, totalInputTokens, totalOutputTokens);
     }
 
     // 3. Store results
@@ -167,6 +176,6 @@ export class RankProcessor implements JobProcessor {
     // Update the repo's last_scan_at timestamp
     this.db.updateRepoLastScanAt(repoId, new Date().toISOString());
 
-    rankLog.info("Scan complete", { scanId, dupeGroups: totalGroups });
+    rankLog.info("Scan complete", { scanId, dupeGroups: totalGroups, inputTokens: totalInputTokens, outputTokens: totalOutputTokens });
   }
 }

@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS scans (
   phase_cursor    TEXT,
   pr_count        INTEGER DEFAULT 0,
   dupe_group_count INTEGER DEFAULT 0,
+  input_tokens    INTEGER DEFAULT 0,
+  output_tokens   INTEGER DEFAULT 0,
   started_at      TEXT NOT NULL DEFAULT (datetime('now')),
   completed_at    TEXT,
   error           TEXT
