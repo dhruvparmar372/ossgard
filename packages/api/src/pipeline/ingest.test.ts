@@ -209,6 +209,55 @@ describe("IngestProcessor", () => {
     expect(mockGitHub.getPRDiff).toHaveBeenCalledWith("facebook", "react", 20, null);
   });
 
+  it("skips PRs that have not changed since last ingest", async () => {
+    // First ingest: PR 1 and PR 2
+    const prs = [makeFetchedPR(1), makeFetchedPR(2)];
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
+    (mockGitHub.getPRFiles as any).mockResolvedValue(["src/index.ts"]);
+    (mockGitHub.getPRDiff as any)
+      .mockResolvedValueOnce({ diff: makeDiff(1), etag: '"etag1"' })
+      .mockResolvedValueOnce({ diff: makeDiff(2), etag: '"etag2"' });
+
+    await processor.process(makeJob());
+
+    expect(mockGitHub.getPRFiles).toHaveBeenCalledTimes(2);
+    expect(mockGitHub.getPRDiff).toHaveBeenCalledTimes(2);
+
+    // Second ingest: same PRs with same updatedAt — should skip both
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
+    (mockGitHub.getPRFiles as any).mockClear();
+    (mockGitHub.getPRDiff as any).mockClear();
+
+    await processor.process(makeJob());
+
+    expect(mockGitHub.getPRFiles).not.toHaveBeenCalled();
+    expect(mockGitHub.getPRDiff).not.toHaveBeenCalled();
+  });
+
+  it("re-fetches PRs whose updatedAt has changed", async () => {
+    // First ingest
+    const prs = [makeFetchedPR(1)];
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
+    (mockGitHub.getPRFiles as any).mockResolvedValue(["src/index.ts"]);
+    (mockGitHub.getPRDiff as any).mockResolvedValue({ diff: makeDiff(1), etag: '"etag1"' });
+
+    await processor.process(makeJob());
+
+    // Second ingest: PR 1 has a newer updatedAt
+    const updatedPR = { ...makeFetchedPR(1), updatedAt: "2025-01-03T00:00:00Z" };
+    (mockGitHub.listOpenPRs as any).mockResolvedValue([updatedPR]);
+    (mockGitHub.getPRFiles as any).mockClear().mockResolvedValue(["src/index.ts", "src/new.ts"]);
+    (mockGitHub.getPRDiff as any).mockClear().mockResolvedValue({ diff: makeDiff(1), etag: '"etag1-v2"' });
+
+    await processor.process(makeJob());
+
+    expect(mockGitHub.getPRFiles).toHaveBeenCalledTimes(1);
+    expect(mockGitHub.getPRDiff).toHaveBeenCalledTimes(1);
+
+    const storedPR = db.getPRByNumber(repoId, 1);
+    expect(storedPR!.filePaths).toEqual(["src/index.ts", "src/new.ts"]);
+  });
+
   it("continues ingesting when a PR diff is too large", async () => {
     const prs = [makeFetchedPR(1), makeFetchedPR(2)];
     (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);

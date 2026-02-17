@@ -44,11 +44,25 @@ export class IngestProcessor implements JobProcessor {
 
     let etagHits = 0;
     let diffTooLarge = 0;
+    let skipped = 0;
     let completed = 0;
 
     // Process a single PR: fetch files + diff, compute hash, upsert
     const ingestPR = async (pr: (typeof fetchedPRs)[number]) => {
       const existingPR = this.db.getPRByNumber(repoId, pr.number);
+
+      // Skip PRs that haven't changed since last ingest
+      if (existingPR && existingPR.updatedAt === pr.updatedAt) {
+        skipped++;
+        completed++;
+        ingestLog.info("PR unchanged, skipping", {
+          scanId,
+          pr: pr.number,
+          progress: `${completed}/${fetchedPRs.length}`,
+        });
+        return;
+      }
+
       const storedEtag = existingPR?.githubEtag ?? null;
 
       ingestLog.info("Fetching PR data", {
@@ -125,7 +139,7 @@ export class IngestProcessor implements JobProcessor {
     );
     await Promise.all(workers);
 
-    ingestLog.info("Ingest complete", { scanId, count: fetchedPRs.length, etagHits, diffTooLarge });
+    ingestLog.info("Ingest complete", { scanId, count: fetchedPRs.length, skipped, etagHits, diffTooLarge });
 
     // Update scan with PR count
     this.db.updateScanStatus(scanId, "ingesting", {
