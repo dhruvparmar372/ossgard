@@ -34,13 +34,13 @@ Ingest ──► Embed ──► Cluster ──► Verify ──► Rank
 
 | Phase | What it does |
 |-------|-------------|
-| **Ingest** | Fetches open PRs, diffs, and file lists from GitHub (supports ETags for incremental scans) |
-| **Embed** | Generates two embedding vectors per PR (code fingerprint from the diff, intent fingerprint from title + body + files). Supports Ollama (768-dim default) and OpenAI `text-embedding-3-large` (3072-dim) |
+| **Ingest** | Fetches open PRs, diffs, and file lists from GitHub using a 10-worker parallel pool. Supports ETags for diff caching and skips unchanged PRs by comparing `updatedAt` timestamps for fast incremental scans |
+| **Embed** | Generates two embedding vectors per PR (code fingerprint from file paths, intent fingerprint from title + body + file paths). Token-aware truncation prevents context overflow. Supports Ollama (768-dim `nomic-embed-text`, 1024-dim `mxbai-embed-large`) and OpenAI (`text-embedding-3-large` 3072-dim, `text-embedding-3-small` 1536-dim) |
 | **Cluster** | Groups PRs by identical diff hashes (fast path) then by embedding similarity using union-find (code > 0.85, intent > 0.80) |
-| **Verify** | Sends candidate groups to the LLM to filter false positives and classify relationships |
-| **Rank** | Asks the LLM to score and rank PRs within each verified group by code quality and completeness |
+| **Verify** | Sends candidate groups to the LLM to filter false positives and classify relationships. Tracks input/output token usage per scan |
+| **Rank** | Asks the LLM to score and rank PRs within each verified group by code quality and completeness. Tracks input/output token usage per scan |
 
-Jobs are queued in SQLite and processed by an in-process worker loop, making scans resumable across restarts.
+Jobs are queued in SQLite and processed by an in-process worker loop, making scans resumable across restarts. On startup, the server recovers any interrupted jobs by resetting them back to `queued` status.
 
 ## Setup
 
@@ -87,8 +87,8 @@ $ ossgard-api                    $ ossgard setup
   API listening on :3400           → Collects GitHub token, LLM/embedding/vector store config
                                    → Registers account server-side, stores API key locally
 
-                                 $ ossgard track facebook/react
                                  $ ossgard scan facebook/react
+                                   → Auto-tracks the repo if not already tracked
                                  $ ossgard dupes facebook/react
 ```
 
@@ -111,8 +111,9 @@ docker compose -f local-ai/llm-provider.yml up -d     # start
 docker compose -f local-ai/llm-provider.yml down       # stop
 docker compose -f local-ai/llm-provider.yml down -v    # stop and remove data
 
-# Pull the required models
-ollama pull nomic-embed-text    # embeddings
+# Pull the required models (pick one embedding model)
+ollama pull nomic-embed-text    # embeddings (768-dim)
+ollama pull mxbai-embed-large   # embeddings (1024-dim, alternative)
 ollama pull llama3              # LLM for verify/rank
 ```
 
@@ -123,12 +124,20 @@ The `ossgard setup` wizard defaults to `localhost:6333` (Qdrant) and `localhost:
 ```bash
 ossgard setup                      # register account + configure services
 ossgard setup --force              # reconfigure an existing account
-ossgard track facebook/react       # start tracking a repo
-ossgard scan facebook/react        # run a duplicate scan
+ossgard scan facebook/react        # run a duplicate scan (auto-tracks repo)
+ossgard scan facebook/react --full # full re-scan (ignore incremental optimizations)
+ossgard scan facebook/react --no-wait  # start scan without waiting for completion
 ossgard dupes facebook/react       # view duplicate groups
-ossgard status                     # list tracked repos
+ossgard dupes facebook/react --min-score 70  # filter by minimum score
+ossgard status                     # list tracked repos and active scans
 ossgard config show                # view local CLI configuration
+ossgard config get api.url         # get a specific config value
+ossgard config set api.url http://localhost:3400  # set a config value
+ossgard clear-scans                # delete all scans and analysis (keeps repos/PRs)
+ossgard clear-repos                # delete everything (repos, PRs, scans, analysis)
 ```
+
+Most commands support `--json` for machine-readable output.
 
 ### Configuration
 
@@ -148,6 +157,15 @@ The setup wizard collects everything in one step: GitHub PAT, LLM provider (Olla
 
 Repositories and PRs are global — multiple accounts tracking the same repo share fetched data. Only the analysis (scans, duplicate groups, rankings) is account-scoped, since different LLM/embedding configurations produce different results.
 
+#### Scan settings
+
+The server-side account config supports optional scan settings to tune duplicate detection sensitivity:
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `code_similarity_threshold` | 0.85 | Minimum cosine similarity for code embeddings to be considered duplicates |
+| `intent_similarity_threshold` | 0.80 | Minimum cosine similarity for intent embeddings to be considered duplicates |
+
 #### Batch processing
 
 When using cloud providers, enabling batch mode during setup uses asynchronous batch APIs:
@@ -159,6 +177,18 @@ Batch mode is ignored for Ollama (no batch API). When only a single request exis
 
 **Prompt caching:** Anthropic providers (both sync and batch) automatically use [prompt caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) on system prompts. Since verify and rank use the same system prompt for every group in a scan, all calls after the first get a cache hit, reducing cost and latency.
 
+#### Token counting and usage tracking
+
+ossgard uses provider-level token counting to build embedding and LLM inputs that stay within each provider's context window. A 95% budget utilization factor prevents overflow while maximizing the information sent to each model.
+
+| Provider | Counting method | Max context |
+|----------|----------------|-------------|
+| OpenAI | Exact BPE tokenization (js-tiktoken) | 8,191 tokens |
+| Anthropic | Heuristic (~3.5 chars/token) | 200,000 tokens |
+| Ollama | Heuristic (~4 chars/token) | 8,192 tokens |
+
+LLM token usage (input and output) is tracked per scan during the verify and rank phases. Use `ossgard status --json` to see accumulated token counts for completed scans.
+
 #### Environment variables
 
 A small set of env vars are supported for deployment flexibility:
@@ -168,6 +198,8 @@ A small set of env vars are supported for deployment flexibility:
 | `DATABASE_PATH` | SQLite database location (default `~/.ossgard/ossgard.db`) |
 | `PORT` | API server port (default `3400`) |
 | `LOG_LEVEL` | Logging verbosity: `debug`, `info`, `warn`, `error` (default `info`) |
+| `OSSGARD_API_URL` | Override API URL for the CLI (takes precedence over config file) |
+| `OSSGARD_API_KEY` | Override API key for the CLI (takes precedence over config file) |
 
 All user configuration (GitHub token, LLM/embedding providers, vector store) is stored server-side per account. Run `ossgard setup` to register an account and configure services.
 
@@ -213,11 +245,14 @@ All API endpoints (except `/health` and `POST /accounts`) require an API key via
 ```
 packages/
   api/       Hono HTTP server, pipeline processors, services, SQLite DB
+               - db/           Database layer (SQLite migrations, queries)
                - middleware/    API key auth
                - routes/       REST endpoints (accounts, repos, scans, dupes)
                - services/     Service resolver, validators, LLM/embedding/vector providers
                - pipeline/     Job processors (ingest, embed, cluster, verify, rank)
-  cli/       Commander-based CLI (setup, config, track, scan, dupes, status)
+               - queue/        Job queue and worker loop
+  cli/       Commander-based CLI
+               - commands/     Command implementations (setup, config, scan, dupes, status, clear-scans, clear-repos)
   shared/    Types and Zod schemas shared across packages
 local-ai/
   vector-store.yml    Local Qdrant via Docker (optional)
