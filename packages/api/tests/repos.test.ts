@@ -36,21 +36,27 @@ describe("repos routes", () => {
       expect(body).toEqual([]);
     });
 
-    it("returns all tracked repos with activeScanStatus and counts", async () => {
+    it("returns all tracked repos with prCount, activeScanStatus and counts", async () => {
       const repo1 = db.insertRepo("facebook", "react");
       db.insertRepo("vercel", "next.js");
       const scan = db.createScan(repo1.id, account.id);
       db.updateScanStatus(scan.id, "ingesting", { prCount: 42, dupeGroupCount: 3 });
+
+      // Insert some PRs for repo1
+      db.upsertPR({ repoId: repo1.id, number: 1, title: "PR 1", body: null, author: "a", diffHash: null, filePaths: [], state: "open", createdAt: "2025-01-01", updatedAt: "2025-01-01" });
+      db.upsertPR({ repoId: repo1.id, number: 2, title: "PR 2", body: null, author: "b", diffHash: null, filePaths: [], state: "open", createdAt: "2025-01-01", updatedAt: "2025-01-01" });
 
       const res = await app.request("/repos", { headers: AUTH_HEADER });
       expect(res.status).toBe(200);
       const body = (await res.json()) as any[];
       expect(body).toHaveLength(2);
       expect(body[0].owner).toBe("facebook");
+      expect(body[0].prCount).toBe(2);
       expect(body[0].activeScanStatus).toBe("ingesting");
       expect(body[0].activeScanPrCount).toBe(42);
       expect(body[0].activeScanDupeGroupCount).toBe(3);
       expect(body[1].owner).toBe("vercel");
+      expect(body[1].prCount).toBe(0);
       expect(body[1].activeScanStatus).toBeNull();
       expect(body[1].activeScanPrCount).toBeNull();
       expect(body[1].activeScanDupeGroupCount).toBeNull();

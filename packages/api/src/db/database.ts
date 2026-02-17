@@ -329,6 +329,12 @@ export class Database {
     return row ? mapPRRow(row) : null;
   }
 
+  countPRs(repoId: number): number {
+    const stmt = this.raw.prepare("SELECT COUNT(*) as count FROM prs WHERE repo_id = ?");
+    const row = stmt.get(repoId) as { count: number };
+    return row.count;
+  }
+
   listOpenPRs(repoId: number): PR[] {
     const stmt = this.raw.prepare(
       "SELECT * FROM prs WHERE repo_id = ? AND state = 'open' ORDER BY number"

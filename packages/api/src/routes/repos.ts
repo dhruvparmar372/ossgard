@@ -12,6 +12,7 @@ repos.get("/repos", (c) => {
     const activeScan = db.getActiveScan(repo.id, account.id);
     return {
       ...repo,
+      prCount: db.countPRs(repo.id),
       activeScanStatus: activeScan?.status ?? null,
       activeScanPrCount: activeScan?.prCount ?? null,
       activeScanDupeGroupCount: activeScan?.dupeGroupCount ?? null,
