@@ -7,6 +7,7 @@ import { OpenAIEmbeddingProvider } from "./openai-embedding-provider.js";
 import { OpenAIBatchEmbeddingProvider } from "./openai-batch-embedding-provider.js";
 import { GitHubClient } from "./github-client.js";
 import { QdrantStore, type QdrantClient } from "./qdrant-store.js";
+import { log } from "../logger.js";
 
 export interface ServiceConfig {
   github: { token: string };
@@ -26,6 +27,7 @@ export class ServiceFactory {
         return new AnthropicBatchProvider({
           apiKey: this.config.llm.apiKey,
           model: this.config.llm.model,
+          logger: log.child("anthropic-batch"),
         });
       }
       return new AnthropicProvider({
@@ -49,6 +51,7 @@ export class ServiceFactory {
         return new OpenAIBatchEmbeddingProvider({
           apiKey: this.config.embedding.apiKey,
           model: this.config.embedding.model,
+          logger: log.child("openai-batch"),
         });
       }
       return new OpenAIEmbeddingProvider({

@@ -355,6 +355,64 @@ describe("WorkerLoop", () => {
 
       pauseSpy.mockRestore();
     });
+
+    it("uses 60s base backoff for 429 rate limit errors", async () => {
+      const pauseSpy = vi.spyOn(queue, "pause");
+      const processor: JobProcessor = {
+        type: "scan",
+        process: async () => {
+          throw new Error("OpenAI API error: 429 Too Many Requests");
+        },
+      };
+
+      const worker = new WorkerLoop(queue, [processor]);
+
+      await queue.enqueue({
+        type: "scan",
+        payload: {},
+        maxRetries: 3,
+      });
+
+      const before = Date.now();
+      await worker.tick();
+
+      expect(pauseSpy).toHaveBeenCalledTimes(1);
+      const runAfter = pauseSpy.mock.calls[0][1] as Date;
+      // First attempt: backoff = 60_000 * 2^(1-1) = 60_000ms
+      const delay = runAfter.getTime() - before;
+      expect(delay).toBeGreaterThanOrEqual(59_000);
+      expect(delay).toBeLessThanOrEqual(61_000);
+
+      pauseSpy.mockRestore();
+    });
+
+    it("uses 60s base backoff for rate limit message pattern", async () => {
+      const pauseSpy = vi.spyOn(queue, "pause");
+      const processor: JobProcessor = {
+        type: "scan",
+        process: async () => {
+          throw new Error("Rate limit exceeded, please retry after 60 seconds");
+        },
+      };
+
+      const worker = new WorkerLoop(queue, [processor]);
+
+      await queue.enqueue({
+        type: "scan",
+        payload: {},
+        maxRetries: 3,
+      });
+
+      const before = Date.now();
+      await worker.tick();
+
+      expect(pauseSpy).toHaveBeenCalledTimes(1);
+      const runAfter = pauseSpy.mock.calls[0][1] as Date;
+      const delay = runAfter.getTime() - before;
+      expect(delay).toBeGreaterThanOrEqual(59_000);
+
+      pauseSpy.mockRestore();
+    });
   });
 
   describe("start() / stop()", () => {

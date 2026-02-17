@@ -102,6 +102,10 @@ export class VerifyProcessor implements JobProcessor {
     const useBatch = isBatchChatProvider(llm) && prepared.length > 1;
     verifyLog.info("LLM mode", { scanId, mode: useBatch ? "batch" : "sequential", prompts: prepared.length });
 
+    // Check for existing batch ID from phaseCursor (resume support)
+    const scan = this.db.getScan(scanId);
+    const existingBatchId = (scan?.phaseCursor as Record<string, unknown> | null)?.verifyBatchId as string | undefined;
+
     if (useBatch) {
       verifyLog.info("Sending batch verification", { scanId, groups: prepared.length });
       const batchStart = Date.now();
@@ -109,7 +113,15 @@ export class VerifyProcessor implements JobProcessor {
         prepared.map((p) => ({
           id: `verify-${p.index}`,
           messages: p.messages,
-        }))
+        })),
+        {
+          existingBatchId,
+          onBatchCreated: (batchId) => {
+            this.db.updateScanStatus(scanId, "verifying", {
+              phaseCursor: { verifyBatchId: batchId },
+            });
+          },
+        }
       );
       verifyLog.info("Batch verification complete", { scanId, durationMs: Date.now() - batchStart });
       for (const result of results) {
@@ -147,6 +159,9 @@ export class VerifyProcessor implements JobProcessor {
     if (totalInputTokens > 0 || totalOutputTokens > 0) {
       this.db.addScanTokens(scanId, totalInputTokens, totalOutputTokens);
     }
+
+    // Clear phaseCursor after successful completion
+    this.db.updateScanStatus(scanId, "verifying", { phaseCursor: null });
 
     verifyLog.info("Verified groups", { scanId, count: verifiedGroups.length, inputTokens: totalInputTokens, outputTokens: totalOutputTokens });
 

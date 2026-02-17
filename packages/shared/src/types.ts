@@ -17,6 +17,7 @@ export interface PR {
   filePaths: string[];
   state: "open" | "closed" | "merged";
   githubEtag: string | null;
+  embedHash: string | null;
   createdAt: string;
   updatedAt: string;
 }

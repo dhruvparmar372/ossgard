@@ -39,9 +39,14 @@ export interface BatchChatResult {
   usage: TokenUsage;
 }
 
+export interface BatchChatOptions {
+  existingBatchId?: string;
+  onBatchCreated?: (batchId: string) => void;
+}
+
 export interface BatchChatProvider extends ChatProvider {
   readonly batch: true;
-  chatBatch(requests: BatchChatRequest[]): Promise<BatchChatResult[]>;
+  chatBatch(requests: BatchChatRequest[], options?: BatchChatOptions): Promise<BatchChatResult[]>;
 }
 
 export interface BatchEmbedRequest {
@@ -54,9 +59,14 @@ export interface BatchEmbedResult {
   embeddings: number[][];
 }
 
+export interface BatchEmbedOptions {
+  existingBatchId?: string;
+  onBatchCreated?: (batchId: string) => void;
+}
+
 export interface BatchEmbeddingProvider extends EmbeddingProvider {
   readonly batch: true;
-  embedBatch(requests: BatchEmbedRequest[]): Promise<BatchEmbedResult[]>;
+  embedBatch(requests: BatchEmbedRequest[], options?: BatchEmbedOptions): Promise<BatchEmbedResult[]>;
 }
 
 export function isBatchChatProvider(p: ChatProvider): p is BatchChatProvider {

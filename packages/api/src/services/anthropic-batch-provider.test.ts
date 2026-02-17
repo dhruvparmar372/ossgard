@@ -411,6 +411,206 @@ describe("AnthropicBatchProvider", () => {
       ).rejects.toThrow("LLM returned invalid JSON for req-1");
     });
 
+    it("tolerates transient 5xx poll errors", async () => {
+      const fetchFn = vi
+        .fn()
+        // Create batch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: "batch-5xx" }),
+        })
+        // Poll 1 -> 500 (transient)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          statusText: "Internal Server Error",
+        })
+        // Poll 2 -> ended
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({ processing_status: "ended" }),
+        })
+        // Results
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () =>
+            Promise.resolve(
+              [
+                JSON.stringify({
+                  custom_id: "req-1",
+                  result: {
+                    type: "succeeded",
+                    message: {
+                      content: [{ type: "text", text: '{"ok": true}' }],
+                      usage: { input_tokens: 50, output_tokens: 10 },
+                    },
+                  },
+                }),
+                JSON.stringify({
+                  custom_id: "req-2",
+                  result: {
+                    type: "succeeded",
+                    message: {
+                      content: [{ type: "text", text: '{"ok": true}' }],
+                      usage: { input_tokens: 50, output_tokens: 10 },
+                    },
+                  },
+                }),
+              ].join("\n")
+            ),
+        }) as unknown as typeof fetch;
+
+      const provider = new AnthropicBatchProvider({
+        apiKey: "sk-test",
+        model: "claude-sonnet-4-20250514",
+        fetchFn,
+        pollIntervalMs: 0,
+      });
+
+      const results = await provider.chatBatch([
+        { id: "req-1", messages: [{ role: "user", content: "test" }] },
+        { id: "req-2", messages: [{ role: "user", content: "test2" }] },
+      ]);
+
+      expect(results).toHaveLength(2);
+      // 4 calls: create, 500-poll, ok-poll, results
+      expect(fetchFn).toHaveBeenCalledTimes(4);
+    });
+
+    it("resumes from existing batch ID (skips create)", async () => {
+      const fetchFn = vi
+        .fn()
+        // Poll -> ended
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({ processing_status: "ended" }),
+        })
+        // Results
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () =>
+            Promise.resolve(
+              [
+                JSON.stringify({
+                  custom_id: "req-1",
+                  result: {
+                    type: "succeeded",
+                    message: {
+                      content: [{ type: "text", text: '{"ok": true}' }],
+                      usage: { input_tokens: 50, output_tokens: 10 },
+                    },
+                  },
+                }),
+                JSON.stringify({
+                  custom_id: "req-2",
+                  result: {
+                    type: "succeeded",
+                    message: {
+                      content: [{ type: "text", text: '{"ok": true}' }],
+                      usage: { input_tokens: 50, output_tokens: 10 },
+                    },
+                  },
+                }),
+              ].join("\n")
+            ),
+        }) as unknown as typeof fetch;
+
+      const provider = new AnthropicBatchProvider({
+        apiKey: "sk-test",
+        model: "claude-sonnet-4-20250514",
+        fetchFn,
+        pollIntervalMs: 0,
+      });
+
+      const results = await provider.chatBatch(
+        [
+          { id: "req-1", messages: [{ role: "user", content: "test" }] },
+          { id: "req-2", messages: [{ role: "user", content: "test2" }] },
+        ],
+        { existingBatchId: "batch-resume-123" }
+      );
+
+      expect(results).toHaveLength(2);
+      // Only 2 calls: poll + results (no create)
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+      expect(fetchFn).toHaveBeenNthCalledWith(
+        1,
+        "https://api.anthropic.com/v1/messages/batches/batch-resume-123",
+        expect.objectContaining({ method: "GET" })
+      );
+    });
+
+    it("calls onBatchCreated callback after creating a batch", async () => {
+      const onBatchCreated = vi.fn();
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: "batch-cb-test" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({ processing_status: "ended" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () =>
+            Promise.resolve(
+              [
+                JSON.stringify({
+                  custom_id: "req-1",
+                  result: {
+                    type: "succeeded",
+                    message: {
+                      content: [{ type: "text", text: '{"ok": true}' }],
+                      usage: { input_tokens: 10, output_tokens: 5 },
+                    },
+                  },
+                }),
+                JSON.stringify({
+                  custom_id: "req-2",
+                  result: {
+                    type: "succeeded",
+                    message: {
+                      content: [{ type: "text", text: '{"ok": true}' }],
+                      usage: { input_tokens: 10, output_tokens: 5 },
+                    },
+                  },
+                }),
+              ].join("\n")
+            ),
+        }) as unknown as typeof fetch;
+
+      const provider = new AnthropicBatchProvider({
+        apiKey: "sk-test",
+        model: "claude-sonnet-4-20250514",
+        fetchFn,
+        pollIntervalMs: 0,
+      });
+
+      await provider.chatBatch(
+        [
+          { id: "req-1", messages: [{ role: "user", content: "test" }] },
+          { id: "req-2", messages: [{ role: "user", content: "test2" }] },
+        ],
+        { onBatchCreated }
+      );
+
+      expect(onBatchCreated).toHaveBeenCalledTimes(1);
+      expect(onBatchCreated).toHaveBeenCalledWith("batch-cb-test");
+    });
+
+    it("defaults to 4h timeout", () => {
+      const provider = new AnthropicBatchProvider({
+        apiKey: "sk-test",
+        model: "claude-sonnet-4-20250514",
+      });
+      expect((provider as any).timeoutMs).toBe(4 * 60 * 60 * 1000);
+    });
+
     it("includes prompt caching in batch create request", async () => {
       const fetchFn = vi
         .fn()

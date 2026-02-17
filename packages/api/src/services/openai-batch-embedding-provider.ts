@@ -1,8 +1,10 @@
 import type {
   BatchEmbeddingProvider,
+  BatchEmbedOptions,
   BatchEmbedRequest,
   BatchEmbedResult,
 } from "./llm-provider.js";
+import type { Logger } from "../logger.js";
 import { createTiktokenEncoder, countTokensTiktoken, type Tiktoken } from "./token-counting.js";
 
 const DIMENSION_MAP: Record<string, number> = {
@@ -15,8 +17,10 @@ export interface OpenAIBatchEmbeddingProviderOptions {
   apiKey: string;
   model: string;
   pollIntervalMs?: number;
+  maxPollIntervalMs?: number;
   timeoutMs?: number;
   fetchFn?: typeof fetch;
+  logger?: Logger;
 }
 
 export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
@@ -26,19 +30,23 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
 
   private apiKey: string;
   private model: string;
-  private pollIntervalMs: number;
+  private basePollIntervalMs: number;
+  private maxPollIntervalMs: number;
   private timeoutMs: number;
   private fetchFn: typeof fetch;
   private encoder: Tiktoken;
+  private logger?: Logger;
 
   constructor(options: OpenAIBatchEmbeddingProviderOptions) {
     this.apiKey = options.apiKey;
     this.model = options.model;
     this.fetchFn = options.fetchFn ?? fetch;
     this.dimensions = DIMENSION_MAP[options.model] ?? 3072;
-    this.pollIntervalMs = options.pollIntervalMs ?? 10_000;
-    this.timeoutMs = options.timeoutMs ?? 2 * 60 * 60 * 1000;
+    this.basePollIntervalMs = options.pollIntervalMs ?? 10_000;
+    this.maxPollIntervalMs = options.maxPollIntervalMs ?? 120_000;
+    this.timeoutMs = options.timeoutMs ?? 24 * 60 * 60 * 1000;
     this.encoder = createTiktokenEncoder(options.model);
+    this.logger = options.logger;
   }
 
   countTokens(text: string): number {
@@ -77,105 +85,155 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
       .map((d) => d.embedding);
   }
 
-  async embedBatch(requests: BatchEmbedRequest[]): Promise<BatchEmbedResult[]> {
+  async embedBatch(requests: BatchEmbedRequest[], options?: BatchEmbedOptions): Promise<BatchEmbedResult[]> {
     if (requests.length === 0) return [];
 
     // Single request: use sync path
-    if (requests.length === 1) {
+    if (requests.length === 1 && !options?.existingBatchId) {
       const embeddings = await this.embed(requests[0].texts);
       return [{ id: requests[0].id, embeddings }];
     }
 
-    // 1. Build JSONL content
-    const jsonlLines = requests.map((req) =>
-      JSON.stringify({
-        custom_id: req.id,
+    let batchId: string;
+
+    if (options?.existingBatchId) {
+      // Resume: skip file upload + batch creation
+      batchId = options.existingBatchId;
+      this.logger?.info("Resuming existing batch", { batchId });
+    } else {
+      // 1. Build JSONL content
+      const jsonlLines = requests.map((req) =>
+        JSON.stringify({
+          custom_id: req.id,
+          method: "POST",
+          url: "/v1/embeddings",
+          body: { model: this.model, input: req.texts },
+        })
+      );
+      const jsonlContent = jsonlLines.join("\n");
+
+      // 2. Upload file
+      const formData = new FormData();
+      formData.append("purpose", "batch");
+      formData.append(
+        "file",
+        new Blob([jsonlContent], { type: "application/jsonl" }),
+        "batch-input.jsonl"
+      );
+
+      const uploadRes = await this.fetchFn("https://api.openai.com/v1/files", {
         method: "POST",
-        url: "/v1/embeddings",
-        body: { model: this.model, input: req.texts },
-      })
-    );
-    const jsonlContent = jsonlLines.join("\n");
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: formData,
+      });
 
-    // 2. Upload file
-    const formData = new FormData();
-    formData.append("purpose", "batch");
-    formData.append(
-      "file",
-      new Blob([jsonlContent], { type: "application/jsonl" }),
-      "batch-input.jsonl"
-    );
+      if (!uploadRes.ok) {
+        throw new Error(
+          `OpenAI file upload error: ${uploadRes.status} ${uploadRes.statusText}`
+        );
+      }
 
-    const uploadRes = await this.fetchFn("https://api.openai.com/v1/files", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: formData,
-    });
+      const uploadData = (await uploadRes.json()) as { id: string };
+      const inputFileId = uploadData.id;
 
-    if (!uploadRes.ok) {
-      throw new Error(
-        `OpenAI file upload error: ${uploadRes.status} ${uploadRes.statusText}`
-      );
+      // 3. Create batch
+      const createRes = await this.fetchFn("https://api.openai.com/v1/batches", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          input_file_id: inputFileId,
+          endpoint: "/v1/embeddings",
+          completion_window: "24h",
+        }),
+      });
+
+      if (!createRes.ok) {
+        throw new Error(
+          `OpenAI batch create error: ${createRes.status} ${createRes.statusText}`
+        );
+      }
+
+      const batchData = (await createRes.json()) as { id: string };
+      batchId = batchData.id;
+      this.logger?.info("Batch created", { batchId });
+      options?.onBatchCreated?.(batchId);
     }
 
-    const uploadData = (await uploadRes.json()) as { id: string };
-    const inputFileId = uploadData.id;
-
-    // 3. Create batch
-    const createRes = await this.fetchFn("https://api.openai.com/v1/batches", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        input_file_id: inputFileId,
-        endpoint: "/v1/embeddings",
-        completion_window: "24h",
-      }),
-    });
-
-    if (!createRes.ok) {
-      throw new Error(
-        `OpenAI batch create error: ${createRes.status} ${createRes.statusText}`
-      );
-    }
-
-    const batchData = (await createRes.json()) as { id: string };
-    const batchId = batchData.id;
-
-    // 4. Poll until completed
+    // 4. Poll until completed (progressive intervals with transient error tolerance)
     const deadline = Date.now() + this.timeoutMs;
+    const startTime = Date.now();
     let outputFileId: string | null = null;
+    let pollCount = 0;
+    let consecutiveErrors = 0;
 
     while (Date.now() < deadline) {
-      await this.sleep(this.pollIntervalMs);
-
-      const pollRes = await this.fetchFn(
-        `https://api.openai.com/v1/batches/${batchId}`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${this.apiKey}`,
-          },
-        }
+      const pollInterval = Math.min(
+        this.basePollIntervalMs * Math.pow(1.5, pollCount),
+        this.maxPollIntervalMs
       );
+      await this.sleep(pollInterval);
+      pollCount++;
+
+      let pollRes: Response;
+      try {
+        pollRes = await this.fetchFn(
+          `https://api.openai.com/v1/batches/${batchId}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${this.apiKey}`,
+            },
+          }
+        );
+      } catch (err) {
+        consecutiveErrors++;
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (consecutiveErrors >= 4) {
+          throw new Error(`OpenAI batch poll failed after ${consecutiveErrors} consecutive errors: ${errMsg}`);
+        }
+        this.logger?.warn("Transient poll error (network)", { batchId, consecutiveErrors, error: errMsg });
+        continue;
+      }
 
       if (!pollRes.ok) {
+        const status = pollRes.status;
+        if (status >= 500 && consecutiveErrors < 3) {
+          consecutiveErrors++;
+          this.logger?.warn("Transient poll error", { batchId, status, consecutiveErrors });
+          continue;
+        }
         throw new Error(
           `OpenAI batch poll error: ${pollRes.status} ${pollRes.statusText}`
         );
       }
+
+      consecutiveErrors = 0;
 
       const pollData = (await pollRes.json()) as {
         status: string;
         output_file_id?: string;
       };
 
+      const elapsedMs = Date.now() - startTime;
+      const nextInterval = Math.min(
+        this.basePollIntervalMs * Math.pow(1.5, pollCount),
+        this.maxPollIntervalMs
+      );
+      this.logger?.info("Polling batch", {
+        batchId,
+        status: pollData.status,
+        elapsedMs,
+        nextPollMs: nextInterval,
+      });
+
       if (pollData.status === "completed") {
         outputFileId = pollData.output_file_id ?? null;
+        this.logger?.info("Batch completed", { batchId, elapsedMs });
         break;
       }
 
@@ -187,7 +245,7 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
         throw new Error(`OpenAI batch ${pollData.status}`);
       }
 
-      if (Date.now() + this.pollIntervalMs > deadline) {
+      if (Date.now() + nextInterval > deadline) {
         throw new Error(`OpenAI batch timed out after ${this.timeoutMs}ms`);
       }
     }

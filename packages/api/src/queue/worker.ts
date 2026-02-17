@@ -60,8 +60,10 @@ export class WorkerLoop {
       const message = err instanceof Error ? err.message : String(err);
 
       if (job.attempts < job.maxRetries) {
-        // Retry with exponential backoff
-        const backoffMs = 1000 * Math.pow(2, job.attempts - 1);
+        // Retry with exponential backoff (longer for rate limits)
+        const isRateLimit = /429|rate.?limit/i.test(message);
+        const baseMs = isRateLimit ? 60_000 : 1000;
+        const backoffMs = baseMs * Math.pow(2, job.attempts - 1);
         const runAfter = new Date(Date.now() + backoffMs);
         await this.queue.pause(job.id, runAfter);
         this.log.warn("Job retrying", { type: job.type, jobId: job.id, error: message, backoffMs });

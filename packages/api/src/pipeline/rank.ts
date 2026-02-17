@@ -82,6 +82,10 @@ export class RankProcessor implements JobProcessor {
     const useBatch = isBatchChatProvider(llm) && prepared.length > 1;
     rankLog.info("LLM mode", { scanId, mode: useBatch ? "batch" : "sequential", prompts: prepared.length });
 
+    // Check for existing batch ID from phaseCursor (resume support)
+    const scan = this.db.getScan(scanId);
+    const existingBatchId = (scan?.phaseCursor as Record<string, unknown> | null)?.rankBatchId as string | undefined;
+
     if (useBatch) {
       rankLog.info("Sending batch ranking", { scanId, groups: prepared.length });
       const batchStart = Date.now();
@@ -89,7 +93,15 @@ export class RankProcessor implements JobProcessor {
         prepared.map((p) => ({
           id: `rank-${p.groupIndex}`,
           messages: p.messages,
-        }))
+        })),
+        {
+          existingBatchId,
+          onBatchCreated: (batchId) => {
+            this.db.updateScanStatus(scanId, "ranking", {
+              phaseCursor: { rankBatchId: batchId },
+            });
+          },
+        }
       );
       rankLog.info("Batch ranking complete", { scanId, durationMs: Date.now() - batchStart });
       responses = results.map((r) => {
@@ -124,6 +136,9 @@ export class RankProcessor implements JobProcessor {
     if (totalInputTokens > 0 || totalOutputTokens > 0) {
       this.db.addScanTokens(scanId, totalInputTokens, totalOutputTokens);
     }
+
+    // Clear phaseCursor after successful completion
+    this.db.updateScanStatus(scanId, "ranking", { phaseCursor: null });
 
     // 3. Store results
     let totalGroups = 0;

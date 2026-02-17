@@ -1,4 +1,5 @@
 import type {
+  BatchChatOptions,
   BatchChatProvider,
   BatchChatRequest,
   BatchChatResult,
@@ -6,14 +7,17 @@ import type {
   Message,
   TokenUsage,
 } from "./llm-provider.js";
+import type { Logger } from "../logger.js";
 import { countTokensHeuristic } from "./token-counting.js";
 
 export interface AnthropicBatchProviderOptions {
   apiKey: string;
   model: string;
   pollIntervalMs?: number;
+  maxPollIntervalMs?: number;
   timeoutMs?: number;
   fetchFn?: typeof fetch;
+  logger?: Logger;
 }
 
 export class AnthropicBatchProvider implements BatchChatProvider {
@@ -22,16 +26,20 @@ export class AnthropicBatchProvider implements BatchChatProvider {
 
   private apiKey: string;
   private model: string;
-  private pollIntervalMs: number;
+  private basePollIntervalMs: number;
+  private maxPollIntervalMs: number;
   private timeoutMs: number;
   private fetchFn: typeof fetch;
+  private logger?: Logger;
 
   constructor(options: AnthropicBatchProviderOptions) {
     this.apiKey = options.apiKey;
     this.model = options.model;
-    this.pollIntervalMs = options.pollIntervalMs ?? 10_000;
-    this.timeoutMs = options.timeoutMs ?? 30 * 60 * 1000;
+    this.basePollIntervalMs = options.pollIntervalMs ?? 10_000;
+    this.maxPollIntervalMs = options.maxPollIntervalMs ?? 120_000;
+    this.timeoutMs = options.timeoutMs ?? 4 * 60 * 60 * 1000;
     this.fetchFn = options.fetchFn ?? fetch;
+    this.logger = options.logger;
   }
 
   countTokens(text: string): number {
@@ -100,98 +108,151 @@ export class AnthropicBatchProvider implements BatchChatProvider {
     }
   }
 
-  async chatBatch(requests: BatchChatRequest[]): Promise<BatchChatResult[]> {
+  async chatBatch(requests: BatchChatRequest[], options?: BatchChatOptions): Promise<BatchChatResult[]> {
     if (requests.length === 0) return [];
 
     // Single request: use sync path for efficiency
-    if (requests.length === 1) {
+    if (requests.length === 1 && !options?.existingBatchId) {
       const result = await this.chat(requests[0].messages);
       return [{ id: requests[0].id, response: result.response, usage: result.usage }];
     }
 
-    // Build batch requests
-    const batchRequests = requests.map((req) => {
-      const systemMessage = req.messages.find((m) => m.role === "system");
-      const nonSystemMessages = req.messages.filter(
-        (m) => m.role !== "system"
-      );
+    let batchId: string;
 
-      const params: Record<string, unknown> = {
-        model: this.model,
-        max_tokens: 4096,
-        messages: nonSystemMessages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-      };
+    if (options?.existingBatchId) {
+      // Resume: skip batch creation
+      batchId = options.existingBatchId;
+      this.logger?.info("Resuming existing batch", { batchId });
+    } else {
+      // Build batch requests
+      const batchRequests = requests.map((req) => {
+        const systemMessage = req.messages.find((m) => m.role === "system");
+        const nonSystemMessages = req.messages.filter(
+          (m) => m.role !== "system"
+        );
 
-      if (systemMessage) {
-        params.system = [
-          {
-            type: "text",
-            text: systemMessage.content,
-            cache_control: { type: "ephemeral" },
-          },
-        ];
-      }
+        const params: Record<string, unknown> = {
+          model: this.model,
+          max_tokens: 4096,
+          messages: nonSystemMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        };
 
-      return { custom_id: req.id, params };
-    });
+        if (systemMessage) {
+          params.system = [
+            {
+              type: "text",
+              text: systemMessage.content,
+              cache_control: { type: "ephemeral" },
+            },
+          ];
+        }
 
-    // 1. Create batch
-    const createRes = await this.fetchFn(
-      "https://api.anthropic.com/v1/messages/batches",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": this.apiKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-beta": "prompt-caching-2024-07-31,message-batches-2024-09-24",
-        },
-        body: JSON.stringify({ requests: batchRequests }),
-      }
-    );
+        return { custom_id: req.id, params };
+      });
 
-    if (!createRes.ok) {
-      throw new Error(
-        `Anthropic batch create error: ${createRes.status} ${createRes.statusText}`
-      );
-    }
-
-    const batch = (await createRes.json()) as { id: string };
-    const batchId = batch.id;
-
-    // 2. Poll until ended
-    const deadline = Date.now() + this.timeoutMs;
-    while (Date.now() < deadline) {
-      await this.sleep(this.pollIntervalMs);
-
-      const pollRes = await this.fetchFn(
-        `https://api.anthropic.com/v1/messages/batches/${batchId}`,
+      // 1. Create batch
+      const createRes = await this.fetchFn(
+        "https://api.anthropic.com/v1/messages/batches",
         {
-          method: "GET",
+          method: "POST",
           headers: {
+            "Content-Type": "application/json",
             "x-api-key": this.apiKey,
             "anthropic-version": "2023-06-01",
-            "anthropic-beta": "message-batches-2024-09-24",
+            "anthropic-beta": "prompt-caching-2024-07-31,message-batches-2024-09-24",
           },
+          body: JSON.stringify({ requests: batchRequests }),
         }
       );
 
+      if (!createRes.ok) {
+        throw new Error(
+          `Anthropic batch create error: ${createRes.status} ${createRes.statusText}`
+        );
+      }
+
+      const batch = (await createRes.json()) as { id: string };
+      batchId = batch.id;
+      this.logger?.info("Batch created", { batchId });
+      options?.onBatchCreated?.(batchId);
+    }
+
+    // 2. Poll until ended (progressive intervals with transient error tolerance)
+    const deadline = Date.now() + this.timeoutMs;
+    const startTime = Date.now();
+    let pollCount = 0;
+    let consecutiveErrors = 0;
+
+    while (Date.now() < deadline) {
+      const pollInterval = Math.min(
+        this.basePollIntervalMs * Math.pow(1.5, pollCount),
+        this.maxPollIntervalMs
+      );
+      await this.sleep(pollInterval);
+      pollCount++;
+
+      let pollRes: Response;
+      try {
+        pollRes = await this.fetchFn(
+          `https://api.anthropic.com/v1/messages/batches/${batchId}`,
+          {
+            method: "GET",
+            headers: {
+              "x-api-key": this.apiKey,
+              "anthropic-version": "2023-06-01",
+              "anthropic-beta": "message-batches-2024-09-24",
+            },
+          }
+        );
+      } catch (err) {
+        consecutiveErrors++;
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (consecutiveErrors >= 4) {
+          throw new Error(`Anthropic batch poll failed after ${consecutiveErrors} consecutive errors: ${errMsg}`);
+        }
+        this.logger?.warn("Transient poll error (network)", { batchId, consecutiveErrors, error: errMsg });
+        continue;
+      }
+
       if (!pollRes.ok) {
+        const status = pollRes.status;
+        if (status >= 500 && consecutiveErrors < 3) {
+          consecutiveErrors++;
+          this.logger?.warn("Transient poll error", { batchId, status, consecutiveErrors });
+          continue;
+        }
         throw new Error(
           `Anthropic batch poll error: ${pollRes.status} ${pollRes.statusText}`
         );
       }
 
-      const status = (await pollRes.json()) as {
+      consecutiveErrors = 0;
+
+      const statusData = (await pollRes.json()) as {
         processing_status: string;
       };
 
-      if (status.processing_status === "ended") break;
+      const elapsedMs = Date.now() - startTime;
+      const nextInterval = Math.min(
+        this.basePollIntervalMs * Math.pow(1.5, pollCount),
+        this.maxPollIntervalMs
+      );
+      this.logger?.info("Polling batch", {
+        batchId,
+        status: statusData.processing_status,
+        elapsedMs,
+        nextPollMs: nextInterval,
+      });
 
-      if (Date.now() + this.pollIntervalMs > deadline) {
+      if (statusData.processing_status === "ended") {
+        this.logger?.info("Batch completed", { batchId, elapsedMs });
+        break;
+      }
+
+      if (Date.now() + nextInterval > deadline) {
         throw new Error(
           `Anthropic batch timed out after ${this.timeoutMs}ms`
         );

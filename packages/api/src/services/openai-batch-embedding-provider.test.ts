@@ -326,5 +326,206 @@ describe("OpenAIBatchEmbeddingProvider", () => {
         ])
       ).rejects.toThrow("OpenAI file upload error: 413 Payload Too Large");
     });
+
+    it("tolerates transient 5xx poll errors", async () => {
+      const fetchFn = vi
+        .fn()
+        // Upload
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: "file-abc" }),
+        })
+        // Create batch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: "batch-xyz" }),
+        })
+        // Poll 1 -> 500 (transient)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          statusText: "Internal Server Error",
+        })
+        // Poll 2 -> completed
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              status: "completed",
+              output_file_id: "file-out",
+            }),
+        })
+        // Download results
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () =>
+            Promise.resolve(
+              [
+                JSON.stringify({
+                  custom_id: "req-1",
+                  response: {
+                    status_code: 200,
+                    body: { data: [{ index: 0, embedding: [0.1] }] },
+                  },
+                }),
+                JSON.stringify({
+                  custom_id: "req-2",
+                  response: {
+                    status_code: 200,
+                    body: { data: [{ index: 0, embedding: [0.2] }] },
+                  },
+                }),
+              ].join("\n")
+            ),
+        }) as unknown as typeof fetch;
+
+      const provider = new OpenAIBatchEmbeddingProvider({
+        apiKey: "sk-test",
+        model: "text-embedding-3-large",
+        fetchFn,
+        pollIntervalMs: 0,
+      });
+
+      const results = await provider.embedBatch([
+        { id: "req-1", texts: ["a"] },
+        { id: "req-2", texts: ["b"] },
+      ]);
+
+      expect(results).toHaveLength(2);
+      // 5 calls: upload, create, 500-poll, ok-poll, download
+      expect(fetchFn).toHaveBeenCalledTimes(5);
+    });
+
+    it("resumes from existing batch ID (skips upload + create)", async () => {
+      const fetchFn = vi
+        .fn()
+        // Poll -> completed
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              status: "completed",
+              output_file_id: "file-out",
+            }),
+        })
+        // Download results
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () =>
+            Promise.resolve(
+              [
+                JSON.stringify({
+                  custom_id: "req-1",
+                  response: {
+                    status_code: 200,
+                    body: { data: [{ index: 0, embedding: [0.1] }] },
+                  },
+                }),
+                JSON.stringify({
+                  custom_id: "req-2",
+                  response: {
+                    status_code: 200,
+                    body: { data: [{ index: 0, embedding: [0.2] }] },
+                  },
+                }),
+              ].join("\n")
+            ),
+        }) as unknown as typeof fetch;
+
+      const provider = new OpenAIBatchEmbeddingProvider({
+        apiKey: "sk-test",
+        model: "text-embedding-3-large",
+        fetchFn,
+        pollIntervalMs: 0,
+      });
+
+      const results = await provider.embedBatch(
+        [
+          { id: "req-1", texts: ["a"] },
+          { id: "req-2", texts: ["b"] },
+        ],
+        { existingBatchId: "batch-existing-123" }
+      );
+
+      expect(results).toHaveLength(2);
+      // Only 2 calls: poll + download (no upload or create)
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+      expect(fetchFn).toHaveBeenNthCalledWith(
+        1,
+        "https://api.openai.com/v1/batches/batch-existing-123",
+        expect.objectContaining({ method: "GET" })
+      );
+    });
+
+    it("calls onBatchCreated callback after creating a batch", async () => {
+      const onBatchCreated = vi.fn();
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: "file-abc" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: "batch-callback-test" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              status: "completed",
+              output_file_id: "file-out",
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () =>
+            Promise.resolve(
+              [
+                JSON.stringify({
+                  custom_id: "req-1",
+                  response: {
+                    status_code: 200,
+                    body: { data: [{ index: 0, embedding: [0.1] }] },
+                  },
+                }),
+                JSON.stringify({
+                  custom_id: "req-2",
+                  response: {
+                    status_code: 200,
+                    body: { data: [{ index: 0, embedding: [0.2] }] },
+                  },
+                }),
+              ].join("\n")
+            ),
+        }) as unknown as typeof fetch;
+
+      const provider = new OpenAIBatchEmbeddingProvider({
+        apiKey: "sk-test",
+        model: "text-embedding-3-large",
+        fetchFn,
+        pollIntervalMs: 0,
+      });
+
+      await provider.embedBatch(
+        [
+          { id: "req-1", texts: ["a"] },
+          { id: "req-2", texts: ["b"] },
+        ],
+        { onBatchCreated }
+      );
+
+      expect(onBatchCreated).toHaveBeenCalledTimes(1);
+      expect(onBatchCreated).toHaveBeenCalledWith("batch-callback-test");
+    });
+
+    it("defaults to 24h timeout", () => {
+      const provider = new OpenAIBatchEmbeddingProvider({
+        apiKey: "sk-test",
+        model: "text-embedding-3-large",
+      });
+      // Access private field via any for testing
+      expect((provider as any).timeoutMs).toBe(24 * 60 * 60 * 1000);
+    });
   });
 });

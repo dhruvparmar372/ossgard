@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS prs (
   file_paths      TEXT,
   state           TEXT NOT NULL DEFAULT 'open',
   github_etag     TEXT,
+  embed_hash      TEXT,
   created_at      TEXT NOT NULL,
   updated_at      TEXT NOT NULL,
   UNIQUE(repo_id, number)

@@ -1,4 +1,4 @@
-import type { Job } from "@ossgard/shared";
+import type { Job, PR } from "@ossgard/shared";
 import type { Database } from "../db/database.js";
 import type { EmbeddingProvider } from "../services/llm-provider.js";
 import { isBatchEmbeddingProvider } from "../services/llm-provider.js";
@@ -8,12 +8,19 @@ import type { JobQueue } from "../queue/types.js";
 import type { JobProcessor } from "../queue/worker.js";
 import { TOKEN_BUDGET_FACTOR } from "../services/token-counting.js";
 import { log } from "../logger.js";
+import { createHash } from "crypto";
 
 const CODE_COLLECTION = "ossgard-code";
 const INTENT_COLLECTION = "ossgard-intent";
 const BATCH_SIZE = 50;
 
 const embedLog = log.child("embed");
+
+/** Compute a stable hash for a PR's embedding-relevant fields. */
+export function computeEmbedHash(pr: Pick<PR, "diffHash" | "title" | "body" | "filePaths">): string {
+  const input = `${pr.diffHash ?? ""}|${pr.title}|${pr.body ?? ""}|${JSON.stringify(pr.filePaths)}`;
+  return createHash("sha256").update(input).digest("hex").slice(0, 16);
+}
 
 export class EmbedProcessor implements JobProcessor {
   readonly type = "embed";
@@ -45,17 +52,38 @@ export class EmbedProcessor implements JobProcessor {
     await vectorStore.ensureCollection(CODE_COLLECTION, dimensions);
     await vectorStore.ensureCollection(INTENT_COLLECTION, dimensions);
 
-    // Read all open PRs
-    const prs = this.db.listOpenPRs(repoId);
+    // Read all open PRs and filter out already-embedded
+    const allPrs = this.db.listOpenPRs(repoId);
+    const prs = allPrs.filter((pr) => {
+      const hash = computeEmbedHash(pr);
+      return pr.embedHash !== hash;
+    });
+
+    const skipped = allPrs.length - prs.length;
+    if (skipped > 0) {
+      embedLog.info("Skipping already-embedded PRs", { skipped, total: allPrs.length });
+    }
 
     const useBatch = isBatchEmbeddingProvider(embeddingProvider) && prs.length > 0;
     embedLog.info("Embed started", { scanId, prCount: prs.length, mode: useBatch ? "batch" : "sequential" });
 
+    // Check for existing batch ID from phaseCursor (resume support)
+    const scan = this.db.getScan(scanId);
+    const existingBatchId = (scan?.phaseCursor as Record<string, unknown> | null)?.embedBatchId as string | undefined;
+
     if (useBatch) {
-      await this.processBatch(repoId, prs, embeddingProvider, vectorStore);
+      await this.processBatch(repoId, scanId, prs, embeddingProvider, vectorStore, existingBatchId);
     } else {
       await this.processSequential(repoId, prs, embeddingProvider, vectorStore);
     }
+
+    // Stamp embed_hash on all successfully embedded PRs
+    for (const pr of prs) {
+      this.db.updatePREmbedHash(pr.id, computeEmbedHash(pr));
+    }
+
+    // Clear phaseCursor after successful completion
+    this.db.updateScanStatus(scanId, "embedding", { phaseCursor: null });
 
     // Enqueue cluster job
     if (this.queue) {
@@ -88,7 +116,7 @@ export class EmbedProcessor implements JobProcessor {
       const tokenBudget = Math.floor(embeddingProvider.maxInputTokens * TOKEN_BUDGET_FACTOR);
       const countTokens = embeddingProvider.countTokens.bind(embeddingProvider);
 
-      const codeInputs = batch.map((pr) => buildCodeInput(pr.filePaths, tokenBudget, countTokens));
+      const codeInputs = batch.map((pr) => buildCodeInput(pr.filePaths, tokenBudget, countTokens, pr.title));
       const intentInputs = batch.map((pr) =>
         buildIntentInput(pr.title, pr.body, pr.filePaths, tokenBudget, countTokens)
       );
@@ -110,9 +138,11 @@ export class EmbedProcessor implements JobProcessor {
 
   private async processBatch(
     repoId: number,
+    scanId: number,
     prs: Array<{ id: number; number: number; title: string; body: string | null; filePaths: string[] }>,
     embeddingProvider: EmbeddingProvider,
-    vectorStore: VectorStore
+    vectorStore: VectorStore,
+    existingBatchId?: string
   ): Promise<void> {
     const provider = embeddingProvider as import("../services/llm-provider.js").BatchEmbeddingProvider;
 
@@ -131,7 +161,7 @@ export class EmbedProcessor implements JobProcessor {
       const tokenBudget = Math.floor(provider.maxInputTokens * TOKEN_BUDGET_FACTOR);
       const countTokens = provider.countTokens.bind(provider);
 
-      const codeInputs = batch.map((pr) => buildCodeInput(pr.filePaths, tokenBudget, countTokens));
+      const codeInputs = batch.map((pr) => buildCodeInput(pr.filePaths, tokenBudget, countTokens, pr.title));
       const intentInputs = batch.map((pr) =>
         buildIntentInput(pr.title, pr.body, pr.filePaths, tokenBudget, countTokens)
       );
@@ -145,7 +175,14 @@ export class EmbedProcessor implements JobProcessor {
 
     embedLog.info("Sending batch embedding request", { requests: requests.length });
     const batchStart = Date.now();
-    const results = await provider.embedBatch(requests);
+    const results = await provider.embedBatch(requests, {
+      existingBatchId,
+      onBatchCreated: (batchId) => {
+        this.db.updateScanStatus(scanId, "embedding", {
+          phaseCursor: { embedBatchId: batchId },
+        });
+      },
+    });
     embedLog.info("Batch embedding complete", { durationMs: Date.now() - batchStart });
 
     // Map results by id
@@ -207,9 +244,11 @@ export class EmbedProcessor implements JobProcessor {
 function buildCodeInput(
   filePaths: string[],
   tokenBudget: number,
-  countTokens: (text: string) => number
+  countTokens: (text: string) => number,
+  fallbackTitle: string
 ): string {
-  return joinWithinTokenBudget(filePaths, tokenBudget, countTokens);
+  const result = joinWithinTokenBudget(filePaths, tokenBudget, countTokens);
+  return result || fallbackTitle || "(no files)";
 }
 
 /**

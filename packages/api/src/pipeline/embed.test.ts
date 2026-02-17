@@ -1,4 +1,4 @@
-import { EmbedProcessor } from "./embed.js";
+import { EmbedProcessor, computeEmbedHash } from "./embed.js";
 import { Database } from "../db/database.js";
 import type { EmbeddingProvider, BatchEmbeddingProvider } from "../services/llm-provider.js";
 import type { VectorStore } from "../services/vector-store.js";
@@ -373,6 +373,79 @@ describe("EmbedProcessor", () => {
 
       expect(batchEmbedding.embedBatch).not.toHaveBeenCalled();
       expect(batchEmbedding.embed).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("embed hash skip logic", () => {
+    it("computeEmbedHash returns consistent hash for same input", () => {
+      const pr = { diffHash: "abc", title: "Fix bug", body: "Description", filePaths: ["src/a.ts"] };
+      const hash1 = computeEmbedHash(pr);
+      const hash2 = computeEmbedHash(pr);
+      expect(hash1).toBe(hash2);
+      expect(hash1).toHaveLength(16);
+    });
+
+    it("computeEmbedHash changes when any field changes", () => {
+      const base = { diffHash: "abc", title: "Fix bug", body: "Description", filePaths: ["src/a.ts"] };
+      const h1 = computeEmbedHash(base);
+      const h2 = computeEmbedHash({ ...base, title: "Different title" });
+      const h3 = computeEmbedHash({ ...base, diffHash: "xyz" });
+      const h4 = computeEmbedHash({ ...base, filePaths: ["src/b.ts"] });
+      expect(h1).not.toBe(h2);
+      expect(h1).not.toBe(h3);
+      expect(h1).not.toBe(h4);
+    });
+
+    it("skips PRs that already have matching embed_hash", async () => {
+      const pr1 = insertPR(1, { diffHash: "hash1", filePaths: ["src/file1.ts"] });
+      const pr2 = insertPR(2, { diffHash: "hash2", filePaths: ["src/file2.ts"] });
+
+      // Stamp PR1 with its current embed hash so it gets skipped
+      const pr1Obj = db.getPR(pr1.id)!;
+      const hash = computeEmbedHash(pr1Obj);
+      db.updatePREmbedHash(pr1.id, hash);
+
+      // Only PR2 should be embedded (1 code + 1 intent call)
+      const vec = makeVector(1);
+      (mockEmbedding.embed as any)
+        .mockResolvedValueOnce([vec]) // code for PR2
+        .mockResolvedValueOnce([vec]); // intent for PR2
+
+      await processor.process(makeJob());
+
+      expect(mockEmbedding.embed).toHaveBeenCalledTimes(2);
+      // Only 2 upsert calls (code + intent for PR2)
+      expect(mockVectorStore.upsert).toHaveBeenCalledTimes(2);
+    });
+
+    it("stamps embed_hash after successful embedding", async () => {
+      const pr = insertPR(1, { diffHash: "hashX", filePaths: ["src/file1.ts"] });
+
+      const vec = makeVector(1);
+      (mockEmbedding.embed as any)
+        .mockResolvedValueOnce([vec])
+        .mockResolvedValueOnce([vec]);
+
+      await processor.process(makeJob());
+
+      const updatedPr = db.getPR(pr.id)!;
+      expect(updatedPr.embedHash).toBe(computeEmbedHash(updatedPr));
+    });
+
+    it("skips all PRs when all are already embedded", async () => {
+      const pr1 = insertPR(1, { diffHash: "h1", filePaths: ["src/a.ts"] });
+      const pr2 = insertPR(2, { diffHash: "h2", filePaths: ["src/b.ts"] });
+
+      // Stamp both
+      db.updatePREmbedHash(pr1.id, computeEmbedHash(db.getPR(pr1.id)!));
+      db.updatePREmbedHash(pr2.id, computeEmbedHash(db.getPR(pr2.id)!));
+
+      await processor.process(makeJob());
+
+      // No embedding should happen
+      expect(mockEmbedding.embed).not.toHaveBeenCalled();
+      // Cluster job should still be enqueued
+      expect(mockQueue.enqueue).toHaveBeenCalledTimes(1);
     });
   });
 });

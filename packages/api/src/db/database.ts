@@ -82,6 +82,7 @@ interface PRRow {
   file_paths: string | null;
   state: string;
   github_etag: string | null;
+  embed_hash: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -98,6 +99,7 @@ function mapPRRow(row: PRRow): PR {
     filePaths: row.file_paths ? JSON.parse(row.file_paths) : [],
     state: row.state as PR["state"],
     githubEtag: row.github_etag,
+    embedHash: row.embed_hash,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -162,6 +164,13 @@ export class Database {
     this.raw.run("PRAGMA journal_mode = WAL");
     this.raw.run("PRAGMA foreign_keys = ON");
     this.raw.run(SCHEMA);
+
+    // Migration: add embed_hash column if missing (for existing databases)
+    try {
+      this.raw.run("ALTER TABLE prs ADD COLUMN embed_hash TEXT");
+    } catch {
+      // Column already exists — ignore
+    }
   }
 
   // ── Account methods ──
@@ -314,7 +323,8 @@ export class Database {
         diff_hash = excluded.diff_hash,
         file_paths = excluded.file_paths,
         state = excluded.state,
-        updated_at = excluded.updated_at
+        updated_at = excluded.updated_at,
+        embed_hash = NULL
       RETURNING *
     `);
     const row = stmt.get(
@@ -363,6 +373,11 @@ export class Database {
   updatePREtag(prId: number, etag: string | null): void {
     const stmt = this.raw.prepare("UPDATE prs SET github_etag = ? WHERE id = ?");
     stmt.run(etag, prId);
+  }
+
+  updatePREmbedHash(prId: number, hash: string): void {
+    const stmt = this.raw.prepare("UPDATE prs SET embed_hash = ? WHERE id = ?");
+    stmt.run(hash, prId);
   }
 
   getPRsByIds(ids: number[]): PR[] {
