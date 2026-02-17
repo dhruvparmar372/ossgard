@@ -37,6 +37,7 @@ export interface BatchChatResult {
   id: string;
   response: Record<string, unknown>;
   usage: TokenUsage;
+  error?: string;
 }
 
 export interface BatchChatOptions {

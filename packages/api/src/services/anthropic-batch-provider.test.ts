@@ -360,12 +360,13 @@ describe("AnthropicBatchProvider", () => {
         pollIntervalMs: 0,
       });
 
-      await expect(
-        provider.chatBatch([
-          { id: "req-1", messages: [{ role: "user", content: "test" }] },
-          { id: "req-2", messages: [{ role: "user", content: "test" }] },
-        ])
-      ).rejects.toThrow("Anthropic batch item req-1 errored: Rate limit exceeded");
+      const results = await provider.chatBatch([
+        { id: "req-1", messages: [{ role: "user", content: "test" }] },
+        { id: "req-2", messages: [{ role: "user", content: "test" }] },
+      ]);
+
+      expect(results[0].error).toBe("Rate limit exceeded");
+      expect(results[0].response).toEqual({});
     });
 
     it("throws on invalid JSON in batch results", async () => {
@@ -403,12 +404,13 @@ describe("AnthropicBatchProvider", () => {
         pollIntervalMs: 0,
       });
 
-      await expect(
-        provider.chatBatch([
-          { id: "req-1", messages: [{ role: "user", content: "test" }] },
-          { id: "req-2", messages: [{ role: "user", content: "test" }] },
-        ])
-      ).rejects.toThrow("LLM returned invalid JSON for req-1");
+      const results = await provider.chatBatch([
+        { id: "req-1", messages: [{ role: "user", content: "test" }] },
+        { id: "req-2", messages: [{ role: "user", content: "test" }] },
+      ]);
+
+      expect(results[0].error).toMatch(/Invalid JSON/);
+      expect(results[0].response).toEqual({});
     });
 
     it("tolerates transient 5xx poll errors", async () => {

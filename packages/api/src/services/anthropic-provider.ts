@@ -7,6 +7,11 @@ export interface AnthropicProviderOptions {
   fetchFn?: typeof fetch;
 }
 
+/** Strip markdown code-block wrapping that LLMs sometimes add around JSON. */
+function stripCodeBlock(raw: string): string {
+  return raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
+}
+
 export class AnthropicProvider implements ChatProvider {
   readonly maxContextTokens = 200_000;
   private apiKey: string;
@@ -75,7 +80,7 @@ export class AnthropicProvider implements ChatProvider {
     const raw = data.content[0].text;
     try {
       return {
-        response: JSON.parse(raw) as Record<string, unknown>,
+        response: JSON.parse(stripCodeBlock(raw)) as Record<string, unknown>,
         usage: {
           inputTokens: data.usage.input_tokens,
           outputTokens: data.usage.output_tokens,

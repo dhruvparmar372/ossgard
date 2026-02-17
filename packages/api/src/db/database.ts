@@ -165,11 +165,19 @@ export class Database {
     this.raw.run("PRAGMA foreign_keys = ON");
     this.raw.run(SCHEMA);
 
-    // Migration: add embed_hash column if missing (for existing databases)
-    try {
-      this.raw.run("ALTER TABLE prs ADD COLUMN embed_hash TEXT");
-    } catch {
-      // Column already exists — ignore
+    // Migrations: add columns if missing (for existing databases)
+    const migrations = [
+      "ALTER TABLE prs ADD COLUMN embed_hash TEXT",
+      "ALTER TABLE scans ADD COLUMN input_tokens INTEGER DEFAULT 0",
+      "ALTER TABLE scans ADD COLUMN output_tokens INTEGER DEFAULT 0",
+      "ALTER TABLE scans ADD COLUMN phase_cursor TEXT",
+    ];
+    for (const sql of migrations) {
+      try {
+        this.raw.run(sql);
+      } catch {
+        // Column already exists — ignore
+      }
     }
   }
 

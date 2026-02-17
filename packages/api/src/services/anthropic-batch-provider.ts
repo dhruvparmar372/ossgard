@@ -20,6 +20,11 @@ export interface AnthropicBatchProviderOptions {
   logger?: Logger;
 }
 
+/** Strip markdown code-block wrapping that LLMs sometimes add around JSON. */
+function stripCodeBlock(raw: string): string {
+  return raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
+}
+
 export class AnthropicBatchProvider implements BatchChatProvider {
   readonly batch = true as const;
   readonly maxContextTokens = 200_000;
@@ -97,7 +102,7 @@ export class AnthropicBatchProvider implements BatchChatProvider {
     const raw = data.content[0].text;
     try {
       return {
-        response: JSON.parse(raw) as Record<string, unknown>,
+        response: JSON.parse(stripCodeBlock(raw)) as Record<string, unknown>,
         usage: {
           inputTokens: data.usage.input_tokens,
           outputTokens: data.usage.output_tokens,
@@ -279,7 +284,7 @@ export class AnthropicBatchProvider implements BatchChatProvider {
     }
 
     const resultsText = await resultsRes.text();
-    const resultMap = new Map<string, { response: Record<string, unknown>; usage: TokenUsage }>();
+    const resultMap = new Map<string, { response: Record<string, unknown>; usage: TokenUsage; error?: string }>();
 
     for (const line of resultsText.split("\n")) {
       if (!line.trim()) continue;
@@ -297,32 +302,47 @@ export class AnthropicBatchProvider implements BatchChatProvider {
       };
 
       if (parsed.result.type === "errored") {
-        throw new Error(
-          `Anthropic batch item ${parsed.custom_id} errored: ${parsed.result.error?.message ?? "unknown error"}`
-        );
+        const errorMsg = parsed.result.error?.message ?? "unknown error";
+        this.logger?.warn("Batch item errored", { customId: parsed.custom_id, error: errorMsg });
+        resultMap.set(parsed.custom_id, {
+          response: {},
+          usage: { inputTokens: 0, outputTokens: 0 },
+          error: errorMsg,
+        });
+        continue;
       }
 
       const msg = parsed.result.message!;
       const raw = msg.content[0].text;
       try {
         resultMap.set(parsed.custom_id, {
-          response: JSON.parse(raw),
+          response: JSON.parse(stripCodeBlock(raw)),
           usage: {
             inputTokens: msg.usage?.input_tokens ?? 0,
             outputTokens: msg.usage?.output_tokens ?? 0,
           },
         });
       } catch {
-        throw new Error(
-          `LLM returned invalid JSON for ${parsed.custom_id}: ${raw.slice(0, 200)}`
-        );
+        const errorMsg = `Invalid JSON: ${raw.slice(0, 200)}`;
+        this.logger?.warn("Batch item returned invalid JSON", { customId: parsed.custom_id, preview: raw.slice(0, 200) });
+        resultMap.set(parsed.custom_id, {
+          response: {},
+          usage: {
+            inputTokens: msg.usage?.input_tokens ?? 0,
+            outputTokens: msg.usage?.output_tokens ?? 0,
+          },
+          error: errorMsg,
+        });
       }
     }
 
     // Map results back in input order
     return requests.map((req) => {
-      const entry = resultMap.get(req.id)!;
-      return { id: req.id, response: entry.response, usage: entry.usage };
+      const entry = resultMap.get(req.id);
+      if (!entry) {
+        return { id: req.id, response: {}, usage: { inputTokens: 0, outputTokens: 0 }, error: "No result returned from batch" };
+      }
+      return { id: req.id, response: entry.response, usage: entry.usage, error: entry.error };
     });
   }
 

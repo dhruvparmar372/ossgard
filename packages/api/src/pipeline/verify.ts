@@ -129,8 +129,18 @@ export class VerifyProcessor implements JobProcessor {
         this.db.updateScanStatus(scanId, "verifying", { phaseCursor: null });
         throw err;
       }
-      verifyLog.info("Batch verification complete", { scanId, durationMs: Date.now() - batchStart });
+      const errored = results.filter((r) => r.error);
+      verifyLog.info("Batch verification complete", {
+        scanId,
+        durationMs: Date.now() - batchStart,
+        succeeded: results.length - errored.length,
+        errored: errored.length,
+      });
+      for (const e of errored) {
+        verifyLog.warn("Verify item failed", { id: e.id, error: e.error });
+      }
       for (const result of results) {
+        if (result.error) continue;
         totalInputTokens += result.usage.inputTokens;
         totalOutputTokens += result.usage.outputTokens;
         verifiedGroups.push(

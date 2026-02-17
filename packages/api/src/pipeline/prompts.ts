@@ -25,6 +25,8 @@ export function buildVerifyPrompt(prs: PR[], tokenCounter?: TokenCounter): Messa
 Analyze the provided PRs and group the ones that are duplicates or near-duplicates.
 Consider: identical file changes, similar intent/purpose, overlapping code modifications.
 
+IMPORTANT: Respond with ONLY raw JSON. Do NOT wrap in markdown code blocks, do NOT add any text before or after the JSON. Your entire response must be parseable by JSON.parse().
+
 You MUST respond with valid JSON in this exact format:
 {
   "groups": [
@@ -66,6 +68,8 @@ For the group labeled "${groupLabel}", rank each PR on:
 - completeness (0-50): How thorough the implementation is (tests, docs, edge cases)
 
 The total score is codeQuality + completeness (0-100).
+
+IMPORTANT: Respond with ONLY raw JSON. Do NOT wrap in markdown code blocks, do NOT add any text before or after the JSON. Your entire response must be parseable by JSON.parse().
 
 You MUST respond with valid JSON in this exact format:
 {
@@ -122,7 +126,26 @@ function buildPRSummaries(
   const truncatedSummaries = prs.map((pr) =>
     formatPRSummary(pr, includeDiffHash, TRUNCATED_BODY_CHARS, TRUNCATED_FILE_COUNT)
   );
-  return truncatedSummaries.join("\n\n");
+  const truncatedText = truncatedSummaries.join("\n\n");
+  if (tokenCounter.countTokens(truncatedText) <= budget) {
+    return truncatedText;
+  }
+
+  // Still over budget — drop PRs from the end until it fits
+  for (let count = prs.length - 1; count >= 2; count--) {
+    const subset = prs.slice(0, count).map((pr) =>
+      formatPRSummary(pr, includeDiffHash, TRUNCATED_BODY_CHARS, TRUNCATED_FILE_COUNT)
+    );
+    const subsetText = subset.join("\n\n") + `\n\n(${prs.length - count} additional PRs omitted due to context limit)`;
+    if (tokenCounter.countTokens(subsetText) <= budget) {
+      return subsetText;
+    }
+  }
+
+  // Absolute minimum: first 2 PRs with aggressive truncation
+  return prs.slice(0, 2).map((pr) =>
+    formatPRSummary(pr, includeDiffHash, 200, 5)
+  ).join("\n\n") + `\n\n(${prs.length - 2} additional PRs omitted due to context limit)`;
 }
 
 function formatPRSummary(

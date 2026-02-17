@@ -88,7 +88,7 @@ export class OllamaProvider implements EmbeddingProvider, ChatProvider {
     const raw = data.message.content;
     try {
       return {
-        response: JSON.parse(raw) as Record<string, unknown>,
+        response: JSON.parse(raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "")) as Record<string, unknown>,
         usage: { inputTokens: 0, outputTokens: 0 },
       };
     } catch {

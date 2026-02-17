@@ -109,12 +109,33 @@ export class RankProcessor implements JobProcessor {
         this.db.updateScanStatus(scanId, "ranking", { phaseCursor: null });
         throw err;
       }
-      rankLog.info("Batch ranking complete", { scanId, durationMs: Date.now() - batchStart });
-      responses = results.map((r) => {
-        totalInputTokens += r.usage.inputTokens;
-        totalOutputTokens += r.usage.outputTokens;
-        return r.response as { rankings: RankingResult[] };
+      const errored = results.filter((r) => r.error);
+      rankLog.info("Batch ranking complete", {
+        scanId,
+        durationMs: Date.now() - batchStart,
+        succeeded: results.length - errored.length,
+        errored: errored.length,
       });
+      for (const e of errored) {
+        rankLog.warn("Rank item failed", { id: e.id, error: e.error });
+      }
+      // Filter out errored items and keep matching prepared entries
+      const succeededResults = results.filter((r) => !r.error);
+      const succeededPrepared: PreparedGroup[] = [];
+      responses = [];
+      for (const r of succeededResults) {
+        const idx = parseInt(r.id.replace("rank-", ""), 10);
+        const p = prepared.find((pp) => pp.groupIndex === idx);
+        if (p) {
+          succeededPrepared.push(p);
+          totalInputTokens += r.usage.inputTokens;
+          totalOutputTokens += r.usage.outputTokens;
+          responses.push(r.response as { rankings: RankingResult[] });
+        }
+      }
+      // Replace prepared with only succeeded entries for storage step
+      prepared.length = 0;
+      prepared.push(...succeededPrepared);
     } else {
       responses = [];
       for (let i = 0; i < prepared.length; i++) {
