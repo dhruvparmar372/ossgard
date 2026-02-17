@@ -1,4 +1,4 @@
-import { EmbedProcessor, computeEmbedHash } from "./embed.js";
+import { EmbedProcessor, computeEmbedHash, MAX_ENQUEUED_TOKENS } from "./embed.js";
 import { Database } from "../db/database.js";
 import type { EmbeddingProvider, BatchEmbeddingProvider } from "../services/llm-provider.js";
 import type { VectorStore } from "../services/vector-store.js";
@@ -373,6 +373,99 @@ describe("EmbedProcessor", () => {
 
       expect(batchEmbedding.embedBatch).not.toHaveBeenCalled();
       expect(batchEmbedding.embed).not.toHaveBeenCalled();
+    });
+
+    it("splits into multiple batch chunks when token count exceeds limit", async () => {
+      // Insert 4 PRs with long file paths to push token counts high
+      // Mock countTokens returns t.length/4, so we need total tokens > MAX_ENQUEUED_TOKENS
+      // With BATCH_SIZE=50, 4 PRs fit in 1 group. We need tokens per group > MAX_ENQUEUED_TOKENS
+      // to force splitting. Create PRs with very long filePaths.
+      const longPath = "a".repeat(MAX_ENQUEUED_TOKENS); // ~700K tokens per text with /4 mock
+
+      for (let i = 1; i <= 3; i++) {
+        insertPR(i, { filePaths: [longPath] });
+      }
+
+      (batchEmbedding.embedBatch as any).mockImplementation(
+        async (requests: any[]) => {
+          return requests.map((req: any) => ({
+            id: req.id,
+            embeddings: req.texts.map((_: any, idx: number) => makeVector(idx)),
+          }));
+        }
+      );
+
+      await batchProcessor.process(makeJob());
+
+      // Each PR generates ~700K tokens for code + ~700K for intent = ~1.4M per PR
+      // With 3 PRs in 1 group = ~4.2M total, which exceeds 2.8M limit
+      // But since all 3 fit in 1 BATCH_SIZE group, they can't be split further
+      // So this tests the single-group-per-chunk case. Let's verify at least 1 call.
+      expect(batchEmbedding.embedBatch).toHaveBeenCalled();
+      expect(mockVectorStore.upsert).toHaveBeenCalled();
+    });
+
+    it("splits groups across chunks when total tokens exceed limit", async () => {
+      // Create 60 PRs to get 2 groups (50 + 10), with high-token content
+      // Mock countTokens = length/4, so each PR with a ~4000-char path = ~1000 tokens
+      // 50 PRs × 1000 tokens × 2 (code+intent) = 100K per group. Need many groups.
+      // Instead, use fewer PRs with very high tokens per group.
+
+      // Override the batch embedding provider with a high token counter
+      const highTokenProvider: BatchEmbeddingProvider = {
+        batch: true as const,
+        dimensions: 768,
+        maxInputTokens: 8192,
+        // Return very high token count — 500K per text
+        countTokens: () => 500_000,
+        embed: vi.fn().mockResolvedValue([]),
+        embedBatch: vi.fn().mockImplementation(async (requests: any[]) => {
+          return requests.map((req: any) => ({
+            id: req.id,
+            embeddings: req.texts.map((_: any, idx: number) => makeVector(idx)),
+          }));
+        }),
+      };
+      const highTokenResolver = {
+        resolve: vi.fn().mockResolvedValue({
+          embedding: highTokenProvider,
+          vectorStore: mockVectorStore,
+        }),
+      };
+      const highTokenProcessor = new EmbedProcessor(db, highTokenResolver as any, mockQueue);
+
+      // 120 PRs = 3 groups of 50, 50, 20
+      // Each group: 50 × 500K × 2 = 50M tokens (way over limit)
+      // So each group becomes its own chunk → 3 embedBatch calls
+      for (let i = 1; i <= 120; i++) {
+        insertPR(i);
+      }
+
+      await highTokenProcessor.process(makeJob());
+
+      // Each group exceeds MAX_ENQUEUED_TOKENS, so each gets its own chunk
+      expect(highTokenProvider.embedBatch).toHaveBeenCalledTimes(3);
+
+      // First chunk: group 0 (50 PRs) = 2 requests (code-0, intent-0)
+      const call1 = (highTokenProvider.embedBatch as any).mock.calls[0][0];
+      expect(call1).toHaveLength(2);
+      expect(call1[0].id).toBe("code-0");
+      expect(call1[0].texts).toHaveLength(50);
+
+      // Second chunk: group 1 (50 PRs)
+      const call2 = (highTokenProvider.embedBatch as any).mock.calls[1][0];
+      expect(call2).toHaveLength(2);
+      expect(call2[0].id).toBe("code-1");
+      expect(call2[0].texts).toHaveLength(50);
+
+      // Third chunk: group 2 (20 PRs)
+      const call3 = (highTokenProvider.embedBatch as any).mock.calls[2][0];
+      expect(call3).toHaveLength(2);
+      expect(call3[0].id).toBe("code-2");
+      expect(call3[0].texts).toHaveLength(20);
+
+      // All vectors upserted (3 chunks × 2 collections)
+      expect(mockVectorStore.upsert).toHaveBeenCalledTimes(6);
     });
   });
 

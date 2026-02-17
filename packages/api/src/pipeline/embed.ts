@@ -14,6 +14,13 @@ const CODE_COLLECTION = "ossgard-code";
 const INTENT_COLLECTION = "ossgard-intent";
 const BATCH_SIZE = 50;
 
+/**
+ * Stay under OpenAI's org-level enqueued token limit (3M for text-embedding-3-small).
+ * We use 2.8M as buffer. When total tokens exceed this, the batch is split into
+ * sequential chunks — each chunk completes before the next starts, freeing tokens.
+ */
+export const MAX_ENQUEUED_TOKENS = 2_800_000;
+
 const embedLog = log.child("embed");
 
 /** Compute a stable hash for a PR's embedding-relevant fields. */
@@ -83,11 +90,6 @@ export class EmbedProcessor implements JobProcessor {
       await this.processSequential(repoId, prs, embeddingProvider, vectorStore);
     }
 
-    // Stamp embed_hash on all successfully embedded PRs
-    for (const pr of prs) {
-      this.db.updatePREmbedHash(pr.id, computeEmbedHash(pr));
-    }
-
     // Clear phaseCursor after successful completion
     this.db.updateScanStatus(scanId, "embedding", { phaseCursor: null });
 
@@ -103,7 +105,7 @@ export class EmbedProcessor implements JobProcessor {
 
   private async processSequential(
     repoId: number,
-    prs: Array<{ id: number; number: number; title: string; body: string | null; filePaths: string[] }>,
+    prs: Array<{ id: number; number: number; title: string; body: string | null; filePaths: string[]; diffHash: string | null }>,
     embeddingProvider: EmbeddingProvider,
     vectorStore: VectorStore
   ): Promise<void> {
@@ -134,6 +136,11 @@ export class EmbedProcessor implements JobProcessor {
 
       await this.upsertBatch(repoId, batch, codeEmbeddings, intentEmbeddings, vectorStore);
 
+      // Stamp embed_hash per batch for resume support
+      for (const pr of batch) {
+        this.db.updatePREmbedHash(pr.id, computeEmbedHash(pr));
+      }
+
       embedLog.info("Batch embedded", {
         batch: `${batchNum}/${totalBatches}`,
         durationMs: Date.now() - batchStart,
@@ -145,68 +152,129 @@ export class EmbedProcessor implements JobProcessor {
   private async processBatch(
     repoId: number,
     scanId: number,
-    prs: Array<{ id: number; number: number; title: string; body: string | null; filePaths: string[] }>,
+    prs: Array<{ id: number; number: number; title: string; body: string | null; filePaths: string[]; diffHash: string | null }>,
     embeddingProvider: EmbeddingProvider,
     vectorStore: VectorStore,
     existingBatchId?: string
   ): Promise<void> {
     const provider = embeddingProvider as import("../services/llm-provider.js").BatchEmbeddingProvider;
+    const countTokens = provider.countTokens.bind(provider);
+    const tokenBudget = Math.floor(provider.maxInputTokens * TOKEN_BUDGET_FACTOR);
 
-    // Collect all batch requests
-    const requests: Array<{ id: string; texts: string[] }> = [];
-    const batchMeta: Array<{
-      batchIndex: number;
-      type: "code" | "intent";
+    // Build all requests and track tokens per PR-batch group
+    const groups: Array<{
+      batchIdx: number;
       prSlice: typeof prs;
+      codeRequest: { id: string; texts: string[] };
+      intentRequest: { id: string; texts: string[] };
+      tokenCount: number;
     }> = [];
 
     for (let i = 0; i < prs.length; i += BATCH_SIZE) {
       const batch = prs.slice(i, i + BATCH_SIZE);
       const batchIdx = Math.floor(i / BATCH_SIZE);
 
-      const tokenBudget = Math.floor(provider.maxInputTokens * TOKEN_BUDGET_FACTOR);
-      const countTokens = provider.countTokens.bind(provider);
-
       const codeInputs = batch.map((pr) => buildCodeInput(pr.filePaths, tokenBudget, countTokens, pr.title));
       const intentInputs = batch.map((pr) =>
         buildIntentInput(pr.title, pr.body, pr.filePaths, tokenBudget, countTokens)
       );
 
-      requests.push({ id: `code-${batchIdx}`, texts: codeInputs });
-      batchMeta.push({ batchIndex: batchIdx, type: "code", prSlice: batch });
+      let tokenCount = 0;
+      for (const text of codeInputs) tokenCount += countTokens(text);
+      for (const text of intentInputs) tokenCount += countTokens(text);
 
-      requests.push({ id: `intent-${batchIdx}`, texts: intentInputs });
-      batchMeta.push({ batchIndex: batchIdx, type: "intent", prSlice: batch });
+      groups.push({
+        batchIdx,
+        prSlice: batch,
+        codeRequest: { id: `code-${batchIdx}`, texts: codeInputs },
+        intentRequest: { id: `intent-${batchIdx}`, texts: intentInputs },
+        tokenCount,
+      });
     }
 
-    embedLog.info("Sending batch embedding request", { requests: requests.length });
-    const batchStart = Date.now();
-    const results = await provider.embedBatch(requests, {
-      existingBatchId,
-      onBatchCreated: (batchId) => {
-        this.db.updateScanStatus(scanId, "embedding", {
-          phaseCursor: { embedBatchId: batchId },
-        });
-      },
+    // Chunk groups to stay under org-level enqueued token limit.
+    // Each chunk is submitted as a separate batch API call; the previous
+    // chunk completes before the next starts, freeing tokens.
+    const chunks: (typeof groups)[] = [];
+    let currentChunk: typeof groups = [];
+    let currentTokens = 0;
+
+    for (const group of groups) {
+      if (currentChunk.length > 0 && currentTokens + group.tokenCount > MAX_ENQUEUED_TOKENS) {
+        chunks.push(currentChunk);
+        currentChunk = [];
+        currentTokens = 0;
+      }
+      currentChunk.push(group);
+      currentTokens += group.tokenCount;
+    }
+    if (currentChunk.length > 0) chunks.push(currentChunk);
+
+    const totalTokens = groups.reduce((sum, g) => sum + g.tokenCount, 0);
+    embedLog.info("Batch token analysis", {
+      scanId,
+      totalTokens,
+      chunks: chunks.length,
+      tokenLimit: MAX_ENQUEUED_TOKENS,
+      groups: groups.length,
     });
-    embedLog.info("Batch embedding complete", { durationMs: Date.now() - batchStart });
 
-    // Map results by id
-    const resultMap = new Map(results.map((r) => [r.id, r.embeddings]));
+    // Process each chunk as a separate batch API call
+    let processedPrs = 0;
+    for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
+      const chunk = chunks[chunkIdx];
+      const chunkRequests = chunk.flatMap((g) => [g.codeRequest, g.intentRequest]);
+      const chunkTokens = chunk.reduce((sum, g) => sum + g.tokenCount, 0);
+      const chunkPrCount = chunk.reduce((sum, g) => sum + g.prSlice.length, 0);
 
-    // Upsert for each batch
-    const totalBatches = Math.ceil(prs.length / BATCH_SIZE);
-    for (let i = 0; i < prs.length; i += BATCH_SIZE) {
-      const batch = prs.slice(i, i + BATCH_SIZE);
-      const batchIdx = Math.floor(i / BATCH_SIZE);
+      embedLog.info("Processing batch chunk", {
+        scanId,
+        chunk: `${chunkIdx + 1}/${chunks.length}`,
+        requests: chunkRequests.length,
+        tokens: chunkTokens,
+        prs: chunkPrCount,
+      });
 
-      const codeEmbeddings = resultMap.get(`code-${batchIdx}`)!;
-      const intentEmbeddings = resultMap.get(`intent-${batchIdx}`)!;
+      // Resume support: only use existingBatchId for first chunk
+      const useExistingBatchId = chunkIdx === 0 ? existingBatchId : undefined;
 
-      await this.upsertBatch(repoId, batch, codeEmbeddings, intentEmbeddings, vectorStore);
-      embedLog.info("Batch upserted to vector store", {
-        batch: `${batchIdx + 1}/${totalBatches}`,
-        progress: `${Math.min(i + BATCH_SIZE, prs.length)}/${prs.length}`,
+      const chunkStart = Date.now();
+      const results = await provider.embedBatch(chunkRequests, {
+        existingBatchId: useExistingBatchId,
+        onBatchCreated: (batchId) => {
+          this.db.updateScanStatus(scanId, "embedding", {
+            phaseCursor: { embedBatchId: batchId },
+          });
+        },
+      });
+
+      embedLog.info("Batch chunk complete", {
+        scanId,
+        chunk: `${chunkIdx + 1}/${chunks.length}`,
+        durationMs: Date.now() - chunkStart,
+      });
+
+      // Map results and upsert
+      const resultMap = new Map(results.map((r) => [r.id, r.embeddings]));
+
+      for (const group of chunk) {
+        const codeEmbeddings = resultMap.get(group.codeRequest.id)!;
+        const intentEmbeddings = resultMap.get(group.intentRequest.id)!;
+        await this.upsertBatch(repoId, group.prSlice, codeEmbeddings, intentEmbeddings, vectorStore);
+      }
+
+      // Stamp embed_hash per chunk for resume support
+      for (const group of chunk) {
+        for (const pr of group.prSlice) {
+          this.db.updatePREmbedHash(pr.id, computeEmbedHash(pr));
+        }
+      }
+
+      processedPrs += chunkPrCount;
+      embedLog.info("Batch chunk upserted", {
+        scanId,
+        chunk: `${chunkIdx + 1}/${chunks.length}`,
+        progress: `${processedPrs}/${prs.length}`,
       });
     }
   }
