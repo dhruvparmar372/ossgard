@@ -6,10 +6,17 @@ const resetLog = log.child("reset");
 
 const reset = new Hono<AppEnv>();
 
-reset.post("/reset", (c) => {
+reset.post("/clear-scans", (c) => {
   const db = c.get("db");
-  db.reset();
-  resetLog.info("Database reset");
+  db.clearScans();
+  resetLog.info("Scans cleared");
+  return c.json({ ok: true });
+});
+
+reset.post("/clear-repos", (c) => {
+  const db = c.get("db");
+  db.clearRepos();
+  resetLog.info("Repos cleared");
   return c.json({ ok: true });
 });
 

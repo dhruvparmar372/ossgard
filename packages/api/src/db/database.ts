@@ -434,13 +434,20 @@ export class Database {
     return row ? mapScanRow(row) : null;
   }
 
-  reset(): void {
+  clearScans(): void {
     this.raw.run("DELETE FROM dupe_group_members");
     this.raw.run("DELETE FROM dupe_groups");
-    this.raw.run("DELETE FROM prs");
     this.raw.run("DELETE FROM scans");
-    this.raw.run("DELETE FROM repos");
     this.raw.run("DELETE FROM jobs");
+  }
+
+  clearRepos(): void {
+    this.raw.run("DELETE FROM dupe_group_members");
+    this.raw.run("DELETE FROM dupe_groups");
+    this.raw.run("DELETE FROM scans");
+    this.raw.run("DELETE FROM jobs");
+    this.raw.run("DELETE FROM prs");
+    this.raw.run("DELETE FROM repos");
   }
 
   close(): void {

@@ -65,7 +65,8 @@ export function createApp(
   // Auth middleware for all other routes
   app.use("/repos/*", authMiddleware);
   app.use("/scans/*", authMiddleware);
-  app.use("/reset", authMiddleware);
+  app.use("/clear-scans", authMiddleware);
+  app.use("/clear-repos", authMiddleware);
 
   // Authenticated routes
   app.route("/", repos);
