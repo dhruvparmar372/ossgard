@@ -209,6 +209,49 @@ describe("LocalJobQueue", () => {
     });
   });
 
+  describe("recoverRunningJobs", () => {
+    it("resets running jobs back to queued", async () => {
+      const id1 = await queue.enqueue({ type: "scan", payload: { order: 1 } });
+      const id2 = await queue.enqueue({ type: "ingest", payload: { order: 2 } });
+      await queue.dequeue(); // id1 -> running
+      await queue.dequeue(); // id2 -> running
+
+      const recovered = await queue.recoverRunningJobs();
+      expect(recovered).toBe(2);
+
+      const job1 = await queue.getStatus(id1);
+      expect(job1!.status).toBe("queued");
+      expect(job1!.runAfter).toBeNull();
+
+      const job2 = await queue.getStatus(id2);
+      expect(job2!.status).toBe("queued");
+    });
+
+    it("does not affect queued, done, or failed jobs", async () => {
+      const doneId = await queue.enqueue({ type: "scan", payload: {} });
+      const failedId = await queue.enqueue({ type: "scan", payload: {} });
+      const queuedId = await queue.enqueue({ type: "scan", payload: {} });
+
+      await queue.dequeue(); // doneId -> running
+      await queue.complete(doneId);
+      await queue.dequeue(); // failedId -> running
+      await queue.fail(failedId, "error");
+      // queuedId stays queued
+
+      const recovered = await queue.recoverRunningJobs();
+      expect(recovered).toBe(0);
+
+      expect((await queue.getStatus(queuedId))!.status).toBe("queued");
+      expect((await queue.getStatus(doneId))!.status).toBe("done");
+      expect((await queue.getStatus(failedId))!.status).toBe("failed");
+    });
+
+    it("returns 0 when no running jobs exist", async () => {
+      const recovered = await queue.recoverRunningJobs();
+      expect(recovered).toBe(0);
+    });
+  });
+
   describe("pause", () => {
     it("sets job back to queued with future run_after", async () => {
       const id = await queue.enqueue({

@@ -47,6 +47,17 @@ export class LocalJobQueue implements JobQueue {
     this.db = db;
   }
 
+  async recoverRunningJobs(): Promise<number> {
+    const stmt = this.db.prepare(`
+      UPDATE jobs
+      SET status = 'queued',
+          run_after = NULL,
+          updated_at = datetime('now')
+      WHERE status = 'running'
+    `);
+    return stmt.run().changes;
+  }
+
   async enqueue(opts: EnqueueOptions): Promise<string> {
     const id = uuidv4();
     const stmt = this.db.prepare(`

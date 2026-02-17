@@ -47,6 +47,12 @@ async function main() {
     }
   });
 
+  // Recover any jobs that were running when the server was last killed
+  const recovered = await queue.recoverRunningJobs();
+  if (recovered > 0) {
+    log.info("Recovered interrupted jobs", { count: recovered });
+  }
+
   const port = Number(process.env.PORT) || 3400;
   const server = Bun.serve({ fetch: app.fetch, port });
   log.info(`Listening on http://localhost:${server.port}`, { logLevel: process.env.LOG_LEVEL ?? "info" });
