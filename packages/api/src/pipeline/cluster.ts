@@ -9,6 +9,12 @@ import { log } from "../logger.js";
 const CODE_COLLECTION = "ossgard-code";
 const INTENT_COLLECTION = "ossgard-intent";
 
+/** Max similar PRs to union per search. Prevents giant transitive components. */
+const MAX_NEIGHBORS = 10;
+
+/** Hard cap on candidate group size. Oversized groups get split into chunks. */
+const MAX_GROUP_SIZE = 100;
+
 const clusterLog = log.child("cluster");
 
 export class ClusterProcessor implements JobProcessor {
@@ -84,23 +90,22 @@ export class ClusterProcessor implements JobProcessor {
           CODE_COLLECTION,
           codeVector,
           {
-            limit: prs.length,
+            limit: MAX_NEIGHBORS * 2,
             filter: {
               must: [{ key: "repoId", match: { value: repoId } }],
             },
           }
         );
 
-        for (const result of codeResults) {
-          const neighborPR = result.payload.prNumber as number;
-          if (
-            result.score >= scanConfig.codeSimilarityThreshold &&
-            neighborPR !== pr.number &&
-            uf.has(neighborPR)
-          ) {
-            uf.union(pr.number, neighborPR);
-            codeMatches++;
-          }
+        // Sort by score descending and take top MAX_NEIGHBORS to prevent giant components
+        const topCode = codeResults
+          .filter((r) => r.score >= scanConfig.codeSimilarityThreshold && r.payload.prNumber !== pr.number && uf.has(r.payload.prNumber as number))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, MAX_NEIGHBORS);
+
+        for (const result of topCode) {
+          uf.union(pr.number, result.payload.prNumber as number);
+          codeMatches++;
         }
       }
 
@@ -111,23 +116,22 @@ export class ClusterProcessor implements JobProcessor {
           INTENT_COLLECTION,
           intentVector,
           {
-            limit: prs.length,
+            limit: MAX_NEIGHBORS * 2,
             filter: {
               must: [{ key: "repoId", match: { value: repoId } }],
             },
           }
         );
 
-        for (const result of intentResults) {
-          const neighborPR = result.payload.prNumber as number;
-          if (
-            result.score >= scanConfig.intentSimilarityThreshold &&
-            neighborPR !== pr.number &&
-            uf.has(neighborPR)
-          ) {
-            uf.union(pr.number, neighborPR);
-            intentMatches++;
-          }
+        // Sort by score descending and take top MAX_NEIGHBORS to prevent giant components
+        const topIntent = intentResults
+          .filter((r) => r.score >= scanConfig.intentSimilarityThreshold && r.payload.prNumber !== pr.number && uf.has(r.payload.prNumber as number))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, MAX_NEIGHBORS);
+
+        for (const result of topIntent) {
+          uf.union(pr.number, result.payload.prNumber as number);
+          intentMatches++;
         }
       }
 
@@ -142,8 +146,23 @@ export class ClusterProcessor implements JobProcessor {
     }
 
     // Extract connected components with 2+ members
-    const groups = uf.getGroups(2);
-    clusterLog.info("Similarity clusters", { scanId, clusters: groups.length });
+    const rawGroups = uf.getGroups(2);
+    clusterLog.info("Similarity clusters", { scanId, clusters: rawGroups.length });
+
+    // Hard cap: split oversized groups to prevent context limit issues in LLM verify
+    const groups: number[][] = [];
+    for (const group of rawGroups) {
+      if (group.length <= MAX_GROUP_SIZE) {
+        groups.push(group);
+      } else {
+        clusterLog.warn("Splitting oversized cluster", { scanId, size: group.length, chunks: Math.ceil(group.length / MAX_GROUP_SIZE) });
+        const sorted = group.sort((a, b) => a - b);
+        for (let i = 0; i < sorted.length; i += MAX_GROUP_SIZE) {
+          const chunk = sorted.slice(i, i + MAX_GROUP_SIZE);
+          if (chunk.length >= 2) groups.push(chunk);
+        }
+      }
+    }
 
     // Build candidate groups: map PR numbers back to PR IDs
     const prByNumber = new Map<number, PR>();

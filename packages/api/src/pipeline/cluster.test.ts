@@ -332,4 +332,31 @@ describe("ClusterProcessor", () => {
       .sort();
     expect(allNumbers).toEqual([1, 2, 3, 4]);
   });
+
+  it("splits oversized groups into chunks of MAX_GROUP_SIZE", async () => {
+    // Create 150 PRs all sharing the same diffHash → one giant group
+    for (let i = 1; i <= 150; i++) {
+      insertPR(i, { diffHash: "same-hash-for-all" });
+    }
+
+    await processor.process(makeJob());
+
+    const enqueueCall = (mockQueue.enqueue as any).mock.calls[0][0];
+    const candidateGroups = (
+      enqueueCall.payload as { candidateGroups: Array<{ prNumbers: number[] }> }
+    ).candidateGroups;
+
+    // 150 PRs with MAX_GROUP_SIZE=100 → should be split into 2 groups (100 + 50)
+    expect(candidateGroups).toHaveLength(2);
+    expect(candidateGroups[0].prNumbers).toHaveLength(100);
+    expect(candidateGroups[1].prNumbers).toHaveLength(50);
+
+    // All 150 PRs should be present across all groups
+    const allNumbers = candidateGroups
+      .flatMap((g) => g.prNumbers)
+      .sort((a, b) => a - b);
+    expect(allNumbers).toHaveLength(150);
+    expect(allNumbers[0]).toBe(1);
+    expect(allNumbers[149]).toBe(150);
+  });
 });
