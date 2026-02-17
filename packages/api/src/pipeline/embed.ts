@@ -6,6 +6,7 @@ import type { VectorStore } from "../services/vector-store.js";
 import type { ServiceResolver } from "../services/service-resolver.js";
 import type { JobQueue } from "../queue/types.js";
 import type { JobProcessor } from "../queue/worker.js";
+import { TOKEN_BUDGET_FACTOR } from "../services/token-counting.js";
 import { log } from "../logger.js";
 
 const CODE_COLLECTION = "ossgard-code";
@@ -84,10 +85,12 @@ export class EmbedProcessor implements JobProcessor {
         prRange: `#${batch[0].number}..#${batch[batch.length - 1].number}`,
       });
 
-      const codeInputs = batch.map((pr) => pr.filePaths.join("\n"));
-      const intentInputs = batch.map(
-        (pr) =>
-          pr.title + "\n" + (pr.body ?? "") + "\n" + pr.filePaths.join("\n")
+      const tokenBudget = Math.floor(embeddingProvider.maxInputTokens * TOKEN_BUDGET_FACTOR);
+      const countTokens = embeddingProvider.countTokens.bind(embeddingProvider);
+
+      const codeInputs = batch.map((pr) => buildCodeInput(pr.filePaths, tokenBudget, countTokens));
+      const intentInputs = batch.map((pr) =>
+        buildIntentInput(pr.title, pr.body, pr.filePaths, tokenBudget, countTokens)
       );
 
       const [codeEmbeddings, intentEmbeddings] = await Promise.all([
@@ -125,10 +128,12 @@ export class EmbedProcessor implements JobProcessor {
       const batch = prs.slice(i, i + BATCH_SIZE);
       const batchIdx = Math.floor(i / BATCH_SIZE);
 
-      const codeInputs = batch.map((pr) => pr.filePaths.join("\n"));
-      const intentInputs = batch.map(
-        (pr) =>
-          pr.title + "\n" + (pr.body ?? "") + "\n" + pr.filePaths.join("\n")
+      const tokenBudget = Math.floor(provider.maxInputTokens * TOKEN_BUDGET_FACTOR);
+      const countTokens = provider.countTokens.bind(provider);
+
+      const codeInputs = batch.map((pr) => buildCodeInput(pr.filePaths, tokenBudget, countTokens));
+      const intentInputs = batch.map((pr) =>
+        buildIntentInput(pr.title, pr.body, pr.filePaths, tokenBudget, countTokens)
       );
 
       requests.push({ id: `code-${batchIdx}`, texts: codeInputs });
@@ -196,4 +201,55 @@ export class EmbedProcessor implements JobProcessor {
       }))
     );
   }
+}
+
+/** Join file paths up to the token budget, truncating at path boundaries. */
+function buildCodeInput(
+  filePaths: string[],
+  tokenBudget: number,
+  countTokens: (text: string) => number
+): string {
+  return joinWithinTokenBudget(filePaths, tokenBudget, countTokens);
+}
+
+/**
+ * Build intent embedding input with prioritized content:
+ * title + body are always included (highest semantic signal), then
+ * file paths fill remaining budget.
+ */
+function buildIntentInput(
+  title: string,
+  body: string | null,
+  filePaths: string[],
+  tokenBudget: number,
+  countTokens: (text: string) => number
+): string {
+  const header = title + "\n" + (body ?? "");
+  const headerTokens = countTokens(header);
+  if (headerTokens >= tokenBudget) {
+    // Truncate header by characters as a fallback — we can't split mid-token
+    // Use a rough ratio: (budget / headerTokens) * header.length
+    const charLimit = Math.floor((tokenBudget / headerTokens) * header.length);
+    return header.slice(0, charLimit);
+  }
+  const remaining = tokenBudget - headerTokens - 1; // -1 for newline separator token
+  const pathsPart = joinWithinTokenBudget(filePaths, remaining, countTokens);
+  return pathsPart ? header + "\n" + pathsPart : header;
+}
+
+/** Join strings with newlines until the token budget is exhausted. */
+function joinWithinTokenBudget(
+  items: string[],
+  budget: number,
+  countTokens: (text: string) => number
+): string {
+  const parts: string[] = [];
+  let usedTokens = 0;
+  for (const item of items) {
+    const itemTokens = countTokens(item) + (parts.length > 0 ? 1 : 0); // +1 for newline
+    if (usedTokens + itemTokens > budget) break;
+    parts.push(item);
+    usedTokens += itemTokens;
+  }
+  return parts.join("\n");
 }

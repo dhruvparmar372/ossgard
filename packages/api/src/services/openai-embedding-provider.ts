@@ -1,4 +1,5 @@
 import type { EmbeddingProvider } from "./llm-provider.js";
+import { createTiktokenEncoder, countTokensTiktoken, type Tiktoken } from "./token-counting.js";
 
 const DIMENSION_MAP: Record<string, number> = {
   "text-embedding-3-large": 3072,
@@ -14,15 +15,22 @@ export interface OpenAIEmbeddingProviderOptions {
 
 export class OpenAIEmbeddingProvider implements EmbeddingProvider {
   readonly dimensions: number;
+  readonly maxInputTokens = 8191;
   private apiKey: string;
   private model: string;
   private fetchFn: typeof fetch;
+  private encoder: Tiktoken;
 
   constructor(options: OpenAIEmbeddingProviderOptions) {
     this.apiKey = options.apiKey;
     this.model = options.model;
     this.fetchFn = options.fetchFn ?? fetch;
     this.dimensions = DIMENSION_MAP[options.model] ?? 3072;
+    this.encoder = createTiktokenEncoder(options.model);
+  }
+
+  countTokens(text: string): number {
+    return countTokensTiktoken(this.encoder, text);
   }
 
   async embed(texts: string[]): Promise<number[][]> {
@@ -42,8 +50,9 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
     );
 
     if (!response.ok) {
+      const body = await response.text().catch(() => "");
       throw new Error(
-        `OpenAI embedding error: ${response.status} ${response.statusText}`
+        `OpenAI embedding error: ${response.status} ${response.statusText} — ${body}`
       );
     }
 

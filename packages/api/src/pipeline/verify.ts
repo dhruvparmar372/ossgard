@@ -92,7 +92,7 @@ export class VerifyProcessor implements JobProcessor {
         if (pr) prs.push(pr);
       }
       if (prs.length < 2) continue;
-      prepared.push({ index: i, messages: buildVerifyPrompt(prs) });
+      prepared.push({ index: i, messages: buildVerifyPrompt(prs, llm) });
     }
 
     // 2. Call LLM (batch or sequential)

@@ -71,7 +71,7 @@ export class RankProcessor implements JobProcessor {
         groupIndex: i,
         group,
         prs,
-        messages: buildRankPrompt(prs, group.label),
+        messages: buildRankPrompt(prs, group.label, llm),
       });
     }
 

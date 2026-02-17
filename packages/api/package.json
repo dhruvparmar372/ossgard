@@ -16,6 +16,7 @@
     "@ossgard/shared": "workspace:*",
     "@qdrant/js-client-rest": "^1.16.2",
     "hono": "^4.7.0",
+    "js-tiktoken": "^1.0.21",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

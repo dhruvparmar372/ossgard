@@ -1,9 +1,16 @@
 import type { EmbeddingProvider, ChatProvider, ChatResult, Message } from "./llm-provider.js";
+import { countTokensHeuristic } from "./token-counting.js";
 
 const DIMENSION_MAP: Record<string, number> = {
   "nomic-embed-text": 768,
   "mxbai-embed-large": 1024,
   "all-minilm": 384,
+};
+
+const MAX_INPUT_TOKENS_MAP: Record<string, number> = {
+  "nomic-embed-text": 8192,
+  "mxbai-embed-large": 512,
+  "all-minilm": 256,
 };
 
 export interface OllamaProviderOptions {
@@ -15,6 +22,8 @@ export interface OllamaProviderOptions {
 
 export class OllamaProvider implements EmbeddingProvider, ChatProvider {
   readonly dimensions: number;
+  readonly maxInputTokens: number;
+  readonly maxContextTokens = 8192;
   private baseUrl: string;
   private embeddingModel: string;
   private chatModel: string;
@@ -26,6 +35,11 @@ export class OllamaProvider implements EmbeddingProvider, ChatProvider {
     this.chatModel = options.chatModel;
     this.fetchFn = options.fetchFn ?? fetch;
     this.dimensions = DIMENSION_MAP[options.embeddingModel] ?? 768;
+    this.maxInputTokens = MAX_INPUT_TOKENS_MAP[options.embeddingModel] ?? 8192;
+  }
+
+  countTokens(text: string): number {
+    return countTokensHeuristic(text, 4);
   }
 
   async embed(texts: string[]): Promise<number[][]> {

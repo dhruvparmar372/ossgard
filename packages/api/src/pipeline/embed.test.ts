@@ -8,6 +8,8 @@ import type { Job } from "@ossgard/shared";
 function createMockEmbeddingProvider(): EmbeddingProvider {
   return {
     dimensions: 768,
+    maxInputTokens: 8192,
+    countTokens: (t: string) => Math.ceil(t.length / 4),
     embed: vi.fn().mockResolvedValue([]),
   };
 }
@@ -16,6 +18,8 @@ function createMockBatchEmbeddingProvider(): BatchEmbeddingProvider {
   return {
     batch: true as const,
     dimensions: 768,
+    maxInputTokens: 8192,
+    countTokens: (t: string) => Math.ceil(t.length / 4),
     embed: vi.fn().mockResolvedValue([]),
     embedBatch: vi.fn().mockResolvedValue([]),
   };

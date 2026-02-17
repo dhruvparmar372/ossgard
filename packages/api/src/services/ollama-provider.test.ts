@@ -45,6 +45,67 @@ describe("OllamaProvider", () => {
     });
   });
 
+  describe("maxInputTokens", () => {
+    it("returns 8192 for nomic-embed-text", () => {
+      const provider = new OllamaProvider({
+        baseUrl: "http://localhost:11434",
+        embeddingModel: "nomic-embed-text",
+        chatModel: "llama3",
+      });
+      expect(provider.maxInputTokens).toBe(8192);
+    });
+
+    it("returns 512 for mxbai-embed-large", () => {
+      const provider = new OllamaProvider({
+        baseUrl: "http://localhost:11434",
+        embeddingModel: "mxbai-embed-large",
+        chatModel: "llama3",
+      });
+      expect(provider.maxInputTokens).toBe(512);
+    });
+
+    it("returns 256 for all-minilm", () => {
+      const provider = new OllamaProvider({
+        baseUrl: "http://localhost:11434",
+        embeddingModel: "all-minilm",
+        chatModel: "llama3",
+      });
+      expect(provider.maxInputTokens).toBe(256);
+    });
+
+    it("defaults to 8192 for unknown models", () => {
+      const provider = new OllamaProvider({
+        baseUrl: "http://localhost:11434",
+        embeddingModel: "unknown-model",
+        chatModel: "llama3",
+      });
+      expect(provider.maxInputTokens).toBe(8192);
+    });
+  });
+
+  describe("maxContextTokens", () => {
+    it("is 8192", () => {
+      const provider = new OllamaProvider({
+        baseUrl: "http://localhost:11434",
+        embeddingModel: "nomic-embed-text",
+        chatModel: "llama3",
+      });
+      expect(provider.maxContextTokens).toBe(8192);
+    });
+  });
+
+  describe("countTokens", () => {
+    it("uses heuristic at 4 chars/token", () => {
+      const provider = new OllamaProvider({
+        baseUrl: "http://localhost:11434",
+        embeddingModel: "nomic-embed-text",
+        chatModel: "llama3",
+      });
+      // 40 chars / 4 = 10 tokens
+      expect(provider.countTokens("a".repeat(40))).toBe(10);
+    });
+  });
+
   describe("embed", () => {
     it("returns embedding vectors", async () => {
       const embeddings = [

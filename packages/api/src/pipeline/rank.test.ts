@@ -5,6 +5,8 @@ import type { Job } from "@ossgard/shared";
 
 function createMockChat(): ChatProvider {
   return {
+    maxContextTokens: 200_000,
+    countTokens: (t: string) => Math.ceil(t.length / 3.5),
     chat: vi.fn().mockResolvedValue({
       response: { rankings: [] },
       usage: { inputTokens: 0, outputTokens: 0 },
@@ -15,6 +17,8 @@ function createMockChat(): ChatProvider {
 function createMockBatchChat(): BatchChatProvider {
   return {
     batch: true as const,
+    maxContextTokens: 200_000,
+    countTokens: (t: string) => Math.ceil(t.length / 3.5),
     chat: vi.fn().mockResolvedValue({
       response: { rankings: [] },
       usage: { inputTokens: 0, outputTokens: 0 },

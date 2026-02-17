@@ -12,6 +12,7 @@ function mockFetchError(status: number, statusText: string): typeof fetch {
     ok: false,
     status,
     statusText,
+    text: () => Promise.resolve(""),
   }) as unknown as typeof fetch;
 }
 
@@ -39,6 +40,27 @@ describe("OpenAIEmbeddingProvider", () => {
         model: "unknown-model",
       });
       expect(provider.dimensions).toBe(3072);
+    });
+  });
+
+  describe("maxInputTokens", () => {
+    it("is 8191", () => {
+      const provider = new OpenAIEmbeddingProvider({
+        apiKey: "sk-test",
+        model: "text-embedding-3-large",
+      });
+      expect(provider.maxInputTokens).toBe(8191);
+    });
+  });
+
+  describe("countTokens", () => {
+    it("returns exact BPE token count", () => {
+      const provider = new OpenAIEmbeddingProvider({
+        apiKey: "sk-test",
+        model: "text-embedding-3-large",
+      });
+      // "hello world" is 2 tokens in cl100k_base
+      expect(provider.countTokens("hello world")).toBe(2);
     });
   });
 

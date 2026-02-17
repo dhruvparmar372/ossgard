@@ -23,6 +23,22 @@ describe("OpenAIBatchEmbeddingProvider", () => {
     expect(small.dimensions).toBe(1536);
   });
 
+  it("has maxInputTokens of 8191", () => {
+    const provider = new OpenAIBatchEmbeddingProvider({
+      apiKey: "sk-test",
+      model: "text-embedding-3-large",
+    });
+    expect(provider.maxInputTokens).toBe(8191);
+  });
+
+  it("counts tokens via tiktoken", () => {
+    const provider = new OpenAIBatchEmbeddingProvider({
+      apiKey: "sk-test",
+      model: "text-embedding-3-large",
+    });
+    expect(provider.countTokens("hello world")).toBe(2);
+  });
+
   describe("embed (sync fallback)", () => {
     it("returns embeddings sorted by index", async () => {
       const fetchFn = vi.fn().mockResolvedValue({
@@ -55,6 +71,7 @@ describe("OpenAIBatchEmbeddingProvider", () => {
         ok: false,
         status: 429,
         statusText: "Too Many Requests",
+        text: () => Promise.resolve(""),
       }) as unknown as typeof fetch;
 
       const provider = new OpenAIBatchEmbeddingProvider({

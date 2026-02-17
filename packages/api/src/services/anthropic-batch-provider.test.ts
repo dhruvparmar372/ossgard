@@ -9,6 +9,22 @@ function mockFetch(responseBody: unknown): typeof fetch {
 }
 
 describe("AnthropicBatchProvider", () => {
+  it("has maxContextTokens of 200_000", () => {
+    const provider = new AnthropicBatchProvider({
+      apiKey: "sk-test",
+      model: "claude-sonnet-4-20250514",
+    });
+    expect(provider.maxContextTokens).toBe(200_000);
+  });
+
+  it("counts tokens via heuristic", () => {
+    const provider = new AnthropicBatchProvider({
+      apiKey: "sk-test",
+      model: "claude-sonnet-4-20250514",
+    });
+    expect(provider.countTokens("a".repeat(35))).toBe(10);
+  });
+
   it("has batch property set to true", () => {
     const provider = new AnthropicBatchProvider({
       apiKey: "sk-test",

@@ -15,10 +15,14 @@ export interface ChatResult {
 
 export interface EmbeddingProvider {
   readonly dimensions: number;
+  readonly maxInputTokens: number;
+  countTokens(text: string): number;
   embed(texts: string[]): Promise<number[][]>;
 }
 
 export interface ChatProvider {
+  readonly maxContextTokens: number;
+  countTokens(text: string): number;
   chat(messages: Message[]): Promise<ChatResult>;
 }
 

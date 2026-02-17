@@ -16,6 +16,27 @@ function mockFetchError(status: number, statusText: string): typeof fetch {
 }
 
 describe("AnthropicProvider", () => {
+  describe("maxContextTokens", () => {
+    it("is 200_000", () => {
+      const provider = new AnthropicProvider({
+        apiKey: "sk-test",
+        model: "claude-sonnet-4-20250514",
+      });
+      expect(provider.maxContextTokens).toBe(200_000);
+    });
+  });
+
+  describe("countTokens", () => {
+    it("uses heuristic at ~3.5 chars/token", () => {
+      const provider = new AnthropicProvider({
+        apiKey: "sk-test",
+        model: "claude-sonnet-4-20250514",
+      });
+      // 35 chars / 3.5 = 10 tokens
+      expect(provider.countTokens("a".repeat(35))).toBe(10);
+    });
+  });
+
   describe("chat", () => {
     it("returns ChatResult with parsed JSON and token usage", async () => {
       const chatResponse = {

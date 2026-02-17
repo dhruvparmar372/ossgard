@@ -6,6 +6,7 @@ import type {
   Message,
   TokenUsage,
 } from "./llm-provider.js";
+import { countTokensHeuristic } from "./token-counting.js";
 
 export interface AnthropicBatchProviderOptions {
   apiKey: string;
@@ -17,6 +18,7 @@ export interface AnthropicBatchProviderOptions {
 
 export class AnthropicBatchProvider implements BatchChatProvider {
   readonly batch = true as const;
+  readonly maxContextTokens = 200_000;
 
   private apiKey: string;
   private model: string;
@@ -30,6 +32,10 @@ export class AnthropicBatchProvider implements BatchChatProvider {
     this.pollIntervalMs = options.pollIntervalMs ?? 10_000;
     this.timeoutMs = options.timeoutMs ?? 30 * 60 * 1000;
     this.fetchFn = options.fetchFn ?? fetch;
+  }
+
+  countTokens(text: string): number {
+    return countTokensHeuristic(text, 3.5);
   }
 
   async chat(messages: Message[]): Promise<ChatResult> {

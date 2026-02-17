@@ -1,4 +1,5 @@
 import type { ChatProvider, ChatResult, Message } from "./llm-provider.js";
+import { countTokensHeuristic } from "./token-counting.js";
 
 export interface AnthropicProviderOptions {
   apiKey: string;
@@ -7,6 +8,7 @@ export interface AnthropicProviderOptions {
 }
 
 export class AnthropicProvider implements ChatProvider {
+  readonly maxContextTokens = 200_000;
   private apiKey: string;
   private model: string;
   private fetchFn: typeof fetch;
@@ -15,6 +17,10 @@ export class AnthropicProvider implements ChatProvider {
     this.apiKey = options.apiKey;
     this.model = options.model;
     this.fetchFn = options.fetchFn ?? fetch;
+  }
+
+  countTokens(text: string): number {
+    return countTokensHeuristic(text, 3.5);
   }
 
   async chat(messages: Message[]): Promise<ChatResult> {
