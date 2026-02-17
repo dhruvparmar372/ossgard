@@ -81,22 +81,38 @@ export class RankProcessor implements JobProcessor {
     rankLog.info("LLM mode", { scanId, mode: useBatch ? "batch" : "sequential", prompts: prepared.length });
 
     if (useBatch) {
+      rankLog.info("Sending batch ranking", { scanId, groups: prepared.length });
+      const batchStart = Date.now();
       const results = await llm.chatBatch(
         prepared.map((p) => ({
           id: `rank-${p.groupIndex}`,
           messages: p.messages,
         }))
       );
+      rankLog.info("Batch ranking complete", { scanId, durationMs: Date.now() - batchStart });
       responses = results.map(
         (r) => r.response as { rankings: RankingResult[] }
       );
     } else {
       responses = [];
-      for (const p of prepared) {
+      for (let i = 0; i < prepared.length; i++) {
+        const p = prepared[i];
+        rankLog.info("Ranking group", {
+          scanId,
+          group: `${i + 1}/${prepared.length}`,
+          label: p.group.label,
+          prs: p.prs.length,
+        });
+        const groupStart = Date.now();
         const response = (await llm.chat(p.messages)) as {
           rankings: RankingResult[];
         };
         responses.push(response);
+        rankLog.info("Group ranked", {
+          scanId,
+          group: `${i + 1}/${prepared.length}`,
+          durationMs: Date.now() - groupStart,
+        });
       }
     }
 
@@ -131,6 +147,13 @@ export class RankProcessor implements JobProcessor {
           ranking.rationale
         );
       }
+
+      rankLog.info("Group stored", {
+        scanId,
+        label: group.label,
+        members: sortedRankings.length,
+        topScore: sortedRankings[0]?.score ?? 0,
+      });
 
       totalGroups++;
     }

@@ -69,9 +69,13 @@ export class ClusterProcessor implements JobProcessor {
 
     // Embedding path: for each PR, retrieve actual stored vectors and search
     // both code and intent collections, unioning PRs above the similarity threshold
-    for (const pr of prs) {
+    for (let i = 0; i < prs.length; i++) {
+      const pr = prs[i];
       const codePointId = `${repoId}-${pr.number}-code`;
       const intentPointId = `${repoId}-${pr.number}-intent`;
+      const prStart = Date.now();
+      let codeMatches = 0;
+      let intentMatches = 0;
 
       // Retrieve actual stored vector for this PR's code embedding
       const codeVector = await vectorStore.getVector(CODE_COLLECTION, codePointId);
@@ -95,6 +99,7 @@ export class ClusterProcessor implements JobProcessor {
             uf.has(neighborPR)
           ) {
             uf.union(pr.number, neighborPR);
+            codeMatches++;
           }
         }
       }
@@ -121,9 +126,19 @@ export class ClusterProcessor implements JobProcessor {
             uf.has(neighborPR)
           ) {
             uf.union(pr.number, neighborPR);
+            intentMatches++;
           }
         }
       }
+
+      clusterLog.info("PR clustered", {
+        scanId,
+        pr: pr.number,
+        codeMatches,
+        intentMatches,
+        durationMs: Date.now() - prStart,
+        progress: `${i + 1}/${prs.length}`,
+      });
     }
 
     // Extract connected components with 2+ members

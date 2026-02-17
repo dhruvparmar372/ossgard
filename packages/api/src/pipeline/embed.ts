@@ -72,8 +72,17 @@ export class EmbedProcessor implements JobProcessor {
     embeddingProvider: EmbeddingProvider,
     vectorStore: VectorStore
   ): Promise<void> {
+    const totalBatches = Math.ceil(prs.length / BATCH_SIZE);
     for (let i = 0; i < prs.length; i += BATCH_SIZE) {
       const batch = prs.slice(i, i + BATCH_SIZE);
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+      const batchStart = Date.now();
+
+      embedLog.info("Embedding batch", {
+        batch: `${batchNum}/${totalBatches}`,
+        prs: batch.length,
+        prRange: `#${batch[0].number}..#${batch[batch.length - 1].number}`,
+      });
 
       const codeInputs = batch.map((pr) => pr.filePaths.join("\n"));
       const intentInputs = batch.map(
@@ -87,6 +96,12 @@ export class EmbedProcessor implements JobProcessor {
       ]);
 
       await this.upsertBatch(repoId, batch, codeEmbeddings, intentEmbeddings, vectorStore);
+
+      embedLog.info("Batch embedded", {
+        batch: `${batchNum}/${totalBatches}`,
+        durationMs: Date.now() - batchStart,
+        progress: `${Math.min(i + BATCH_SIZE, prs.length)}/${prs.length}`,
+      });
     }
   }
 
@@ -123,12 +138,16 @@ export class EmbedProcessor implements JobProcessor {
       batchMeta.push({ batchIndex: batchIdx, type: "intent", prSlice: batch });
     }
 
+    embedLog.info("Sending batch embedding request", { requests: requests.length });
+    const batchStart = Date.now();
     const results = await provider.embedBatch(requests);
+    embedLog.info("Batch embedding complete", { durationMs: Date.now() - batchStart });
 
     // Map results by id
     const resultMap = new Map(results.map((r) => [r.id, r.embeddings]));
 
     // Upsert for each batch
+    const totalBatches = Math.ceil(prs.length / BATCH_SIZE);
     for (let i = 0; i < prs.length; i += BATCH_SIZE) {
       const batch = prs.slice(i, i + BATCH_SIZE);
       const batchIdx = Math.floor(i / BATCH_SIZE);
@@ -137,6 +156,10 @@ export class EmbedProcessor implements JobProcessor {
       const intentEmbeddings = resultMap.get(`intent-${batchIdx}`)!;
 
       await this.upsertBatch(repoId, batch, codeEmbeddings, intentEmbeddings, vectorStore);
+      embedLog.info("Batch upserted to vector store", {
+        batch: `${batchIdx + 1}/${totalBatches}`,
+        progress: `${Math.min(i + BATCH_SIZE, prs.length)}/${prs.length}`,
+      });
     }
   }
 

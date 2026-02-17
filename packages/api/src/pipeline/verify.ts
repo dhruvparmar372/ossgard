@@ -101,23 +101,41 @@ export class VerifyProcessor implements JobProcessor {
     verifyLog.info("LLM mode", { scanId, mode: useBatch ? "batch" : "sequential", prompts: prepared.length });
 
     if (useBatch) {
+      verifyLog.info("Sending batch verification", { scanId, groups: prepared.length });
+      const batchStart = Date.now();
       const results = await llm.chatBatch(
         prepared.map((p) => ({
           id: `verify-${p.index}`,
           messages: p.messages,
         }))
       );
+      verifyLog.info("Batch verification complete", { scanId, durationMs: Date.now() - batchStart });
       for (const result of results) {
         verifiedGroups.push(
           ...collectVerifiedGroups(result.response as VerifyResponse)
         );
       }
     } else {
-      for (const p of prepared) {
+      for (let i = 0; i < prepared.length; i++) {
+        const p = prepared[i];
+        const candidate = candidateGroups[p.index];
+        verifyLog.info("Verifying group", {
+          scanId,
+          group: `${i + 1}/${prepared.length}`,
+          prs: candidate.prNumbers,
+        });
+        const groupStart = Date.now();
         const response = (await llm.chat(
           p.messages
         )) as VerifyResponse;
-        verifiedGroups.push(...collectVerifiedGroups(response));
+        const verified = collectVerifiedGroups(response);
+        verifiedGroups.push(...verified);
+        verifyLog.info("Group verified", {
+          scanId,
+          group: `${i + 1}/${prepared.length}`,
+          confirmed: verified.length > 0,
+          durationMs: Date.now() - groupStart,
+        });
       }
     }
 
