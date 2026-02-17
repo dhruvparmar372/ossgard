@@ -8,6 +8,7 @@ import { DiffTooLargeError } from "../services/github-client.js";
 import { log } from "../logger.js";
 
 const ingestLog = log.child("ingest");
+const PR_CONCURRENCY = 10;
 
 export class IngestProcessor implements JobProcessor {
   readonly type = "ingest";
@@ -43,11 +44,10 @@ export class IngestProcessor implements JobProcessor {
 
     let etagHits = 0;
     let diffTooLarge = 0;
+    let completed = 0;
 
-    // For each PR, fetch files and diff, compute hash, upsert
-    for (let i = 0; i < fetchedPRs.length; i++) {
-      const pr = fetchedPRs[i];
-      // Look up existing PR for its stored etag
+    // Process a single PR: fetch files + diff, compute hash, upsert
+    const ingestPR = async (pr: (typeof fetchedPRs)[number]) => {
       const existingPR = this.db.getPRByNumber(repoId, pr.number);
       const storedEtag = existingPR?.githubEtag ?? null;
 
@@ -78,7 +78,6 @@ export class IngestProcessor implements JobProcessor {
         }
       }
 
-      // If diff hasn't changed (304) or was too large, skip processing but still upsert metadata
       const cached = !diffResult;
       if (cached) etagHits++;
       const diffHash = diffResult ? hashDiff(diffResult.diff) : existingPR?.diffHash ?? null;
@@ -97,20 +96,34 @@ export class IngestProcessor implements JobProcessor {
         updatedAt: pr.updatedAt,
       });
 
-      // Store the etag
       if (newEtag && upserted) {
         this.db.updatePREtag(upserted.id, newEtag);
       }
 
+      completed++;
       ingestLog.info("PR ingested", {
         scanId,
         pr: pr.number,
         files: filePaths.length,
         cached,
         durationMs: Date.now() - prStart,
-        progress: `${i + 1}/${fetchedPRs.length}`,
+        progress: `${completed}/${fetchedPRs.length}`,
       });
-    }
+    };
+
+    // Process PRs concurrently using a worker pool
+    // The underlying RateLimitedClient semaphore (maxConcurrent=10) provides HTTP-level backpressure
+    const queue = [...fetchedPRs];
+    const workers = Array.from(
+      { length: Math.min(PR_CONCURRENCY, fetchedPRs.length) },
+      async () => {
+        while (queue.length > 0) {
+          const pr = queue.shift()!;
+          await ingestPR(pr);
+        }
+      }
+    );
+    await Promise.all(workers);
 
     ingestLog.info("Ingest complete", { scanId, count: fetchedPRs.length, etagHits, diffTooLarge });
 
