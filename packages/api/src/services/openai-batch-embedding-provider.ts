@@ -217,6 +217,7 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
       const pollData = (await pollRes.json()) as {
         status: string;
         output_file_id?: string;
+        errors?: { data?: Array<{ message?: string }> };
       };
 
       const elapsedMs = Date.now() - startTime;
@@ -242,7 +243,9 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
         pollData.status === "expired" ||
         pollData.status === "cancelled"
       ) {
-        throw new Error(`OpenAI batch ${pollData.status}`);
+        const firstError = pollData.errors?.data?.[0]?.message;
+        const detail = firstError ? `: ${firstError}` : "";
+        throw new Error(`OpenAI batch ${pollData.status}${detail}`);
       }
 
       if (Date.now() + nextInterval > deadline) {

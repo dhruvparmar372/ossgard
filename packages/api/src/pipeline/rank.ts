@@ -89,20 +89,26 @@ export class RankProcessor implements JobProcessor {
     if (useBatch) {
       rankLog.info("Sending batch ranking", { scanId, groups: prepared.length });
       const batchStart = Date.now();
-      const results = await llm.chatBatch(
-        prepared.map((p) => ({
-          id: `rank-${p.groupIndex}`,
-          messages: p.messages,
-        })),
-        {
-          existingBatchId,
-          onBatchCreated: (batchId) => {
-            this.db.updateScanStatus(scanId, "ranking", {
-              phaseCursor: { rankBatchId: batchId },
-            });
-          },
-        }
-      );
+      let results;
+      try {
+        results = await llm.chatBatch(
+          prepared.map((p) => ({
+            id: `rank-${p.groupIndex}`,
+            messages: p.messages,
+          })),
+          {
+            existingBatchId,
+            onBatchCreated: (batchId) => {
+              this.db.updateScanStatus(scanId, "ranking", {
+                phaseCursor: { rankBatchId: batchId },
+              });
+            },
+          }
+        );
+      } catch (err) {
+        this.db.updateScanStatus(scanId, "ranking", { phaseCursor: null });
+        throw err;
+      }
       rankLog.info("Batch ranking complete", { scanId, durationMs: Date.now() - batchStart });
       responses = results.map((r) => {
         totalInputTokens += r.usage.inputTokens;

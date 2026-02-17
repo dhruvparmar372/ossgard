@@ -61,7 +61,7 @@ export class WorkerLoop {
 
       if (job.attempts < job.maxRetries) {
         // Retry with exponential backoff (longer for rate limits)
-        const isRateLimit = /429|rate.?limit/i.test(message);
+        const isRateLimit = /429|rate.?limit|token.?limit|enqueued.+limit/i.test(message);
         const baseMs = isRateLimit ? 60_000 : 1000;
         const backoffMs = baseMs * Math.pow(2, job.attempts - 1);
         const runAfter = new Date(Date.now() + backoffMs);

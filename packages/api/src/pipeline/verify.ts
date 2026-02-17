@@ -109,20 +109,26 @@ export class VerifyProcessor implements JobProcessor {
     if (useBatch) {
       verifyLog.info("Sending batch verification", { scanId, groups: prepared.length });
       const batchStart = Date.now();
-      const results = await llm.chatBatch(
-        prepared.map((p) => ({
-          id: `verify-${p.index}`,
-          messages: p.messages,
-        })),
-        {
-          existingBatchId,
-          onBatchCreated: (batchId) => {
-            this.db.updateScanStatus(scanId, "verifying", {
-              phaseCursor: { verifyBatchId: batchId },
-            });
-          },
-        }
-      );
+      let results;
+      try {
+        results = await llm.chatBatch(
+          prepared.map((p) => ({
+            id: `verify-${p.index}`,
+            messages: p.messages,
+          })),
+          {
+            existingBatchId,
+            onBatchCreated: (batchId) => {
+              this.db.updateScanStatus(scanId, "verifying", {
+                phaseCursor: { verifyBatchId: batchId },
+              });
+            },
+          }
+        );
+      } catch (err) {
+        this.db.updateScanStatus(scanId, "verifying", { phaseCursor: null });
+        throw err;
+      }
       verifyLog.info("Batch verification complete", { scanId, durationMs: Date.now() - batchStart });
       for (const result of results) {
         totalInputTokens += result.usage.inputTokens;

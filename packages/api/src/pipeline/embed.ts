@@ -72,7 +72,13 @@ export class EmbedProcessor implements JobProcessor {
     const existingBatchId = (scan?.phaseCursor as Record<string, unknown> | null)?.embedBatchId as string | undefined;
 
     if (useBatch) {
-      await this.processBatch(repoId, scanId, prs, embeddingProvider, vectorStore, existingBatchId);
+      try {
+        await this.processBatch(repoId, scanId, prs, embeddingProvider, vectorStore, existingBatchId);
+      } catch (err) {
+        // Clear phaseCursor so next retry creates a fresh batch instead of resuming a failed one
+        this.db.updateScanStatus(scanId, "embedding", { phaseCursor: null });
+        throw err;
+      }
     } else {
       await this.processSequential(repoId, prs, embeddingProvider, vectorStore);
     }
