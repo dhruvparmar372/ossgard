@@ -265,7 +265,7 @@ export class Database {
     return result.changes > 0;
   }
 
-  createScan(repoId: number, accountId: number, strategy: string = "pairwise-llm"): Scan {
+  createScan(repoId: number, accountId: number, strategy: DuplicateStrategyName = "pairwise-llm"): Scan {
     const stmt = this.raw.prepare(
       "INSERT INTO scans (repo_id, account_id, status, strategy) VALUES (?, ?, 'queued', ?) RETURNING *"
     );
