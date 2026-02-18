@@ -33,10 +33,21 @@ Be concise. One or two lines per message. Include concrete numbers when availabl
 
 ## Upfront Questions
 
-Before starting, ask the user two questions:
+Before starting, ask the user three questions:
 
 1. **Which repository to scan?** (e.g. `openclaw/openclaw`, `facebook/react`)
 2. **PR cap?** Maximum number of PRs to ingest (e.g. `50`, `200`, `1000`)
+3. **Deduplication strategy?** Which duplicate detection strategy to use:
+   - **pairwise-llm (Recommended)** — Summarizes each PR's intent with an LLM,
+     embeds actual code diffs, then verifies every candidate pair with a dedicated
+     LLM call. Groups are formed via complete-linkage (cliques), so every member
+     is confirmed as a duplicate of every other member — no false-positive
+     mega-groups.
+   - **legacy** — Embeds PR titles and file paths, clusters via Union-Find, then
+     does a single group-level LLM pass. Faster but assumes transitivity, which
+     can produce large false-positive groups.
+
+   Default to **pairwise-llm** if the user has no preference.
 
 ---
 
@@ -121,7 +132,7 @@ $HOME/.local/bin/ossgard clear-scans --force
 ### 3.3 — Dispatch scan
 
 ```bash
-$HOME/.local/bin/ossgard scan <owner/repo> --limit <N> --no-wait
+$HOME/.local/bin/ossgard scan <owner/repo> --limit <N> --strategy <strategy> --no-wait
 ```
 
 `--no-wait` returns immediately. Monitor progress through API logs instead of
@@ -267,7 +278,7 @@ Print final summary:
 | Start API server | `LOG_LEVEL=info $HOME/.local/bin/ossgard-api > /tmp/ossgard-api.log 2>&1 &` |
 | Health check | `curl -sf http://localhost:3400/health` |
 | Clear old scans | `$HOME/.local/bin/ossgard clear-scans --force` |
-| Dispatch scan | `$HOME/.local/bin/ossgard scan <repo> --limit <N> --no-wait` |
+| Dispatch scan | `$HOME/.local/bin/ossgard scan <repo> --limit <N> --strategy <strategy> --no-wait` |
 | View results | `$HOME/.local/bin/ossgard dupes <repo>` |
 | Tail logs | `tail -f /tmp/ossgard-api.log` |
 | Kill API server | `pkill -f ossgard-api` |
