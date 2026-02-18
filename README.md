@@ -222,23 +222,7 @@ bun run build:cli # Compile standalone CLI binary
 
 E2E tests exercise the full stack using the standalone binaries. They start the `ossgard-api` binary as a subprocess and shell out to the `ossgard` CLI for all commands.
 
-**Setup:**
-
-```bash
-# 1. Start the local AI stack
-docker compose -f local-ai/vector-store.yml up -d
-docker compose -f local-ai/llm-provider.yml up -d
-ollama pull nomic-embed-text
-ollama pull llama3
-
-# 2. Build standalone binaries
-bun run build && bun run build:api && bun run build:cli
-
-# 3. Run the tests
-bun run test:e2e
-```
-
-The smoke tests (`e2e/smoke.test.ts`) only need the binaries built — they don't require the local AI stack. The full pipeline test (`e2e/openclaw.test.ts`) requires everything and will skip gracefully if services aren't available.
+E2E testing is handled via the `/ossgard-smoke-test` Claude command.
 
 #### API authentication
 

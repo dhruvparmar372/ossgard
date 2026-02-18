@@ -7,7 +7,6 @@
     "build": "bun run --filter '*' build",
     "test": "bun run --filter '*' test",
     "dev": "bun run --cwd packages/api dev",
-    "test:e2e": "bun test e2e/",
     "build:cli": "bun run --cwd packages/cli build:bin",
     "build:api": "bun run --cwd packages/api build:bin"
   }

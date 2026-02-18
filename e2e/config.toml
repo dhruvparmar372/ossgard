@@ -1,9 +1,0 @@
-# E2E test configuration
-#
-# This config is written dynamically by the E2E test setup.
-# It only contains api.url and api.key — all service config
-# is stored server-side in the account.
-
-[api]
-url = "http://localhost:3400"
-key = ""
