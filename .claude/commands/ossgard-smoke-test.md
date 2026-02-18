@@ -23,6 +23,7 @@ Print terse status lines throughout:
 | Stall detected | `[Stall] No new logs for 5 minutes. Investigating...` |
 | Error spotted | `[Error] <impact first, then technical detail>` |
 | Fix applied | `[Fix] <what was wrong> -> <what was changed>` |
+| Fixes committed | `[Commit] <N> fix(es) committed — <short hash>` |
 | Rebuilding | `[Rebuilding] Applying fix, rebuilding binaries...` |
 | Retrying | `[Retry] Restarting from Phase 3 with clean slate...` |
 | Pipeline done | `[Complete] Scan finished successfully. Fetching results...` |
@@ -208,6 +209,7 @@ stack traces, or non-zero exit codes):
 ### Step 2 — Fix (no approval gate)
 
 - Apply the code fix using the Edit tool
+- Keep a running list of fixed files and one-line descriptions for each fix
 - Rebuild:
   ```bash
   cd /Users/dhruv/Code/ossgard
@@ -229,6 +231,32 @@ stack traces, or non-zero exit codes):
 Go back to **Phase 3** (compact, clear scans, re-dispatch). The clear ensures
 no stale scan state interferes. ETag caching still applies at the GitHub layer,
 so previously fetched PR diffs won't be re-downloaded.
+
+### Step 3.5 — Commit on success
+
+When a retry scan completes **successfully** (reaches Phase 7), commit all
+accumulated fixes before moving to results. This preserves every fix so they
+are not lost between sessions.
+
+```bash
+cd /Users/dhruv/Code/ossgard
+git add -A -- packages/   # only source code, not logs/dist
+git commit -m "fix: <concise summary of all fixes applied>
+
+Applied during smoke-test run against <owner/repo> (limit <N>).
+
+Fixes:
+- <one-line description of fix 1>
+- <one-line description of fix 2>
+...
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
+```
+
+Print: `[Commit] <N> fix(es) committed — <short commit hash>`
+
+If there are no uncommitted changes (e.g. all fixes were already committed in
+a prior cycle), skip this step silently.
 
 ### Step 4 — Escalate
 
@@ -265,7 +293,7 @@ Print final summary:
   Repo:    <owner/repo>
   PR cap:  <N>
   Groups:  <count> duplicate groups found
-  Fixes:   <count> auto-applied (review with `git diff`)
+  Fixes:   <count> auto-applied and committed (<short hash>)
 ```
 
 ---
