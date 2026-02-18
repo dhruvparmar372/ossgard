@@ -234,4 +234,33 @@ describe("Database", () => {
       expect(results[0].id).toBe(pr1.id);
     });
   });
+
+  describe("scan strategy", () => {
+    let repoId: number;
+    let accountId: number;
+
+    beforeEach(() => {
+      const account = db.createAccount("key-1", "test", {} as any);
+      accountId = account.id;
+      const repo = db.insertRepo("facebook", "react");
+      repoId = repo.id;
+    });
+
+    it("defaults strategy to pairwise-llm", () => {
+      const scan = db.createScan(repoId, accountId);
+      expect(scan.strategy).toBe("pairwise-llm");
+    });
+
+    it("accepts an explicit strategy", () => {
+      const scan = db.createScan(repoId, accountId, "legacy");
+      expect(scan.strategy).toBe("legacy");
+    });
+
+    it("round-trips strategy through getScan", () => {
+      const scan = db.createScan(repoId, accountId, "legacy");
+      const fetched = db.getScan(scan.id);
+      expect(fetched).not.toBeNull();
+      expect(fetched!.strategy).toBe("legacy");
+    });
+  });
 });
