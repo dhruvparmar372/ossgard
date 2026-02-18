@@ -25,21 +25,26 @@ export function scanCommand(client: ApiClient): Command {
     .description("Start a duplicate scan for a repository")
     .argument("<owner/repo>", "Repository slug (e.g. facebook/react)")
     .option("--full", "Run a full scan (re-scan everything)")
+    .option("--limit <count>", "Maximum number of PRs to ingest", parseInt)
     .option("--no-wait", "Don't wait for scan to complete")
     .option("--json", "Output as JSON")
     .action(
       async (
         slug: string,
-        opts: { full?: boolean; wait?: boolean; json?: boolean }
+        opts: { full?: boolean; limit?: number; wait?: boolean; json?: boolean }
       ) => {
         if (!requireSetup()) return;
         const { owner, name } = parseSlug(slug);
+
+        const body: Record<string, unknown> = {};
+        if (opts.full) body.full = true;
+        if (opts.limit) body.maxPrs = opts.limit;
 
         const result = await client.post<{
           scanId: number;
           jobId?: string;
           status: string;
-        }>(`/repos/${owner}/${name}/scan`, opts.full ? { full: true } : undefined);
+        }>(`/repos/${owner}/${name}/scan`, Object.keys(body).length > 0 ? body : undefined);
         const scanId = result.scanId;
         const alreadyRunning = !result.jobId;
 
