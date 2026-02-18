@@ -7,6 +7,11 @@ export interface OpenAIChatProviderOptions {
   fetchFn?: typeof fetch;
 }
 
+/** Strip markdown code-block wrapping that LLMs sometimes add around JSON. */
+function stripCodeBlock(raw: string): string {
+  return raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
+}
+
 export class OpenAIChatProvider implements ChatProvider {
   readonly maxContextTokens = 128_000;
   private apiKey: string;
@@ -58,10 +63,14 @@ export class OpenAIChatProvider implements ChatProvider {
       usage: { prompt_tokens: number; completion_tokens: number };
     };
 
-    const raw = data.choices[0].message.content;
+    const firstChoice = data.choices[0];
+    if (!firstChoice?.message?.content) {
+      throw new Error("OpenAI chat returned no content in choices");
+    }
+    const raw = firstChoice.message.content;
     try {
       return {
-        response: JSON.parse(raw) as Record<string, unknown>,
+        response: JSON.parse(stripCodeBlock(raw)) as Record<string, unknown>,
         usage: {
           inputTokens: data.usage.prompt_tokens,
           outputTokens: data.usage.completion_tokens,

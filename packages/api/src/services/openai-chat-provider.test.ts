@@ -165,6 +165,22 @@ describe("OpenAIChatProvider", () => {
       ).rejects.toThrow("OpenAI chat error: 401 Unauthorized");
     });
 
+    it("throws when choices array is empty", async () => {
+      const fetchFn = mockFetch({
+        choices: [],
+        usage: { prompt_tokens: 10, completion_tokens: 5 },
+      });
+      const provider = new OpenAIChatProvider({
+        apiKey: "sk-test-key",
+        model: "gpt-4o-mini",
+        fetchFn,
+      });
+
+      await expect(
+        provider.chat([{ role: "user", content: "test" }])
+      ).rejects.toThrow("OpenAI chat returned no content in choices");
+    });
+
     it("throws descriptive error when LLM returns invalid JSON", async () => {
       const fetchFn = mockFetch({
         choices: [{ message: { content: "not json" } }],
