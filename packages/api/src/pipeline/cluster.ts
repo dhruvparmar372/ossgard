@@ -12,8 +12,9 @@ const INTENT_COLLECTION = "ossgard-intent";
 /** Max similar PRs to union per search. Prevents giant transitive components. */
 const MAX_NEIGHBORS = 10;
 
-/** Hard cap on candidate group size. Oversized groups get split into chunks. */
-const MAX_GROUP_SIZE = 100;
+/** Hard cap on candidate group size. Oversized groups get split into chunks.
+ *  50 keeps ranking output well under the 8192 output-token limit. */
+const MAX_GROUP_SIZE = 50;
 
 const clusterLog = log.child("cluster");
 

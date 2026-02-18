@@ -35,7 +35,7 @@ export class AnthropicProvider implements ChatProvider {
 
     const body: Record<string, unknown> = {
       model: this.model,
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: nonSystemMessages.map((m) => ({
         role: m.role,
         content: m.content,

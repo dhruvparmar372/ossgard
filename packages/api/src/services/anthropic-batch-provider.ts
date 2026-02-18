@@ -57,7 +57,7 @@ export class AnthropicBatchProvider implements BatchChatProvider {
 
     const body: Record<string, unknown> = {
       model: this.model,
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: nonSystemMessages.map((m) => ({
         role: m.role,
         content: m.content,
@@ -138,7 +138,7 @@ export class AnthropicBatchProvider implements BatchChatProvider {
 
         const params: Record<string, unknown> = {
           model: this.model,
-          max_tokens: 4096,
+          max_tokens: 8192,
           messages: nonSystemMessages.map((m) => ({
             role: m.role,
             content: m.content,

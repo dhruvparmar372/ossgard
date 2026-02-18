@@ -6,7 +6,7 @@ export interface TokenCounter {
   maxContextTokens: number;
 }
 
-const OUTPUT_TOKEN_RESERVE = 4096;
+const OUTPUT_TOKEN_RESERVE = 8192;
 const TRUNCATED_BODY_CHARS = 500;
 const TRUNCATED_FILE_COUNT = 20;
 

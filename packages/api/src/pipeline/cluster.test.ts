@@ -346,10 +346,11 @@ describe("ClusterProcessor", () => {
       enqueueCall.payload as { candidateGroups: Array<{ prNumbers: number[] }> }
     ).candidateGroups;
 
-    // 150 PRs with MAX_GROUP_SIZE=100 → should be split into 2 groups (100 + 50)
-    expect(candidateGroups).toHaveLength(2);
-    expect(candidateGroups[0].prNumbers).toHaveLength(100);
+    // 150 PRs with MAX_GROUP_SIZE=50 → should be split into 3 groups (50 + 50 + 50)
+    expect(candidateGroups).toHaveLength(3);
+    expect(candidateGroups[0].prNumbers).toHaveLength(50);
     expect(candidateGroups[1].prNumbers).toHaveLength(50);
+    expect(candidateGroups[2].prNumbers).toHaveLength(50);
 
     // All 150 PRs should be present across all groups
     const allNumbers = candidateGroups
