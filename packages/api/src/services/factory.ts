@@ -5,6 +5,8 @@ import { AnthropicProvider } from "./anthropic-provider.js";
 import { AnthropicBatchProvider } from "./anthropic-batch-provider.js";
 import { OpenAIEmbeddingProvider } from "./openai-embedding-provider.js";
 import { OpenAIBatchEmbeddingProvider } from "./openai-batch-embedding-provider.js";
+import { OpenAIChatProvider } from "./openai-chat-provider.js";
+import { OpenAIBatchChatProvider } from "./openai-batch-chat-provider.js";
 import { GitHubClient } from "./github-client.js";
 import { QdrantStore, type QdrantClient } from "./qdrant-store.js";
 import { log } from "../logger.js";
@@ -31,6 +33,20 @@ export class ServiceFactory {
         });
       }
       return new AnthropicProvider({
+        apiKey: this.config.llm.apiKey,
+        model: this.config.llm.model,
+      });
+    }
+
+    if (this.config.llm.provider === "openai") {
+      if (this.config.llm.batch) {
+        return new OpenAIBatchChatProvider({
+          apiKey: this.config.llm.apiKey,
+          model: this.config.llm.model,
+          logger: log.child("openai-batch-chat"),
+        });
+      }
+      return new OpenAIChatProvider({
         apiKey: this.config.llm.apiKey,
         model: this.config.llm.model,
       });

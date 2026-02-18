@@ -49,6 +49,22 @@ describe("ServiceFactory", () => {
       const llm = factory.createLLMProvider();
       expect(llm.constructor.name).toBe("OllamaProvider");
     });
+
+    it("returns OpenAIChatProvider when provider is openai", () => {
+      const factory = new ServiceFactory(
+        makeConfig({ llm: { provider: "openai", url: "", model: "gpt-4o-mini", apiKey: "sk-test" } })
+      );
+      const llm = factory.createLLMProvider();
+      expect(llm.constructor.name).toBe("OpenAIChatProvider");
+    });
+
+    it("returns OpenAIBatchChatProvider when provider is openai with batch=true", () => {
+      const factory = new ServiceFactory(
+        makeConfig({ llm: { provider: "openai", url: "", model: "gpt-4o-mini", apiKey: "sk-test", batch: true } })
+      );
+      const llm = factory.createLLMProvider();
+      expect(llm.constructor.name).toBe("OpenAIBatchChatProvider");
+    });
   });
 
   describe("createEmbeddingProvider", () => {
