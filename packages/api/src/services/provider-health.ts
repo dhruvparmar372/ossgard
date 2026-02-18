@@ -24,7 +24,7 @@ export async function checkLLMHealth(
         },
         body: JSON.stringify({
           model: config.model,
-          max_tokens: 1,
+          max_completion_tokens: 1,
           messages: [{ role: "user", content: "hi" }],
         }),
       });

@@ -64,7 +64,7 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
         },
         body: JSON.stringify({
           model: this.model,
-          max_tokens: 8192,
+          max_completion_tokens: 8192,
           response_format: { type: "json_object" },
           messages: messages.map((m) => ({
             role: m.role,
@@ -128,7 +128,7 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
           url: "/v1/chat/completions",
           body: {
             model: this.model,
-            max_tokens: 8192,
+            max_completion_tokens: 8192,
             response_format: { type: "json_object" },
             messages: req.messages.map((m) => ({
               role: m.role,
@@ -243,7 +243,9 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
 
       const pollData = (await pollRes.json()) as {
         status: string;
-        output_file_id?: string;
+        output_file_id?: string | null;
+        error_file_id?: string | null;
+        request_counts?: { total: number; completed: number; failed: number };
         errors?: { data?: Array<{ message?: string }> };
       };
 
@@ -281,7 +283,7 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
     }
 
     if (!outputFileId) {
-      throw new Error("OpenAI batch completed but no output_file_id");
+      throw new Error("OpenAI batch completed but no output_file_id — all requests may have failed. Check error_file_id for details.");
     }
 
     // 5. Download results
