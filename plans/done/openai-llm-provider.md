@@ -1,4 +1,4 @@
-# OpenAI LLM Provider Design
+# OpenAI LLM Provider — Design & Implementation
 
 ## Goal
 
@@ -15,6 +15,10 @@ Add OpenAI as a chat/LLM provider so users can run the full pipeline with:
 4. **JSON mode** — use OpenAI's native `response_format: { type: "json_object" }` for reliable structured output
 5. **Tiktoken token counting** — exact counts, already a dependency
 6. **Health check** — verify provider connectivity (model + API key) before pipeline execution
+
+**Tech Stack:** TypeScript, OpenAI REST API, js-tiktoken, bun test (vitest-compatible)
+
+---
 
 ## New Files
 
@@ -85,3 +89,42 @@ When provider is set but model is empty, apply defaults:
 - `llm-provider.ts` — existing interfaces (`ChatProvider`, `BatchChatProvider`) already cover everything
 - Pipeline processors — they use `ChatProvider` interface polymorphically, no changes needed
 - Embedding providers — untouched, already support OpenAI
+
+---
+
+## Implementation Tasks
+
+### Task 1: OpenAI Chat Provider — Tests
+- Create `packages/api/src/services/openai-chat-provider.test.ts`
+- Tests: maxContextTokens, countTokens, chat (JSON response, Bearer auth, system messages, JSON mode, model in body, error handling, invalid JSON)
+
+### Task 2: OpenAI Chat Provider — Implementation
+- Create `packages/api/src/services/openai-chat-provider.ts`
+- Implements `ChatProvider` with tiktoken, Bearer auth, JSON mode
+
+### Task 3: OpenAI Batch Chat Provider — Tests
+- Create `packages/api/src/services/openai-batch-chat-provider.test.ts`
+- Tests: maxContextTokens, countTokens, batch flag, sync fallback, full batch flow (upload → create → poll → download), batch create failure, per-item errors, resume from existing batch ID, onBatchCreated callback, 24h timeout default
+
+### Task 4: OpenAI Batch Chat Provider — Implementation
+- Create `packages/api/src/services/openai-batch-chat-provider.ts`
+- Implements `BatchChatProvider` following `openai-batch-embedding-provider.ts` pattern
+
+### Task 5: Factory Update — Tests
+- Modify `packages/api/src/services/factory.test.ts`
+- Tests: returns OpenAIChatProvider for openai, returns OpenAIBatchChatProvider for openai+batch
+
+### Task 6: Factory Update — Implementation
+- Modify `packages/api/src/services/factory.ts`
+- Wire OpenAI chat providers into `createLLMProvider()`
+
+### Task 7: Provider Health Check — Tests
+- Create `packages/api/src/services/provider-health.test.ts`
+- Tests: OpenAI/Anthropic/Ollama LLM health, embedding health, error handling
+
+### Task 8: Provider Health Check — Implementation
+- Create `packages/api/src/services/provider-health.ts`
+- `checkLLMHealth()` and `checkEmbeddingHealth()` functions
+
+### Task 9: Run Full Test Suite
+- Verify no regressions
