@@ -199,28 +199,50 @@ Default to **pairwise-llm** if the maintainer has no preference.
 
 ### 6.2 — Dispatch the scan
 
-Run the scan with the built-in progress display:
+> **CRITICAL — Non-blocking scan monitoring**
+>
+> The scan can take minutes to hours. Never run the scan CLI in a blocking
+> way that locks the conversation. Instead use `--no-wait` and monitor logs
+> in the background so the maintainer can still chat with you.
+
+Dispatch the scan in fire-and-forget mode:
 
 ```bash
 # Without cap:
-$HOME/.local/bin/ossgard scan <owner/repo> --strategy <strategy>
+$HOME/.local/bin/ossgard scan <owner/repo> --strategy <strategy> --no-wait
 
 # With cap:
-$HOME/.local/bin/ossgard scan <owner/repo> --limit <N> --strategy <strategy>
+$HOME/.local/bin/ossgard scan <owner/repo> --limit <N> --strategy <strategy> --no-wait
 ```
 
-This command polls the API and prints phase transitions:
+Then start a background watcher using the Bash tool with `run_in_background`:
+
+```bash
+# Watches for scan completion or errors, exits when found
+while true; do
+  if grep -q 'Scan complete\|scan_status=done\|status=failed\|ERROR' /tmp/ossgard-api.log 2>/dev/null; then
+    echo "---SCAN-EVENT-DETECTED---"
+    tail -80 /tmp/ossgard-api.log
+    break
+  fi
+  sleep 10
+done
 ```
-  [Ingesting PRs] | 87 PRs
-  [Computing embeddings]
-  [Clustering duplicates]
-  [Verifying with LLM]
-  [Ranking duplicates]
-  Scan complete. Found 8 duplicate group(s).
+
+Monitor progress by periodically checking `TaskOutput` with `block=false` and
+running quick `tail -30 /tmp/ossgard-api.log` reads. Report phase transitions
+to the maintainer as they happen:
+
+```
+[Ingest]  Complete — 87 PRs fetched, 3 skipped
+[Embed]   Complete — 87 PRs embedded
+[Cluster] Complete — 12 candidate groups
+[Verify]  Complete — 8 confirmed duplicate groups
+[Rank]    Complete — 8 groups ranked. Scan finished.
 ```
 
 **If the scan fails:**
-1. Print the error message from the CLI output
+1. Print the error message from the log output
 2. Show the last 30 lines of the API log: `tail -30 /tmp/ossgard-api.log`
 3. Diagnose the issue and explain it to the maintainer
 4. Do NOT attempt to auto-fix code — this is a demo, not a dev workflow

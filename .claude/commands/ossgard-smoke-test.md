@@ -102,14 +102,6 @@ done
 
 If health check fails, show last 20 lines of `/tmp/ossgard-api.log` and abort.
 
-Start tailing logs in background:
-
-```bash
-tail -f /tmp/ossgard-api.log
-```
-
-Read from this periodically (every 10-15s during active phases, every 30s idle).
-
 ---
 
 ## Phase 3 — Compact, Clear & Scan
@@ -145,13 +137,40 @@ the CLI polling loop — this gives richer diagnostics.
 
 ## Phase 4 — Monitor Pipeline Progress
 
+> **CRITICAL — Non-blocking monitoring**
+>
+> Never use blocking `sleep` commands to wait for logs. This locks the
+> conversation and prevents the user from chatting. Instead:
+>
+> 1. Start a background watcher using the Bash tool with `run_in_background`:
+>    ```bash
+>    # Watches for scan completion or errors, exits when found
+>    while true; do
+>      if grep -q 'Scan complete\|scan_status=done\|status=failed\|ERROR' /tmp/ossgard-api.log 2>/dev/null; then
+>        echo "---SCAN-EVENT-DETECTED---"
+>        tail -80 /tmp/ossgard-api.log
+>        break
+>      fi
+>      sleep 10
+>    done
+>    ```
+> 2. Check on it periodically using `TaskOutput` with `block=false` — this
+>    returns immediately without blocking.
+> 3. Between checks, read the latest logs with a quick non-blocking `tail`:
+>    ```bash
+>    tail -30 /tmp/ossgard-api.log
+>    ```
+> 4. Print a progress update, then **check `TaskOutput` again** (not sleep).
+>    If the watcher hasn't fired yet, do another `tail` check after a short
+>    moment. The user remains free to type between checks.
+
 The API processes the scan through five sequential phases:
 
 ```
 Ingest -> Embed -> Cluster -> Verify -> Rank -> Done
 ```
 
-Tail `/tmp/ossgard-api.log` and watch for these log prefixes:
+Watch `/tmp/ossgard-api.log` for these log prefixes:
 
 | Prefix | Phase |
 |--------|-------|
@@ -182,8 +201,9 @@ Report after each phase completes:
 | Sequential (default) | **5 minutes** of no new log lines |
 | Batch mode (embed/verify/rank with batch APIs) | **30 minutes** of no new log lines |
 
-During batch phases, check logs every 5 minutes. Batch phases can take hours
-when using OpenAI batch embeddings or Anthropic batch LLM.
+To detect stalls without blocking, compare the log file's modification time or
+line count between consecutive `tail` checks. If the line count hasn't changed
+across several checks spanning the timeout window, it's a stall.
 
 When a stall is detected:
 
