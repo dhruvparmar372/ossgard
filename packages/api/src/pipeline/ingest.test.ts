@@ -135,7 +135,7 @@ describe("IngestProcessor", () => {
     expect(storedPR!.diffHash).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("enqueues embed job after completion", async () => {
+  it("enqueues detect job after completion", async () => {
     (mockGitHub.listOpenPRs as any).mockResolvedValue([makeFetchedPR(1)]);
     (mockGitHub.getPRFiles as any).mockResolvedValue(["file.ts"]);
     (mockGitHub.getPRDiff as any).mockResolvedValue({ diff: makeDiff(1), etag: '"etag1"' });
@@ -144,7 +144,7 @@ describe("IngestProcessor", () => {
 
     expect(mockQueue.enqueue).toHaveBeenCalledTimes(1);
     expect(mockQueue.enqueue).toHaveBeenCalledWith({
-      type: "embed",
+      type: "detect",
       payload: { repoId, scanId, accountId, owner: "facebook", repo: "react" },
     });
   });
@@ -280,7 +280,7 @@ describe("IngestProcessor", () => {
     const pr2 = db.getPRByNumber(repoId, 2);
     expect(pr2!.diffHash).toBe(hashDiff(makeDiff(2)));
 
-    // Embed job was still enqueued
+    // Detect job was still enqueued
     expect(mockQueue.enqueue).toHaveBeenCalledTimes(1);
   });
 });

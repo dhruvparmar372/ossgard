@@ -146,12 +146,12 @@ export class IngestProcessor implements JobProcessor {
       prCount: fetchedPRs.length,
     });
 
-    // Enqueue the next pipeline stage: embed
+    // Enqueue the strategy-based detection
     await this.queue.enqueue({
-      type: "embed",
+      type: "detect",
       payload: { repoId, scanId, accountId, owner, repo },
     });
 
-    ingestLog.info("Enqueued embed", { scanId });
+    ingestLog.info("Enqueued detect", { scanId });
   }
 }

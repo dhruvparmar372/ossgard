@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.js";
+import type { DuplicateStrategyName } from "@ossgard/shared";
 import { log } from "../logger.js";
 
 const scansLog = log.child("scans");
@@ -21,6 +22,7 @@ scans.post("/repos/:owner/:name/scan", async (c) => {
   // Parse optional body for scan options
   let full = false;
   let maxPrs: number | undefined;
+  let strategy: DuplicateStrategyName = "pairwise-llm";
   try {
     const body = await c.req.json();
     if (body && typeof body.full === "boolean") {
@@ -28,6 +30,9 @@ scans.post("/repos/:owner/:name/scan", async (c) => {
     }
     if (body && typeof body.maxPrs === "number" && body.maxPrs > 0) {
       maxPrs = body.maxPrs;
+    }
+    if (body && typeof body.strategy === "string") {
+      strategy = body.strategy as DuplicateStrategyName;
     }
   } catch {
     // No body or invalid JSON is fine - defaults to incremental
@@ -40,7 +45,7 @@ scans.post("/repos/:owner/:name/scan", async (c) => {
     return c.json({ scanId: activeScan.id, status: activeScan.status }, 200);
   }
 
-  const scan = db.createScan(repo.id, account.id);
+  const scan = db.createScan(repo.id, account.id, strategy);
 
   const jobId = await queue.enqueue({
     type: "scan",

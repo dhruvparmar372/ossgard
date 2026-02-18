@@ -73,7 +73,8 @@ export type JobType =
   | "embed"
   | "cluster"
   | "verify"
-  | "rank";
+  | "rank"
+  | "detect";
 
 export type JobStatus =
   | "queued"

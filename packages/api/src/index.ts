@@ -10,6 +10,7 @@ import { EmbedProcessor } from "./pipeline/embed.js";
 import { ClusterProcessor } from "./pipeline/cluster.js";
 import { VerifyProcessor } from "./pipeline/verify.js";
 import { RankProcessor } from "./pipeline/rank.js";
+import { DetectProcessor } from "./pipeline/detect.js";
 import { log } from "./logger.js";
 
 async function main() {
@@ -28,6 +29,9 @@ async function main() {
   const processors = [
     new ScanOrchestrator(db, queue),
     new IngestProcessor(db, resolver, queue),
+    new DetectProcessor(db, resolver),
+    // Keep legacy processors registered for the LegacyStrategy's internal use
+    // and to handle any in-flight jobs from before this change
     new EmbedProcessor(db, resolver, queue),
     new ClusterProcessor(db, resolver, queue),
     new VerifyProcessor(db, resolver, queue),
