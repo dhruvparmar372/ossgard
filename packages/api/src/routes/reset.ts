@@ -20,4 +20,11 @@ reset.post("/clear-repos", (c) => {
   return c.json({ ok: true });
 });
 
+reset.post("/reset", (c) => {
+  const db = c.get("db");
+  db.resetAll();
+  resetLog.info("Full reset — all data cleared including accounts");
+  return c.json({ ok: true });
+});
+
 export { reset };

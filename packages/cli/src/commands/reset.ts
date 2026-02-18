@@ -66,3 +66,30 @@ export function clearReposCommand(client: ApiClient): Command {
       }
     });
 }
+
+export function resetCommand(client: ApiClient): Command {
+  return new Command("reset")
+    .description("Full reset — delete all data including accounts and stored config")
+    .option("--force", "Skip confirmation prompt")
+    .action(async (opts: { force?: boolean }) => {
+      if (!requireSetup()) return;
+
+      if (!opts.force) {
+        const yes = await confirm(
+          "This will DELETE ALL DATA: accounts, config, repositories, PRs, scans, and analysis results. This cannot be undone. Continue? (y/N) "
+        );
+        if (!yes) {
+          console.log("Aborted.");
+          return;
+        }
+      }
+
+      try {
+        await client.post("/reset");
+        console.log("Full reset complete. All data has been cleared.");
+      } catch {
+        console.error("Failed to reset. Is the ossgard API running? (ossgard up)");
+        process.exitCode = 1;
+      }
+    });
+}

@@ -10,8 +10,8 @@ import { TOKEN_BUDGET_FACTOR } from "../services/token-counting.js";
 import { log } from "../logger.js";
 import { createHash } from "crypto";
 
-const CODE_COLLECTION = "ossgard-code";
-const INTENT_COLLECTION = "ossgard-intent";
+export const CODE_COLLECTION = "ossgard-code";
+export const INTENT_COLLECTION = "ossgard-intent";
 const BATCH_SIZE = 50;
 
 /**
@@ -315,7 +315,7 @@ export class EmbedProcessor implements JobProcessor {
 }
 
 /** Join file paths up to the token budget, truncating at path boundaries. */
-function buildCodeInput(
+export function buildCodeInput(
   filePaths: string[],
   tokenBudget: number,
   countTokens: (text: string) => number,
@@ -330,7 +330,7 @@ function buildCodeInput(
  * title + body are always included (highest semantic signal), then
  * file paths fill remaining budget.
  */
-function buildIntentInput(
+export function buildIntentInput(
   title: string,
   body: string | null,
   filePaths: string[],

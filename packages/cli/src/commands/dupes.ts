@@ -1,7 +1,14 @@
 import { Command } from "commander";
+import { createInterface, Interface as RLInterface } from "node:readline";
 import { ApiClient, ApiError } from "../client.js";
 import { requireSetup } from "../guard.js";
 import { parseSlug } from "./track.js";
+
+function ask(rl: RLInterface, prompt: string): Promise<string> {
+  return new Promise((resolve) => {
+    rl.question(prompt, (answer) => resolve(answer.trim()));
+  });
+}
 
 interface DupeMember {
   prId: number;
@@ -27,6 +34,22 @@ interface DupesResponse {
   completedAt: string | null;
   groupCount: number;
   groups: DupeGroupResponse[];
+}
+
+function printGroup(group: DupeGroupResponse): void {
+  const label = group.label ?? "Unnamed group";
+  console.log(`--- Group: ${label} (${group.prCount} PRs) ---`);
+
+  for (const member of group.members) {
+    const tag = member.rank === 1 ? "MERGE" : "CLOSE";
+    const stateTag = member.state === "open" ? "" : ` [${member.state}]`;
+    console.log(
+      `  ${tag}  PR #${member.prNumber}: ${member.title} (by ${member.author})${stateTag} — score: ${member.score.toFixed(2)}`
+    );
+    if (member.rationale) {
+      console.log(`         ${member.rationale}`);
+    }
+  }
 }
 
 export function dupesCommand(client: ApiClient): Command {
@@ -81,38 +104,46 @@ export function dupesCommand(client: ApiClient): Command {
         }
 
         if (data.groupCount === 0) {
-          console.log(`No duplicates found for ${owner}/${name}.`);
+          console.log(`No duplicate groups found for ${owner}/${name}.`);
           return;
         }
 
+        // Stats summary
+        const totalPrs = data.groups.reduce((sum, g) => sum + g.prCount, 0);
+        console.log(`${owner}/${name} — scan #${data.scanId}`);
         console.log(
-          `${data.groupCount} duplicate group(s) for ${data.repo} (scan #${data.scanId})\n`
+          `${data.groupCount} duplicate group(s) found, covering ${totalPrs} PRs total\n`
         );
 
-        for (const group of data.groups) {
-          const label = group.label ?? "Unnamed group";
-          console.log(`--- ${label} (${group.prCount} PRs) ---`);
+        // Sort by prCount descending
+        const sorted = [...data.groups].sort((a, b) => b.prCount - a.prCount);
 
-          for (const member of group.members) {
-            const recommended = member.rank === 1 ? " RECOMMENDED" : "";
-            const stateTag =
-              member.state === "open"
-                ? ""
-                : ` [${member.state}]`;
+        const rl = createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
 
-            console.log(
-              `  #${member.rank} PR #${member.prNumber}: ${member.title}` +
-                `${stateTag}`
-            );
-            console.log(
-              `     Author: ${member.author} | Score: ${member.score.toFixed(2)}${recommended}`
-            );
-            if (member.rationale) {
-              console.log(`     ${member.rationale}`);
+        try {
+          const answer = await ask(rl, "Review duplicate groups? (Y/n): ");
+          if (answer.toLowerCase() === "n") {
+            return;
+          }
+
+          for (let i = 0; i < sorted.length; i++) {
+            console.log();
+            printGroup(sorted[i]);
+
+            if (i < sorted.length - 1) {
+              const next = await ask(rl, "\nNext group? (Y/n): ");
+              if (next.toLowerCase() === "n") {
+                return;
+              }
             }
           }
 
-          console.log();
+          console.log(`\nAll ${sorted.length} group(s) reviewed.`);
+        } finally {
+          rl.close();
         }
       }
     );

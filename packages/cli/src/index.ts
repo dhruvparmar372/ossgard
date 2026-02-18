@@ -7,7 +7,8 @@ import { registerSetupCommand } from "./commands/setup.js";
 import { registerConfigCommand } from "./commands/config.js";
 import { scanCommand } from "./commands/scan.js";
 import { dupesCommand } from "./commands/dupes.js";
-import { clearScansCommand, clearReposCommand } from "./commands/reset.js";
+import { reviewCommand } from "./commands/review.js";
+import { clearScansCommand, clearReposCommand, resetCommand } from "./commands/reset.js";
 
 const config = new Config();
 const apiUrl = process.env.OSSGARD_API_URL ?? config.get("api.url") as string | undefined;
@@ -27,7 +28,9 @@ registerConfigCommand(program);
 program.addCommand(statusCommand(client));
 program.addCommand(scanCommand(client));
 program.addCommand(dupesCommand(client));
+program.addCommand(reviewCommand(client));
 program.addCommand(clearScansCommand(client));
 program.addCommand(clearReposCommand(client));
+program.addCommand(resetCommand(client));
 
 program.parse();

@@ -156,6 +156,45 @@ export class GitHubClient {
     return allPRs;
   }
 
+  async fetchPR(
+    owner: string,
+    repo: string,
+    prNumber: number
+  ): Promise<FetchedPR> {
+    const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`;
+    const response = await this.githubFetch(url, this.defaultHeaders());
+
+    if (!response.ok) {
+      throw new Error(
+        `GitHub API error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const data = (await response.json()) as {
+      number: number;
+      title: string;
+      body: string | null;
+      user: { login: string } | null;
+      state: string;
+      merged: boolean;
+      created_at: string;
+      updated_at: string;
+    };
+
+    let state: FetchedPR["state"] = data.state as FetchedPR["state"];
+    if (data.merged) state = "merged";
+
+    return {
+      number: data.number,
+      title: data.title,
+      body: data.body,
+      author: data.user?.login ?? "unknown",
+      state,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
+  }
+
   async getPRFiles(
     owner: string,
     repo: string,

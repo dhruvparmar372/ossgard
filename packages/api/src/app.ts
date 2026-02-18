@@ -67,6 +67,7 @@ export function createApp(
   app.use("/scans/*", authMiddleware);
   app.use("/clear-scans", authMiddleware);
   app.use("/clear-repos", authMiddleware);
+  app.use("/reset", authMiddleware);
 
   // Authenticated routes
   app.route("/", repos);

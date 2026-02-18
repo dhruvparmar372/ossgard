@@ -440,6 +440,17 @@ export class Database {
     return rows.map(mapDupeGroupRow);
   }
 
+  findDupeGroupsByPR(scanId: number, prId: number): DupeGroup[] {
+    const stmt = this.raw.prepare(
+      `SELECT dg.* FROM dupe_groups dg
+       INNER JOIN dupe_group_members dgm ON dgm.group_id = dg.id
+       WHERE dg.scan_id = ? AND dgm.pr_id = ?
+       ORDER BY dg.id`
+    );
+    const rows = stmt.all(scanId, prId) as DupeGroupRow[];
+    return rows.map(mapDupeGroupRow);
+  }
+
   listDupeGroupMembers(groupId: number): DupeGroupMember[] {
     const stmt = this.raw.prepare(
       "SELECT * FROM dupe_group_members WHERE group_id = ? ORDER BY rank"
@@ -478,6 +489,16 @@ export class Database {
     this.raw.run("DELETE FROM jobs");
     this.raw.run("DELETE FROM prs");
     this.raw.run("DELETE FROM repos");
+  }
+
+  resetAll(): void {
+    this.raw.run("DELETE FROM dupe_group_members");
+    this.raw.run("DELETE FROM dupe_groups");
+    this.raw.run("DELETE FROM scans");
+    this.raw.run("DELETE FROM jobs");
+    this.raw.run("DELETE FROM prs");
+    this.raw.run("DELETE FROM repos");
+    this.raw.run("DELETE FROM accounts");
   }
 
   close(): void {
