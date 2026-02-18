@@ -33,10 +33,13 @@ export type ScanStatus =
   | "failed"
   | "paused";
 
+export type DuplicateStrategyName = "legacy" | "pairwise-llm";
+
 export interface Scan {
   id: number;
   repoId: number;
   status: ScanStatus;
+  strategy: DuplicateStrategyName;
   phaseCursor: Record<string, unknown> | null;
   prCount: number;
   dupeGroupCount: number;
@@ -98,7 +101,7 @@ export interface AccountConfig {
   llm: { provider: string; url: string; model: string; api_key: string; batch?: boolean };
   embedding: { provider: string; url: string; model: string; api_key: string; batch?: boolean };
   vector_store: { url: string; api_key: string };
-  scan?: { concurrency?: number; code_similarity_threshold?: number; intent_similarity_threshold?: number };
+  scan?: { concurrency?: number; code_similarity_threshold?: number; intent_similarity_threshold?: number; strategy?: DuplicateStrategyName; candidate_threshold?: number; max_candidates_per_pr?: number };
 }
 
 export interface Account {

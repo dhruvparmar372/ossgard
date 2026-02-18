@@ -1,5 +1,5 @@
 import { Database as BunDatabase } from "bun:sqlite";
-import type { Account, AccountConfig, DupeGroup, DupeGroupMember, PR, Repo, Scan, ScanStatus } from "@ossgard/shared";
+import type { Account, AccountConfig, DupeGroup, DupeGroupMember, DuplicateStrategyName, PR, Repo, Scan, ScanStatus } from "@ossgard/shared";
 import { SCHEMA } from "./schema.js";
 
 interface AccountRow {
@@ -45,6 +45,7 @@ interface ScanRow {
   repo_id: number;
   account_id: number;
   status: string;
+  strategy: string;
   phase_cursor: string | null;
   pr_count: number;
   dupe_group_count: number;
@@ -60,6 +61,7 @@ function mapScanRow(row: ScanRow): Scan {
     id: row.id,
     repoId: row.repo_id,
     status: row.status as ScanStatus,
+    strategy: (row.strategy ?? "pairwise-llm") as DuplicateStrategyName,
     phaseCursor: row.phase_cursor ? JSON.parse(row.phase_cursor) : null,
     prCount: row.pr_count,
     dupeGroupCount: row.dupe_group_count,
@@ -171,6 +173,7 @@ export class Database {
       "ALTER TABLE scans ADD COLUMN input_tokens INTEGER DEFAULT 0",
       "ALTER TABLE scans ADD COLUMN output_tokens INTEGER DEFAULT 0",
       "ALTER TABLE scans ADD COLUMN phase_cursor TEXT",
+      "ALTER TABLE scans ADD COLUMN strategy TEXT NOT NULL DEFAULT 'pairwise-llm'",
     ];
     for (const sql of migrations) {
       try {
@@ -262,11 +265,11 @@ export class Database {
     return result.changes > 0;
   }
 
-  createScan(repoId: number, accountId: number): Scan {
+  createScan(repoId: number, accountId: number, strategy: string = "pairwise-llm"): Scan {
     const stmt = this.raw.prepare(
-      "INSERT INTO scans (repo_id, account_id, status) VALUES (?, ?, 'queued') RETURNING *"
+      "INSERT INTO scans (repo_id, account_id, status, strategy) VALUES (?, ?, 'queued', ?) RETURNING *"
     );
-    const row = stmt.get(repoId, accountId) as ScanRow;
+    const row = stmt.get(repoId, accountId, strategy) as ScanRow;
     return mapScanRow(row);
   }
 

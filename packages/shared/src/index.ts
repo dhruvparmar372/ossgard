@@ -3,6 +3,7 @@ export type {
   PR,
   Scan,
   ScanStatus,
+  DuplicateStrategyName,
   DupeGroup,
   DupeGroupMember,
   Job,

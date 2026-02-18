@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS scans (
   repo_id         INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
   account_id      INTEGER NOT NULL REFERENCES accounts(id),
   status          TEXT NOT NULL DEFAULT 'queued',
+  strategy        TEXT NOT NULL DEFAULT 'pairwise-llm',
   phase_cursor    TEXT,
   pr_count        INTEGER DEFAULT 0,
   dupe_group_count INTEGER DEFAULT 0,
