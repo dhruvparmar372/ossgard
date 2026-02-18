@@ -210,5 +210,116 @@ describe("OpenAIBatchChatProvider", () => {
       const provider = new OpenAIBatchChatProvider({ apiKey: "sk-test", model: "gpt-4o-mini" });
       expect((provider as any).timeoutMs).toBe(24 * 60 * 60 * 1000);
     });
+
+    it("tolerates transient 5xx poll errors", async () => {
+      const fetchFn = vi
+        .fn()
+        // Upload file
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: "file-abc" }),
+        })
+        // Create batch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: "batch-5xx" }),
+        })
+        // Poll 1 -> 500 (transient)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          statusText: "Internal Server Error",
+        })
+        // Poll 2 -> completed
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              status: "completed",
+              output_file_id: "file-out",
+            }),
+        })
+        // Download results
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () =>
+            Promise.resolve(
+              [
+                JSON.stringify({
+                  custom_id: "req-1",
+                  response: {
+                    status_code: 200,
+                    body: {
+                      choices: [{ message: { content: '{"ok": true}' } }],
+                      usage: { prompt_tokens: 50, completion_tokens: 10 },
+                    },
+                  },
+                }),
+                JSON.stringify({
+                  custom_id: "req-2",
+                  response: {
+                    status_code: 200,
+                    body: {
+                      choices: [{ message: { content: '{"ok": true}' } }],
+                      usage: { prompt_tokens: 50, completion_tokens: 10 },
+                    },
+                  },
+                }),
+              ].join("\n")
+            ),
+        }) as unknown as typeof fetch;
+
+      const provider = new OpenAIBatchChatProvider({
+        apiKey: "sk-test",
+        model: "gpt-4o-mini",
+        fetchFn,
+        pollIntervalMs: 0,
+      });
+
+      const results = await provider.chatBatch([
+        { id: "req-1", messages: [{ role: "user", content: "test" }] },
+        { id: "req-2", messages: [{ role: "user", content: "test2" }] },
+      ]);
+
+      expect(results).toHaveLength(2);
+      // 5 calls: upload, create, 500-poll, ok-poll, download
+      expect(fetchFn).toHaveBeenCalledTimes(5);
+    });
+
+    it("throws when batch times out", async () => {
+      const fetchFn = vi
+        .fn()
+        // Upload file
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: "file-abc" }),
+        })
+        // Create batch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: "batch-slow" }),
+        })
+        // Poll -> always in_progress
+        .mockResolvedValue({
+          ok: true,
+          json: () =>
+            Promise.resolve({ status: "in_progress" }),
+        }) as unknown as typeof fetch;
+
+      const provider = new OpenAIBatchChatProvider({
+        apiKey: "sk-test",
+        model: "gpt-4o-mini",
+        fetchFn,
+        pollIntervalMs: 0,
+        timeoutMs: 1, // 1ms timeout to trigger quickly
+      });
+
+      await expect(
+        provider.chatBatch([
+          { id: "req-1", messages: [{ role: "user", content: "test" }] },
+          { id: "req-2", messages: [{ role: "user", content: "test2" }] },
+        ])
+      ).rejects.toThrow("OpenAI batch timed out after 1ms");
+    });
   });
 });
