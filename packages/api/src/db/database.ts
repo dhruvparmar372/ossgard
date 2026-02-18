@@ -425,6 +425,13 @@ export class Database {
     return mapDupeGroupMemberRow(row);
   }
 
+  deleteDupeGroupsByScan(scanId: number): void {
+    this.raw.prepare(
+      "DELETE FROM dupe_group_members WHERE group_id IN (SELECT id FROM dupe_groups WHERE scan_id = ?)"
+    ).run(scanId);
+    this.raw.prepare("DELETE FROM dupe_groups WHERE scan_id = ?").run(scanId);
+  }
+
   listDupeGroups(scanId: number): DupeGroup[] {
     const stmt = this.raw.prepare(
       "SELECT * FROM dupe_groups WHERE scan_id = ? ORDER BY id"

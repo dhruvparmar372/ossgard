@@ -167,16 +167,23 @@ export class RankProcessor implements JobProcessor {
     // Clear phaseCursor after successful completion
     this.db.updateScanStatus(scanId, "ranking", { phaseCursor: null });
 
-    // 3. Store results
+    // 3. Store results (clear any previous attempt's groups first for idempotency)
+    this.db.deleteDupeGroupsByScan(scanId);
     let totalGroups = 0;
 
     for (let i = 0; i < prepared.length; i++) {
       const { group, prs } = prepared[i];
       const response = responses[i];
 
-      const sortedRankings = [...response.rankings].sort(
+      // Deduplicate rankings by prNumber (LLM sometimes returns duplicates)
+      const seen = new Set<number>();
+      const sortedRankings = [...(response.rankings ?? [])].sort(
         (a, b) => b.score - a.score
-      );
+      ).filter((r) => {
+        if (seen.has(r.prNumber)) return false;
+        seen.add(r.prNumber);
+        return true;
+      });
 
       const dupeGroup = this.db.insertDupeGroup(
         scanId,
