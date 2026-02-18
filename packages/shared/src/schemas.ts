@@ -50,6 +50,36 @@ export const RegisterAccountRequest = z.object({
 });
 export type RegisterAccountRequest = z.infer<typeof RegisterAccountRequest>;
 
+export const PatchAccountConfig = z.object({
+  config: z.object({
+    github: z.object({ token: z.string().min(1) }).partial().optional(),
+    llm: z.object({
+      provider: z.string().min(1),
+      url: z.string(),
+      model: z.string().min(1),
+      api_key: z.string(),
+      batch: z.boolean().optional(),
+    }).partial().optional(),
+    embedding: z.object({
+      provider: z.string().min(1),
+      url: z.string(),
+      model: z.string().min(1),
+      api_key: z.string(),
+      batch: z.boolean().optional(),
+    }).partial().optional(),
+    vector_store: z.object({
+      url: z.string().min(1),
+      api_key: z.string(),
+    }).partial().optional(),
+    scan: z.object({
+      concurrency: z.number().optional(),
+      code_similarity_threshold: z.number().optional(),
+      intent_similarity_threshold: z.number().optional(),
+    }).partial().optional(),
+  }),
+});
+export type PatchAccountConfig = z.infer<typeof PatchAccountConfig>;
+
 export const ScanProgressResponse = z.object({
   scanId: z.number(),
   status: z.enum([

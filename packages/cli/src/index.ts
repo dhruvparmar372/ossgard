@@ -23,7 +23,7 @@ program
   .version("0.1.0");
 
 registerSetupCommand(program);
-registerConfigCommand(program);
+registerConfigCommand(program, client);
 
 program.addCommand(statusCommand(client));
 program.addCommand(scanCommand(client));

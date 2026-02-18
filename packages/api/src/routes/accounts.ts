@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { RegisterAccountRequest } from "@ossgard/shared";
+import { RegisterAccountRequest, PatchAccountConfig, AccountConfigSchema } from "@ossgard/shared";
 import type { AccountConfig } from "@ossgard/shared";
 import type { AppEnv } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
@@ -126,6 +126,78 @@ accounts.put("/accounts/me", authMiddleware, async (c) => {
   const qdrant = await checkQdrantHealth(config.vector_store.url);
   if (!qdrant.reachable) {
     warnings.push(`Qdrant not reachable at ${config.vector_store.url}`);
+  }
+
+  db.updateAccountConfig(account.id, config);
+
+  return c.json({ updated: true, warnings });
+});
+
+// PATCH /accounts/me — authenticated, partial config update
+accounts.patch("/accounts/me", authMiddleware, async (c) => {
+  const db = c.get("db");
+  const account = c.get("account");
+  const body = await c.req.json();
+
+  const parsed = PatchAccountConfig.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.flatten() }, 400);
+  }
+
+  // Deep-merge patch into existing config
+  const existing = account.config;
+  const patch = parsed.data.config;
+  const merged: Record<string, unknown> = {};
+
+  for (const section of ["github", "llm", "embedding", "vector_store", "scan"] as const) {
+    const existingSection = (existing as unknown as Record<string, Record<string, unknown>>)[section];
+    const patchSection = (patch as unknown as Record<string, Record<string, unknown> | undefined>)[section];
+    if (patchSection) {
+      merged[section] = { ...existingSection, ...patchSection };
+    } else if (existingSection) {
+      merged[section] = existingSection;
+    }
+  }
+
+  // Validate merged result against full schema
+  const validated = AccountConfigSchema.safeParse(merged);
+  if (!validated.success) {
+    return c.json({ error: validated.error.flatten() }, 400);
+  }
+
+  const config = validated.data as AccountConfig;
+  const warnings: string[] = [];
+
+  // Validate GitHub token if it changed
+  if (patch.github?.token) {
+    const gh = await validateGitHubToken(config.github.token);
+    if (!gh.valid) {
+      return c.json({ error: `Invalid GitHub token: ${gh.error}` }, 400);
+    }
+  }
+
+  // Check LLM provider (warning only)
+  if (config.llm.provider === "ollama" && config.llm.url) {
+    const ollama = await checkOllamaHealth(config.llm.url);
+    if (!ollama.reachable) {
+      warnings.push(`LLM provider (Ollama) not reachable at ${config.llm.url}`);
+    }
+  }
+
+  // Check embedding provider (warning only)
+  if (config.embedding.provider === "ollama" && config.embedding.url) {
+    const ollama = await checkOllamaHealth(config.embedding.url);
+    if (!ollama.reachable) {
+      warnings.push(`Embedding provider (Ollama) not reachable at ${config.embedding.url}`);
+    }
+  }
+
+  // Check Qdrant (warning only)
+  if (patch.vector_store?.url) {
+    const qdrant = await checkQdrantHealth(config.vector_store.url);
+    if (!qdrant.reachable) {
+      warnings.push(`Qdrant not reachable at ${config.vector_store.url}`);
+    }
   }
 
   db.updateAccountConfig(account.id, config);

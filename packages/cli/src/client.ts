@@ -52,6 +52,19 @@ export class ApiClient {
     return res.json() as Promise<T>;
   }
 
+  async patch<T = unknown>(path: string, data?: unknown): Promise<T> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: "PATCH",
+      headers: this.headers({ "Content-Type": "application/json" }),
+      body: data !== undefined ? JSON.stringify(data) : undefined,
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new ApiError(res.status, body);
+    }
+    return res.json() as Promise<T>;
+  }
+
   async delete(path: string): Promise<void> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: "DELETE",
@@ -83,6 +96,10 @@ export class ApiClient {
 
   async updateAccountConfig(config: unknown): Promise<{ updated: boolean; warnings: string[] }> {
     return this.put("/accounts/me", { config });
+  }
+
+  async patchAccountConfig(config: Record<string, unknown>): Promise<{ updated: boolean; warnings: string[] }> {
+    return this.patch("/accounts/me", { config });
   }
 }
 

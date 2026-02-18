@@ -21,4 +21,5 @@ export {
   ScanProgressResponse,
   AccountConfigSchema,
   RegisterAccountRequest,
+  PatchAccountConfig,
 } from "./schemas.js";
