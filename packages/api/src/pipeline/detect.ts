@@ -16,10 +16,11 @@ export class DetectProcessor implements JobProcessor {
   ) {}
 
   async process(job: Job): Promise<void> {
-    const { repoId, scanId, accountId } = job.payload as {
+    const { repoId, scanId, accountId, prNumbers } = job.payload as {
       repoId: number;
       scanId: number;
       accountId: number;
+      prNumbers?: number[];
     };
 
     const scan = this.db.getScan(scanId);
@@ -28,9 +29,12 @@ export class DetectProcessor implements JobProcessor {
     const strategyName = scan.strategy;
     const strategy = getStrategy(strategyName);
 
-    detectLog.info("Running strategy", { scanId, strategy: strategyName });
+    // Use only the PRs from this scan's ingest, not all PRs in the DB
+    const prs = prNumbers?.length
+      ? this.db.getPRsByNumbers(repoId, prNumbers)
+      : this.db.listOpenPRs(repoId);
 
-    const prs = this.db.listOpenPRs(repoId);
+    detectLog.info("Running strategy", { scanId, strategy: strategyName, prs: prs.length });
 
     const result = await strategy.execute({
       prs,

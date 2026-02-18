@@ -46,8 +46,8 @@ export async function runCluster(opts: RunClusterOpts): Promise<CandidateGroup[]
   // Resolve services from account config
   const { vectorStore, scanConfig } = await resolver.resolve(accountId);
 
-  // Read all open PRs
-  const prs = db.listOpenPRs(repoId);
+  // Use the PRs passed from the strategy context (scoped to this scan)
+  const prs = opts.prs;
 
   const uf = new UnionFind<number>();
   for (const pr of prs) {
@@ -206,9 +206,10 @@ export class ClusterProcessor implements JobProcessor {
     // Update scan status to "clustering"
     this.db.updateScanStatus(scanId, "clustering");
 
-    // Delegate to standalone runCluster
+    // Legacy processor: load PRs from DB (no prNumbers scoping)
+    const prs = this.db.listOpenPRs(repoId);
     const candidateGroups = await runCluster({
-      prs: [], // prs are loaded from DB inside runCluster
+      prs,
       scanId,
       repoId,
       accountId,

@@ -146,12 +146,15 @@ export class IngestProcessor implements JobProcessor {
       prCount: fetchedPRs.length,
     });
 
-    // Enqueue the strategy-based detection
+    // Collect the PR numbers that were part of this scan (all fetched, including skipped-unchanged)
+    const prNumbers = fetchedPRs.map((pr) => pr.number);
+
+    // Enqueue the strategy-based detection scoped to these PRs
     await this.queue.enqueue({
       type: "detect",
-      payload: { repoId, scanId, accountId, owner, repo },
+      payload: { repoId, scanId, accountId, owner, repo, prNumbers },
     });
 
-    ingestLog.info("Enqueued detect", { scanId });
+    ingestLog.info("Enqueued detect", { scanId, prCount: prNumbers.length });
   }
 }

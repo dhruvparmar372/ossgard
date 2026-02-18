@@ -401,6 +401,16 @@ export class Database {
     return rows.map(mapPRRow);
   }
 
+  getPRsByNumbers(repoId: number, numbers: number[]): PR[] {
+    if (numbers.length === 0) return [];
+    const placeholders = numbers.map(() => "?").join(",");
+    const stmt = this.raw.prepare(
+      `SELECT * FROM prs WHERE repo_id = ? AND number IN (${placeholders}) ORDER BY number`
+    );
+    const rows = stmt.all(repoId, ...numbers) as PRRow[];
+    return rows.map(mapPRRow);
+  }
+
   insertDupeGroup(
     scanId: number,
     repoId: number,

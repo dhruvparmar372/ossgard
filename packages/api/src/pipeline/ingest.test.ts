@@ -145,7 +145,7 @@ describe("IngestProcessor", () => {
     expect(mockQueue.enqueue).toHaveBeenCalledTimes(1);
     expect(mockQueue.enqueue).toHaveBeenCalledWith({
       type: "detect",
-      payload: { repoId, scanId, accountId, owner: "facebook", repo: "react" },
+      payload: { repoId, scanId, accountId, owner: "facebook", repo: "react", prNumbers: [1] },
     });
   });
 

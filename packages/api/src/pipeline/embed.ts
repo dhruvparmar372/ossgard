@@ -55,8 +55,9 @@ export async function runEmbed(opts: RunEmbedOpts): Promise<void> {
   await vectorStore.ensureCollection(CODE_COLLECTION, dimensions);
   await vectorStore.ensureCollection(INTENT_COLLECTION, dimensions);
 
-  // Read all open PRs and filter out already-embedded
-  const allPrs = db.listOpenPRs(repoId);
+  // Use the PRs passed from the strategy context (scoped to this scan),
+  // and filter out already-embedded ones
+  const allPrs = opts.prs;
   const prs = allPrs.filter((pr) => {
     const hash = computeEmbedHash(pr);
     return pr.embedHash !== hash;
@@ -111,9 +112,10 @@ export class EmbedProcessor implements JobProcessor {
     // Update scan status to "embedding"
     this.db.updateScanStatus(scanId, "embedding");
 
-    // Delegate to standalone runEmbed
+    // Legacy processor: load PRs from DB (no prNumbers scoping)
+    const prs = this.db.listOpenPRs(repoId);
     await runEmbed({
-      prs: [], // prs are loaded from DB inside runEmbed
+      prs,
       scanId,
       repoId,
       accountId,
