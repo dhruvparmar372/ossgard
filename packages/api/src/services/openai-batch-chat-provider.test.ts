@@ -286,7 +286,7 @@ describe("OpenAIBatchChatProvider", () => {
       expect(fetchFn).toHaveBeenCalledTimes(5);
     });
 
-    it("throws when batch times out", async () => {
+    it("throws on batch failure status", async () => {
       const fetchFn = vi
         .fn()
         // Upload file
@@ -297,13 +297,16 @@ describe("OpenAIBatchChatProvider", () => {
         // Create batch
         .mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({ id: "batch-slow" }),
+          json: () => Promise.resolve({ id: "batch-fail" }),
         })
-        // Poll -> always in_progress
-        .mockResolvedValue({
+        // Poll -> failed
+        .mockResolvedValueOnce({
           ok: true,
           json: () =>
-            Promise.resolve({ status: "in_progress" }),
+            Promise.resolve({
+              status: "failed",
+              errors: { data: [{ message: "Rate limit exceeded" }] },
+            }),
         }) as unknown as typeof fetch;
 
       const provider = new OpenAIBatchChatProvider({
@@ -311,7 +314,6 @@ describe("OpenAIBatchChatProvider", () => {
         model: "gpt-4o-mini",
         fetchFn,
         pollIntervalMs: 0,
-        timeoutMs: 1, // 1ms timeout to trigger quickly
       });
 
       await expect(
@@ -319,7 +321,7 @@ describe("OpenAIBatchChatProvider", () => {
           { id: "req-1", messages: [{ role: "user", content: "test" }] },
           { id: "req-2", messages: [{ role: "user", content: "test2" }] },
         ])
-      ).rejects.toThrow("OpenAI batch timed out after 1ms");
+      ).rejects.toThrow("OpenAI batch failed: Rate limit exceeded");
     });
   });
 });
