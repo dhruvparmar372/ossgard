@@ -244,11 +244,15 @@ dupes.get("/repos/:owner/:name/review/:prNumber", async (c) => {
   const [codeResults, intentResults] = await Promise.all([
     services.vectorStore.search(CODE_COLLECTION, codeVector, {
       limit: 11,
-      filter: { repoId: repo.id },
+      filter: {
+        must: [{ key: "repoId", match: { value: repo.id } }],
+      },
     }),
     services.vectorStore.search(INTENT_COLLECTION, intentVector, {
       limit: 11,
-      filter: { repoId: repo.id },
+      filter: {
+        must: [{ key: "repoId", match: { value: repo.id } }],
+      },
     }),
   ]);
 
