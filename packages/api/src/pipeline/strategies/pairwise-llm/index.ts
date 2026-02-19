@@ -2,6 +2,7 @@ import type { DuplicateStrategy, StrategyContext, StrategyResult, StrategyDupeGr
 import { IntentExtractor } from "./intent-extractor.js";
 import { PairwiseVerifier, type CandidatePair } from "./pairwise-verifier.js";
 import { CliqueGrouper, type ConfirmedEdge } from "./clique-grouper.js";
+import { isBatchChatProvider } from "../../../services/llm-provider.js";
 import { buildRankPrompt } from "../../prompts.js";
 import { log } from "../../../logger.js";
 
@@ -11,6 +12,40 @@ const DEFAULT_CANDIDATE_THRESHOLD = 0.65;
 const DEFAULT_MAX_CANDIDATES = 5;
 
 const strategyLog = log.child("pairwise-llm");
+
+type RankingEntry = { prNumber: number; score: number; rationale: string };
+type CliqueGroup = { members: number[]; avgConfidence: number; relationship: string };
+type PRLike = { id: number; number: number };
+
+/** Deduplicate rankings by prNumber, filter unmatched PRs, and build a StrategyDupeGroup. */
+function buildStrategyGroup(
+  rankings: RankingEntry[],
+  groupPrs: PRLike[],
+  cg: CliqueGroup,
+  label: string
+): StrategyDupeGroup | null {
+  const sorted = [...rankings].sort((a, b) => b.score - a.score);
+  const seen = new Set<number>();
+  const members: StrategyDupeGroup["members"] = [];
+  let rank = 1;
+
+  for (const r of sorted) {
+    if (seen.has(r.prNumber)) continue;
+    const pr = groupPrs.find((p) => p.number === r.prNumber);
+    if (!pr) continue;
+    seen.add(r.prNumber);
+    members.push({ prId: pr.id, prNumber: r.prNumber, rank: rank++, score: r.score, rationale: r.rationale });
+  }
+
+  if (members.length < 2) return null;
+
+  return {
+    label: label.slice(0, 200),
+    confidence: cg.avgConfidence,
+    relationship: cg.relationship,
+    members,
+  };
+}
 
 export class PairwiseLLMStrategy implements DuplicateStrategy {
   readonly name = "pairwise-llm" as const;
@@ -134,37 +169,54 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
 
     strategyLog.info("Clique groups formed", { scanId, groups: cliqueGroups.length });
 
-    // Rank within each group using existing rank prompt
-    const strategyGroups: StrategyDupeGroup[] = [];
+    // Rank within each group using existing rank prompt (batch or sequential)
+    type RankingResponse = { rankings?: Array<{ prNumber: number; score: number; rationale: string }> };
+
+    // Prepare all rank requests
+    const rankInputs: Array<{
+      cg: (typeof cliqueGroups)[number];
+      groupPrs: typeof prs;
+      label: string;
+      messages: import("../../../services/llm-provider.js").Message[];
+    }> = [];
 
     for (const cg of cliqueGroups) {
       const groupPrs = cg.members.map((n) => prByNumber.get(n)!).filter(Boolean);
       if (groupPrs.length < 2) continue;
-
       const label = intents.get(cg.members[0]) ?? groupPrs[0].title;
       const messages = buildRankPrompt(groupPrs, label, llm);
-      const rankResult = await llm.chat(messages);
-      totalInput += rankResult.usage.inputTokens;
-      totalOutput += rankResult.usage.outputTokens;
+      rankInputs.push({ cg, groupPrs, label, messages });
+    }
 
-      const rankings = (rankResult.response as { rankings?: Array<{ prNumber: number; score: number; rationale: string }> })?.rankings ?? [];
-      const sorted = [...rankings].sort((a, b) => b.score - a.score);
+    const strategyGroups: StrategyDupeGroup[] = [];
 
-      strategyGroups.push({
-        label: label.slice(0, 200),
-        confidence: cg.avgConfidence,
-        relationship: cg.relationship,
-        members: sorted.map((r, rank) => {
-          const pr = groupPrs.find((p) => p.number === r.prNumber);
-          return {
-            prId: pr?.id ?? 0,
-            prNumber: r.prNumber,
-            rank: rank + 1,
-            score: r.score,
-            rationale: r.rationale,
-          };
-        }),
-      });
+    if (isBatchChatProvider(llm) && rankInputs.length > 1) {
+      strategyLog.info("Ranking via batch", { scanId, groups: rankInputs.length });
+      const batchResults = await llm.chatBatch(
+        rankInputs.map((r, i) => ({ id: `rank-${i}`, messages: r.messages }))
+      );
+      for (let i = 0; i < rankInputs.length; i++) {
+        const { cg, groupPrs, label } = rankInputs[i];
+        const result = batchResults[i];
+        if (result.error) {
+          strategyLog.warn("Rank batch item failed", { group: i, error: result.error });
+          continue;
+        }
+        totalInput += result.usage.inputTokens;
+        totalOutput += result.usage.outputTokens;
+        const rankings = (result.response as RankingResponse)?.rankings ?? [];
+        const group = buildStrategyGroup(rankings, groupPrs, cg, label);
+        if (group) strategyGroups.push(group);
+      }
+    } else {
+      for (const { cg, groupPrs, label, messages } of rankInputs) {
+        const rankResult = await llm.chat(messages);
+        totalInput += rankResult.usage.inputTokens;
+        totalOutput += rankResult.usage.outputTokens;
+        const rankings = (rankResult.response as RankingResponse)?.rankings ?? [];
+        const group = buildStrategyGroup(rankings, groupPrs, cg, label);
+        if (group) strategyGroups.push(group);
+      }
     }
 
     return {
