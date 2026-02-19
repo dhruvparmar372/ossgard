@@ -1399,7 +1399,7 @@
     },
     {
       "id": 2619,
-      "label": "Brave Search API requires full locale codes (e.g.",
+      "label": "Brave Search API requires full locale codes (e.g. en-US). The PR adds a guard...",
       "members": [
         {
           "prNumber": 19031,
