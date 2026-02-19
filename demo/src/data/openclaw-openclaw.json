@@ -1,0 +1,2227 @@
+{
+  "repo": {
+    "owner": "openclaw",
+    "name": "openclaw",
+    "url": "https://github.com/openclaw/openclaw"
+  },
+  "scan": {
+    "id": 21,
+    "completedAt": "2026-02-18T18:04:55.464Z",
+    "prCount": 1000,
+    "dupeGroupCount": 77
+  },
+  "groups": [
+    {
+      "id": 2573,
+      "label": "The PR fixes a false positive warning in openclaw doctor when QMD is used as...",
+      "members": [
+        {
+          "prNumber": 20125,
+          "title": "fix(doctor): skip memorySearch provider check when using QMD backend",
+          "author": "brandonwise",
+          "state": "open",
+          "rank": 1,
+          "score": 98,
+          "rationale": "Excellent: small, well-scoped early-return guard; tests + lint pass; minimal risk and clear intent.",
+          "url": "https://github.com/openclaw/openclaw/pull/20125"
+        },
+        {
+          "prNumber": 19978,
+          "title": "fix(doctor): skip embedding provider check when memory.backend is qmd (#19943)",
+          "author": "arosstale",
+          "state": "open",
+          "rank": 2,
+          "score": 95,
+          "rationale": "Very strong: adds unit test covering QMD path and ensures no undesired calls; broader test coverage including signal tests; multiple files updated.",
+          "url": "https://github.com/openclaw/openclaw/pull/19978"
+        },
+        {
+          "prNumber": 17306,
+          "title": "fix(doctor): skip memorySearch provider warning when memory backend is qmd",
+          "author": "ephelia-ai",
+          "state": "open",
+          "rank": 3,
+          "score": 95,
+          "rationale": "Strong: targeted QMD path test with regression coverage; clean integration with existing tests.",
+          "url": "https://github.com/openclaw/openclaw/pull/17306"
+        },
+        {
+          "prNumber": 17295,
+          "title": "fix(doctor): skip embedding provider check when QMD backend is active",
+          "author": "miloudbelarebia",
+          "state": "open",
+          "rank": 4,
+          "score": 90,
+          "rationale": "Solid: targeted fix with updated tests; maintains existing behavior for builtin backends; clear intent.",
+          "url": "https://github.com/openclaw/openclaw/pull/17295"
+        },
+        {
+          "prNumber": 17360,
+          "title": "fix(doctor): skip embedding provider check when memory backend is QMD",
+          "author": "nikhil8182",
+          "state": "open",
+          "rank": 5,
+          "score": 87,
+          "rationale": "Good: regression test for QMD path; solid guard; but lacks broader backends coverage in tests.",
+          "url": "https://github.com/openclaw/openclaw/pull/17360"
+        },
+        {
+          "prNumber": 17381,
+          "title": "fix: skip embedding provider check in doctor when QMD backend is enabled",
+          "author": "Limitless2023",
+          "state": "open",
+          "rank": 6,
+          "score": 70,
+          "rationale": "Moderate: concise fix but lacks test coverage for QMD path; risk of regressions not fully validated.",
+          "url": "https://github.com/openclaw/openclaw/pull/17381"
+        },
+        {
+          "prNumber": 17660,
+          "title": "fix: skip embedding provider check in doctor when QMD backend is configured (#17263)",
+          "author": "echoVic",
+          "state": "open",
+          "rank": 7,
+          "score": 65,
+          "rationale": "Limited: change is small and lacks tests; risk moderate; still aligns with existing patterns.",
+          "url": "https://github.com/openclaw/openclaw/pull/17660"
+        }
+      ]
+    },
+    {
+      "id": 2574,
+      "label": "The browser control service wasn’t binding to port 18791 in Docker because the...",
+      "members": [
+        {
+          "prNumber": 18707,
+          "title": "gateway: fix browser control service not binding to port",
+          "author": "ktsushilofficial",
+          "state": "open",
+          "rank": 1,
+          "score": 94,
+          "rationale": "High-quality, well-documented change with thorough verification steps, environment details, steps to reproduce, and explicit compatibility notes; minimal code change but clearly presented.",
+          "url": "https://github.com/openclaw/openclaw/pull/18707"
+        },
+        {
+          "prNumber": 17645,
+          "title": "fix: browser control service actually start HTTP server in Docker",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 2,
+          "score": 82,
+          "rationale": "Concise one-line import fix with backward-compatibility handling; clean and minimal, but lacks the thorough tests, environment details, and explicit verification steps of the other PR.",
+          "url": "https://github.com/openclaw/openclaw/pull/17645"
+        }
+      ]
+    },
+    {
+      "id": 2575,
+      "label": "Fixes Feishu chunked long responses within topic/thread contexts by ensuring...",
+      "members": [
+        {
+          "prNumber": 19656,
+          "title": "fix(feishu): keep message chunks in topic/thread context",
+          "author": "qiangu",
+          "state": "open",
+          "rank": 1,
+          "score": 88,
+          "rationale": "More thorough testing notes and explicit verification steps; symmetric changes for both card and text paths; clear alignment with existing patterns and documented reasoning, resulting in stronger overall completeness.",
+          "url": "https://github.com/openclaw/openclaw/pull/19656"
+        },
+        {
+          "prNumber": 19027,
+          "title": "fix(feishu): keep chunked messages in topic/thread context",
+          "author": "qiangu",
+          "state": "open",
+          "rank": 2,
+          "score": 67,
+          "rationale": "Essential change implemented with clean, minimal edits; however testing coverage in the description is sparse, and there is less explicit demonstration of edge-case testing and coverage.",
+          "url": "https://github.com/openclaw/openclaw/pull/19027"
+        }
+      ]
+    },
+    {
+      "id": 2576,
+      "label": "This PR fixes login failures in the Control UI when...",
+      "members": [
+        {
+          "prNumber": 20089,
+          "title": "fix(gateway): preserve control-ui scopes when dangerouslyDisableDeviceAuth is set",
+          "author": "vashkartik",
+          "state": "open",
+          "rank": 1,
+          "score": 50,
+          "rationale": "Security-hardening, targeted one-line change that preserves scopes only when appropriate; well-scoped, clear intent; however no new tests were added.",
+          "url": "https://github.com/openclaw/openclaw/pull/20089"
+        },
+        {
+          "prNumber": 20100,
+          "title": "fix(gateway): preserve control-ui scopes when dangerouslyDisableDevic…",
+          "author": "vectorcmd",
+          "state": "open",
+          "rank": 2,
+          "score": 47,
+          "rationale": "Similar robust scope-preservation improvement with gating on shared-auth; clean, well-scoped changes, but slightly more logic introduced than PR #17605; still no new tests.",
+          "url": "https://github.com/openclaw/openclaw/pull/20100"
+        },
+        {
+          "prNumber": 17605,
+          "title": "fix: preserve scopes when disableControlUiDeviceAuth is enabled",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 3,
+          "score": 43,
+          "rationale": "Minimal, targeted fix (one-line change) preserving scopes; clear intent. Lacks added tests; straightforward but less thorough than others.",
+          "url": "https://github.com/openclaw/openclaw/pull/17605"
+        }
+      ]
+    },
+    {
+      "id": 2577,
+      "label": "Removes the false-positive billing rewrite by eliminating the...",
+      "members": [
+        {
+          "prNumber": 17834,
+          "title": "fix: remove false-positive billing error rewrite on normal assistant text",
+          "author": "niceysam",
+          "state": "open",
+          "rank": 1,
+          "score": 91,
+          "rationale": "Well-scoped, minimal change removing the outside shouldRewriteBillingText fallback; preserves genuine error handling inside errorContext; tests updated and all tests pass; low risk.",
+          "url": "https://github.com/openclaw/openclaw/pull/17834"
+        },
+        {
+          "prNumber": 19271,
+          "title": "fix: remove false-positive billing text rewrite in sanitizeUserFacingText",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 2,
+          "score": 86,
+          "rationale": "Similar minimal change with tests updated; solid, but AI-assisted origin; no breaking changes reported; moderate confidence.",
+          "url": "https://github.com/openclaw/openclaw/pull/19271"
+        },
+        {
+          "prNumber": 19309,
+          "title": "fix: prevent sanitizeUserFacingText billing false positives (AI-assisted)",
+          "author": "mrutunjay-kinagi",
+          "state": "open",
+          "rank": 3,
+          "score": 48,
+          "rationale": "Low quality due to breaking tests risk and unrelated files committed; requires cleanup and updated tests; not ready for merge.",
+          "url": "https://github.com/openclaw/openclaw/pull/19309"
+        }
+      ]
+    },
+    {
+      "id": 2578,
+      "label": "This PR removes the Zod default for channels.telegram.streamMode, preventing...",
+      "members": [
+        {
+          "prNumber": 17886,
+          "title": "fix: persist channels.telegram.streamMode across restarts",
+          "author": "pierreeurope",
+          "state": "open",
+          "rank": 1,
+          "score": 84,
+          "rationale": "Small, well-scoped change: removes Zod default, relies on existing runtime default; test updated to reflect new behavior. Clear PR body. Limited test coverage and no docs beyond test update.",
+          "url": "https://github.com/openclaw/openclaw/pull/17886"
+        },
+        {
+          "prNumber": 17898,
+          "title": "fix(telegram): persist streamMode off setting",
+          "author": "DhruvGarg111",
+          "state": "open",
+          "rank": 2,
+          "score": 82,
+          "rationale": "Similar, small and targeted fix; test updated; ensures explicit 'off' persists via runtime default. Comparable quality to #17886 but slightly less coverage in description.",
+          "url": "https://github.com/openclaw/openclaw/pull/17898"
+        }
+      ]
+    },
+    {
+      "id": 2579,
+      "label": "This PR fixes a bug where signal:-prefixed phone numbers (e.g.,...",
+      "members": [
+        {
+          "prNumber": 19358,
+          "title": "test(signal): add E.164 format acceptance for signal target detection",
+          "author": "saurav470",
+          "state": "open",
+          "rank": 1,
+          "score": 88,
+          "rationale": "Minimal, well-targeted fix with clear tests for both prefixed and unprefixed signals; aligns with existing prefix-stripping behavior. Strong test coverage and small risk. Minor room for more edge-case coverage.",
+          "url": "https://github.com/openclaw/openclaw/pull/19358"
+        },
+        {
+          "prNumber": 18511,
+          "title": "fix(signal): signal:-prefixed phone numbers fail target resolution (#18495)",
+          "author": "yinghaosang",
+          "state": "open",
+          "rank": 2,
+          "score": 80,
+          "rationale": "Clean, focused change with one-line regex update and new tests; however, notes about the missing i flag for prefix matching and somewhat narrower coverage reduce overall completeness/quality.",
+          "url": "https://github.com/openclaw/openclaw/pull/18511"
+        }
+      ]
+    },
+    {
+      "id": 2580,
+      "label": "Switches from getAll() to getAvailable() in lookupContextTokens to prevent...",
+      "members": [
+        {
+          "prNumber": 17638,
+          "title": "fix: lookupContextTokens() returns wrong contextWindow due to cross-provider model ID collision",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 1,
+          "score": 92,
+          "rationale": "Small, well-scoped one-line change swapping getAll() to getAvailable() in lookupContextTokens. Clear intent, consistent with codebase usage (list.registry.ts), no API changes, and existing tests pass (context.test.ts shows all tests pass). The change reduces risk of cross-provider ID collisions with unconfigured providers and maintains proper behavior for authenticated providers.",
+          "url": "https://github.com/openclaw/openclaw/pull/17638"
+        },
+        {
+          "prNumber": 17604,
+          "title": "fix(context): use getAvailable() to prevent cross-provider model ID collision in MODEL_CACHE",
+          "author": "aldoeliacim",
+          "state": "open",
+          "rank": 2,
+          "score": 88,
+          "rationale": "Similarly small, targeted API swap with minimal surface area. Documentation/comments indicate impact and tests pass for context tests. Slightly less explicit test coverage notes (2 tests) but remains safe and maintainable.",
+          "url": "https://github.com/openclaw/openclaw/pull/17604"
+        }
+      ]
+    },
+    {
+      "id": 2581,
+      "label": "The PR fixes a bug where non-interval wake reasons (exec-event, cron, hook...",
+      "members": [
+        {
+          "prNumber": 17801,
+          "title": "fix(heartbeat): enforce interval guard for non-interval wake reasons",
+          "author": "aldoeliacim",
+          "state": "open",
+          "rank": 1,
+          "score": 88,
+          "rationale": "Small, well-scoped 1-line logic change with minimal risk; tests pass; clear intent.",
+          "url": "https://github.com/openclaw/openclaw/pull/17801"
+        },
+        {
+          "prNumber": 19745,
+          "title": "fix(heartbeat): enforce interval check regardless of trigger source",
+          "author": "misterdas",
+          "state": "open",
+          "rank": 2,
+          "score": 86,
+          "rationale": "More comprehensive change with additional tests and scheduler tests; clear intent but slightly broader impact across wake sources.",
+          "url": "https://github.com/openclaw/openclaw/pull/19745"
+        }
+      ]
+    },
+    {
+      "id": 2582,
+      "label": "This PR fixes a gap where a cron job could report success (lastStatus: 'ok')...",
+      "members": [
+        {
+          "prNumber": 19174,
+          "title": "fix(cron): persist delivered flag in job state to surface delivery failures",
+          "author": "simonemacario",
+          "state": "open",
+          "rank": 1,
+          "score": 90,
+          "rationale": "Broad, well-architected threading of delivered through multiple layers (types, API schema, run/logs, and tests) with 4 new tests and compatibility checks; high quality and coverage, though surface area is spread across several files.",
+          "url": "https://github.com/openclaw/openclaw/pull/19174"
+        },
+        {
+          "prNumber": 19238,
+          "title": "fix(cron): persist delivery status in job state",
+          "author": "taw0002",
+          "state": "open",
+          "rank": 2,
+          "score": 80,
+          "rationale": "Focused additive changes across 3 files; solid, but smaller scope and fewer tests/verification compared to PR19174.",
+          "url": "https://github.com/openclaw/openclaw/pull/19238"
+        }
+      ]
+    },
+    {
+      "id": 2583,
+      "label": "This PR prevents unhandled promise rejections when a browser dialog closes...",
+      "members": [
+        {
+          "prNumber": 17517,
+          "title": "fix(browser): catch unhandled promise rejection in dialog handling",
+          "author": "shadril238",
+          "state": "open",
+          "rank": 1,
+          "score": 96,
+          "rationale": "Most complete: includes regression test for accept/dismiss errors and updates both core logic and test coverage; high code quality with consistent style and patterns.",
+          "url": "https://github.com/openclaw/openclaw/pull/17517"
+        },
+        {
+          "prNumber": 17653,
+          "title": "fix: catch dialog accept/dismiss errors in armDialogViaPlaywright (#17499)",
+          "author": "echoVic",
+          "state": "open",
+          "rank": 2,
+          "score": 66,
+          "rationale": "Solid defensive fix with minimal change and alignment to existing patterns; lacks regression tests, which reduces completeness relative to 17517.",
+          "url": "https://github.com/openclaw/openclaw/pull/17653"
+        },
+        {
+          "prNumber": 17518,
+          "title": "fix(browser): catch dialog accept/dismiss errors after page navigation",
+          "author": "aldoeliacim",
+          "state": "open",
+          "rank": 3,
+          "score": 64,
+          "rationale": "Defensive wrap around dialog handling is clean, but no tests or broader coverage; lower completeness than 17653 due to lack of tests, though similar scope and minimal risk.",
+          "url": "https://github.com/openclaw/openclaw/pull/17518"
+        }
+      ]
+    },
+    {
+      "id": 2584,
+      "label": "Fixes a memory leak in cron isolated agent runs caused by two unbounded maps...",
+      "members": [
+        {
+          "prNumber": 17945,
+          "title": "fix: clean up agent-events maps after cron runs",
+          "author": "Suksham-sharma",
+          "state": "open",
+          "rank": 1,
+          "score": 98,
+          "rationale": "Clear and robust cleanup. Uses a finally block to guarantee clearAgentRunContext on all exit paths, and hoists cronRunId and registerAgentRunContext for readability and alignment with existing cleanup patterns. High overall quality and maintainability.",
+          "url": "https://github.com/openclaw/openclaw/pull/17945"
+        },
+        {
+          "prNumber": 17823,
+          "title": "fix: memory leak in cron isolated runs — agent-events Maps never cleaned (#17820)",
+          "author": "techboss",
+          "state": "open",
+          "rank": 2,
+          "score": 94,
+          "rationale": "Minimal, well-scoped changes that clean both maps and integrate cleanup into the cron path via withRunSession. Production validation cited, and changes are easy to reason about, with good maintainability.",
+          "url": "https://github.com/openclaw/openclaw/pull/17823"
+        },
+        {
+          "prNumber": 19990,
+          "title": "fix(cron): clean up agent run context to prevent memory leak",
+          "author": "rudiheydra",
+          "state": "open",
+          "rank": 3,
+          "score": 72,
+          "rationale": "Core fixes implemented but two non-bestEffort return paths still miss cleanup, reducing completeness. Code quality is reasonable, but completion coverage is incomplete.",
+          "url": "https://github.com/openclaw/openclaw/pull/19990"
+        }
+      ]
+    },
+    {
+      "id": 2585,
+      "label": "The diagnostic event bus was scoped to a single module, causing events to be...",
+      "members": [
+        {
+          "prNumber": 20059,
+          "title": "fix(diagnostics): share event bus and log transport across module bundles",
+          "author": "triclambert",
+          "state": "open",
+          "rank": 1,
+          "score": 95,
+          "rationale": "Multi-file change with robust test coverage and proven integration verification; follows established globalThis singleton pattern; maintains backward compatibility.",
+          "url": "https://github.com/openclaw/openclaw/pull/20059"
+        },
+        {
+          "prNumber": 18894,
+          "title": "fix: share diagnostic event bus across bundle chunks via globalThis",
+          "author": "aiwithabidi",
+          "state": "open",
+          "rank": 2,
+          "score": 86,
+          "rationale": "Small, focused fix with a clean single-file change; aligns with existing runtime singleton pattern; tests and build pass, backward compatible API.",
+          "url": "https://github.com/openclaw/openclaw/pull/18894"
+        }
+      ]
+    },
+    {
+      "id": 2586,
+      "label": "Fixes misclassification of google-antigravity as an Anthropic provider, which...",
+      "members": [
+        {
+          "prNumber": 19985,
+          "title": "fix(schema): apply Gemini schema sanitization for google-antigravity provider (#19951)",
+          "author": "arosstale",
+          "state": "open",
+          "rank": 1,
+          "score": 86,
+          "rationale": "Thorough, multi-file schema cleaning applied across all relevant call sites with added tests/verification notes; broad coverage and strong maintainability.",
+          "url": "https://github.com/openclaw/openclaw/pull/19985"
+        },
+        {
+          "prNumber": 20174,
+          "title": "fix(schema): apply Gemini schema cleaning for google-antigravity provider",
+          "author": "mcfn",
+          "state": "open",
+          "rank": 2,
+          "score": 72,
+          "rationale": "Moderate-scope change with clear refactor (providerLower caching) and targeted schema cleaning; good maintainability but fewer explicit tests/docs than #19985.",
+          "url": "https://github.com/openclaw/openclaw/pull/20174"
+        },
+        {
+          "prNumber": 19914,
+          "title": "fix: apply cleanSchemaForGemini for google-antigravity provider",
+          "author": "lida408",
+          "state": "open",
+          "rank": 3,
+          "score": 68,
+          "rationale": "Small, well-scoped fix that improves readability and routing to cleanSchemaForGemini; limited coverage and no explicit tests described.",
+          "url": "https://github.com/openclaw/openclaw/pull/19914"
+        }
+      ]
+    },
+    {
+      "id": 2587,
+      "label": "This PR changes the default for elevatedDefault from 'on' to 'off' when...",
+      "members": [
+        {
+          "prNumber": 19595,
+          "title": "fix: elevatedDefault should default to off when tools.elevated.enabled is true",
+          "author": "guirguispierre",
+          "state": "open",
+          "rank": 1,
+          "score": 92,
+          "rationale": "Most comprehensive change set with unit and e2e tests across multiple files; robust regression tests; clear documentation updates.",
+          "url": "https://github.com/openclaw/openclaw/pull/19595"
+        },
+        {
+          "prNumber": 19624,
+          "title": "fix: elevatedDefault should default to off when tools.elevated.enabled is true",
+          "author": "stakeswky",
+          "state": "open",
+          "rank": 2,
+          "score": 83,
+          "rationale": "Significant changes across directive handling and tooling, plus updated e2e expectations; still cohesive and well-tested, but scope is broader.",
+          "url": "https://github.com/openclaw/openclaw/pull/19624"
+        },
+        {
+          "prNumber": 18193,
+          "title": "fix: default elevatedDefault to 'off' instead of 'on' (#18177)",
+          "author": "lailoo",
+          "state": "open",
+          "rank": 3,
+          "score": 82,
+          "rationale": "Small, clean fix with focused regression test and changelog; minimal surface area but slightly less coverage than others.",
+          "url": "https://github.com/openclaw/openclaw/pull/18193"
+        }
+      ]
+    },
+    {
+      "id": 2588,
+      "label": "Replaces the last four direct console.log/console.error calls in...",
+      "members": [
+        {
+          "prNumber": 19103,
+          "title": "fix(voice-call): replace console.log with runtime logging",
+          "author": "Clawborn",
+          "state": "open",
+          "rank": 1,
+          "score": 90,
+          "rationale": "Broad, well-integrated logging migration across multiple extensions with tests updated; aligns with runtime logging conventions and respects verbose controls. Strong completeness, solid code quality.",
+          "url": "https://github.com/openclaw/openclaw/pull/19103"
+        },
+        {
+          "prNumber": 18825,
+          "title": "fix(zalo): replace console.log/error with runtime logging",
+          "author": "Clawborn",
+          "state": "open",
+          "rank": 2,
+          "score": 86,
+          "rationale": "Clean, targeted migration replacing last four console calls with structured runtime logging and logVerbose gating. No behavior changes, but limited to monitor.ts; completeness moderate due to lack of tests/docs.",
+          "url": "https://github.com/openclaw/openclaw/pull/18825"
+        },
+        {
+          "prNumber": 18858,
+          "title": "fix(nextcloud-talk): replace console.log with runtime logging",
+          "author": "Clawborn",
+          "state": "open",
+          "rank": 3,
+          "score": 70,
+          "rationale": "Wide logging migration across several extensions but contains documented issues (feishu runtime/logging mismatch) and potential runtime bug, reducing overall quality and completeness.",
+          "url": "https://github.com/openclaw/openclaw/pull/18858"
+        }
+      ]
+    },
+    {
+      "id": 2589,
+      "label": "This PR fixes the slug generation by routing the LLM call through the...",
+      "members": [
+        {
+          "prNumber": 19277,
+          "title": "fix: make slug generator use configured model",
+          "author": "janckerchen",
+          "state": "open",
+          "rank": 1,
+          "score": 93,
+          "rationale": "Clear, maintainable approach: uses resolveConfiguredModelRef and DEFAULT_MODEL/DEFAULT_PROVIDER, imports the right utilities, and passes provider/model to runEmbeddedPiAgent. Aligns with existing code patterns; strong maintainability and compatibility across proxy configurations.",
+          "url": "https://github.com/openclaw/openclaw/pull/19277"
+        },
+        {
+          "prNumber": 18867,
+          "title": "fix: route slug generator LLM call through configured provider",
+          "author": "Celegormhenry",
+          "state": "open",
+          "rank": 2,
+          "score": 57,
+          "rationale": "Fix implemented via manual parsing of provider/model (indexOf/slice) rather than reusing existing splitModelRef utilities, which is less robust and maintainable. Documentation/testing is present but lacks explicit tests and broader edge-case handling.",
+          "url": "https://github.com/openclaw/openclaw/pull/18867"
+        }
+      ]
+    },
+    {
+      "id": 2590,
+      "label": "Problem: fixSecurityFootguns missed several sensitive directories (cron/,...",
+      "members": [
+        {
+          "prNumber": 18924,
+          "title": "fix(security): tighten permissions on cron/, browser/, settings/ dirs…",
+          "author": "rexlunae",
+          "state": "open",
+          "rank": 1,
+          "score": 96,
+          "rationale": "Highly thorough change: adds permission hardening for cron/, browser/, and settings/ plus cron job files; strong test coverage updates for new paths; clear, well-structured implementation leveraging existing applyPerms logic; cross-platform considerations implied.",
+          "url": "https://github.com/openclaw/openclaw/pull/18924"
+        },
+        {
+          "prNumber": 19032,
+          "title": "fix(security): tighten permissions for cron/, browser/, settings/ in doctor --fix",
+          "author": "moxunjinmu",
+          "state": "open",
+          "rank": 2,
+          "score": 92,
+          "rationale": "Solid, well-structured fix with dedicated tests ensuring cron/, browser/, and settings/ permissions are tightened; includes ENOENT handling and aligns with existing patterns. Slightly less explicit in edge-case discussions compared to 18924.",
+          "url": "https://github.com/openclaw/openclaw/pull/19032"
+        },
+        {
+          "prNumber": 18954,
+          "title": "fix(security): secure cron, browser, settings dirs in doctor --fix",
+          "author": "BinHPdev",
+          "state": "open",
+          "rank": 3,
+          "score": 82,
+          "rationale": "Good coverage extending fixSecurityFootguns to three directories and cron files, with tests and changelog notes. Noted gap on cron/runs subdirectory in earlier review, reducing completeness slightly.",
+          "url": "https://github.com/openclaw/openclaw/pull/18954"
+        },
+        {
+          "prNumber": 18959,
+          "title": "fix: harden permissions on cron/, browser/, settings/ in doctor --fix",
+          "author": "jwchmodx",
+          "state": "open",
+          "rank": 4,
+          "score": 77,
+          "rationale": "Strong core change and test presence, including e2e/test integration aspects. However, broader coverage and explicit notes on remaining gaps are less comprehensive than top-tier PRs, and cron/runs considerations persist in commentary.",
+          "url": "https://github.com/openclaw/openclaw/pull/18959"
+        }
+      ]
+    },
+    {
+      "id": 2591,
+      "label": "This PR fixes a bug in the llm-task extension where the bundled install...",
+      "members": [
+        {
+          "prNumber": 18998,
+          "title": "fix(llm-task): fall back to dist/ path for runEmbeddedPiAgent import",
+          "author": "Phineas1500",
+          "state": "open",
+          "rank": 1,
+          "score": 91,
+          "rationale": "Based on #18946, with CI-friendly TS-guard and enhanced error reporting; adds @ts-expect-error to dist path, captures cause in errors, and includes lint hints; tests/CI checks pass; overall thorough and maintainable.",
+          "url": "https://github.com/openclaw/openclaw/pull/18998"
+        },
+        {
+          "prNumber": 18946,
+          "title": "fix(llm-task): fall back to dist/ path for runEmbeddedPiAgent import",
+          "author": "arosstale",
+          "state": "open",
+          "rank": 2,
+          "score": 86,
+          "rationale": "Solid fix that changes dist/ import and mirrors src path behavior with a try/catch, aligning behavior with packaged environments; tests/lint suite pass; some minor style inconsistency noted in the greptile notes.",
+          "url": "https://github.com/openclaw/openclaw/pull/18946"
+        },
+        {
+          "prNumber": 19061,
+          "title": "fix(llm-task): correct fallback import path from src/ to dist/",
+          "author": "Operative-001",
+          "state": "open",
+          "rank": 3,
+          "score": 54,
+          "rationale": "Minimal one-line change to fix the import path; low surface area but lacks additional tests or enhancements; adequate for fix but lower maintainability/robustness.",
+          "url": "https://github.com/openclaw/openclaw/pull/19061"
+        }
+      ]
+    },
+    {
+      "id": 2592,
+      "label": "This PR adds configurable baseUrl support for the Brave Search provider in the...",
+      "members": [
+        {
+          "prNumber": 18167,
+          "title": "feat(web-search): add baseUrl support for Brave Search provider",
+          "author": "jkoprax",
+          "state": "open",
+          "rank": 1,
+          "score": 98,
+          "rationale": "Extensive, well-structured change-set with provider-specific and top-level config, broad test coverage (11 tests), updated docs/labels, and backward-compatible behavior.",
+          "url": "https://github.com/openclaw/openclaw/pull/18167"
+        },
+        {
+          "prNumber": 19126,
+          "title": "feat(web-search): add baseUrl option for Brave Search provider",
+          "author": "pierreeurope",
+          "state": "open",
+          "rank": 2,
+          "score": 92,
+          "rationale": "Solid feature addition with tests for Brave baseUrl and URL behavior; multiple config surfaces updated; strong but narrower scope than #18167.",
+          "url": "https://github.com/openclaw/openclaw/pull/19126"
+        },
+        {
+          "prNumber": 19314,
+          "title": "feat: add Brave web_search baseUrl override (AI-assisted)",
+          "author": "mrutunjay-kinagi",
+          "state": "open",
+          "rank": 3,
+          "score": 88,
+          "rationale": "Good coverage with docs/tests and cache-key updates; note from Greptile indicating a potential logical bug in baseUrl handling that would need fix before merge.",
+          "url": "https://github.com/openclaw/openclaw/pull/19314"
+        },
+        {
+          "prNumber": 19084,
+          "title": "fix: Brave Search baseUrl and Inter-session Message Role",
+          "author": "jackjin1997",
+          "state": "open",
+          "rank": 4,
+          "score": 84,
+          "rationale": "Focused fix addressing Brave baseUrl and inter-session role; smaller scope with solid changes but less comprehensive test/docs coverage compared to others.",
+          "url": "https://github.com/openclaw/openclaw/pull/19084"
+        }
+      ]
+    },
+    {
+      "id": 2593,
+      "label": "This PR fixes supervision detection by adding OpenClaw-specific environment...",
+      "members": [
+        {
+          "prNumber": 19872,
+          "title": "fix(respawn): detect OpenClaw service env supervisor hints",
+          "author": "vibecodooor",
+          "state": "open",
+          "rank": 1,
+          "score": 90,
+          "rationale": "Two env vars added to SUPERVISOR_HINT_ENV_VARS; tests extended with two new cases and cleanup updated; aligns with service-env.ts; greater coverage and explicit validation for both OPENCLAW_LAUNCHD_LABEL and OPENCLAW_SYSTEMD_UNIT.",
+          "url": "https://github.com/openclaw/openclaw/pull/19872"
+        },
+        {
+          "prNumber": 19573,
+          "title": "fix: detect OpenClaw service env vars in supervisor hint check",
+          "author": "heyhudson",
+          "state": "open",
+          "rank": 2,
+          "score": 80,
+          "rationale": "Minimal, targeted fix adding two env vars; small production change (~2 lines) with a test for OPENCLAW_LAUNCHD_LABEL but no dedicated test for OPENCLAW_SYSTEMD_UNIT; good but less coverage than PR19872.",
+          "url": "https://github.com/openclaw/openclaw/pull/19573"
+        }
+      ]
+    },
+    {
+      "id": 2594,
+      "label": "This PR fixes a TypeScript compilation error in the subagent announce...",
+      "members": [
+        {
+          "prNumber": 19674,
+          "title": "test: allow optional session key in subagent announce mock",
+          "author": "DmitryIschanko",
+          "state": "open",
+          "rank": 1,
+          "score": 94,
+          "rationale": "Targeted, clean TypeScript type tweak in test only; aligns mock signature with actual usage; no production code changes; minimal risk.",
+          "url": "https://github.com/openclaw/openclaw/pull/19674"
+        },
+        {
+          "prNumber": 19679,
+          "title": "fix: handle optional sessionKey in subagent-announce test mock",
+          "author": "88plug",
+          "state": "open",
+          "rank": 2,
+          "score": 82,
+          "rationale": "Adds runtime fallback in test to satisfy typing; while safe and test-only, it introduces a runtime behavior in test that doesn't reflect production, and could obscure potential undefined values; less ideal than changing the type.",
+          "url": "https://github.com/openclaw/openclaw/pull/19679"
+        }
+      ]
+    },
+    {
+      "id": 2595,
+      "label": "This PR fixes schema validation errors when using google-antigravity thinking...",
+      "members": [
+        {
+          "prNumber": 19732,
+          "title": "fix: clean tool schemas and thinking blocks for google-antigravity",
+          "author": "Oceanswave",
+          "state": "open",
+          "rank": 1,
+          "score": 90,
+          "rationale": "Comprehensive, multi-file changes improving schema cleaning for google-antigravity with idempotent behavior; includes end-to-end workflow, tests plan, and documentation via Greptile summary. Some edge-case coverage missing (two no-test items) and potential risk from complex union handling not fully unit-tested.",
+          "url": "https://github.com/openclaw/openclaw/pull/19732"
+        },
+        {
+          "prNumber": 20124,
+          "title": "fix: strip unsupported JSON Schema keywords for Claude via Cloud Code Assist",
+          "author": "ephraimm",
+          "state": "open",
+          "rank": 2,
+          "score": 53,
+          "rationale": "Small, targeted fix extending cleaning to google-antigravity in Cloud Code Assist path. Low risk and minimal surface area. Lacks dedicated tests for the new provider path and notes a stale comment elsewhere, reducing completeness.",
+          "url": "https://github.com/openclaw/openclaw/pull/20124"
+        }
+      ]
+    },
+    {
+      "id": 2596,
+      "label": "Fixes a hardcoded startup grace period in the Matrix monitor by switching...",
+      "members": [
+        {
+          "prNumber": 19973,
+          "title": "fix(matrix): set startupGraceMs to 5000 to tolerate clock skew (#19843)",
+          "author": "arosstale",
+          "state": "open",
+          "rank": 1,
+          "score": 92,
+          "rationale": "Well-scoped, test-backed fix: single constant change from 0 to 5000 with an accompanying new test file validating clock-skew handling and grace-window behavior. Minor import reorder. Clean, maintainable change with good coverage.",
+          "url": "https://github.com/openclaw/openclaw/pull/19973"
+        },
+        {
+          "prNumber": 20025,
+          "title": "Fix Matrix messages silently dropped due to zero startup grace",
+          "author": "Clawborn",
+          "state": "open",
+          "rank": 2,
+          "score": 75,
+          "rationale": "Minimal, safe fix focusing on increasing the grace period and adding debug logging. Lacks explicit tests in the description, so completeness is lower; two-file change but no test coverage noted.",
+          "url": "https://github.com/openclaw/openclaw/pull/20025"
+        }
+      ]
+    },
+    {
+      "id": 2597,
+      "label": "This PR fixes a regression where paired devices were authenticating with the...",
+      "members": [
+        {
+          "prNumber": 17279,
+          "title": "fix: restore device token priority over config token",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 1,
+          "score": 83,
+          "rationale": "Small, focused change restoring device-token priority with minimal surface area; adds canFallbackToShared flag, self-healing path, and clearDeviceAuthToken import. Tests compile and gateway tests pass (apart from unrelated failure).",
+          "url": "https://github.com/openclaw/openclaw/pull/17279"
+        },
+        {
+          "prNumber": 17379,
+          "title": "fix: restore device token priority in device-auth mode",
+          "author": "Limitless2023",
+          "state": "open",
+          "rank": 2,
+          "score": 70,
+          "rationale": "Thorough explanation and targeted fix to preserve device-auth mode token priority; however, no new automated tests for token-priority logic and the description notes absence of unit tests, reducing completeness. Overall maintainable, but slightly less thorough in test coverage.",
+          "url": "https://github.com/openclaw/openclaw/pull/17379"
+        }
+      ]
+    },
+    {
+      "id": 2598,
+      "label": "This change fixes the LINE channel sendPayload so that flex messages (detail...",
+      "members": [
+        {
+          "prNumber": 17318,
+          "title": "fix(line): send flex messages before template in mixed rich replies",
+          "author": "arosstale",
+          "state": "open",
+          "rank": 1,
+          "score": 88,
+          "rationale": "Addresses both direct-send and quick-reply batch paths; adds tests validating ordering; minimal, readable change. Some test notes mention gaps, but patch is sound.",
+          "url": "https://github.com/openclaw/openclaw/pull/17318"
+        },
+        {
+          "prNumber": 17327,
+          "title": "fix: LINE mixed rich reply order is reversed",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 2,
+          "score": 65,
+          "rationale": "Corrects non-batched path only; quick-replies batch path still unfixed; no new tests; simpler change but incomplete.",
+          "url": "https://github.com/openclaw/openclaw/pull/17327"
+        }
+      ]
+    },
+    {
+      "id": 2599,
+      "label": "Adds support for local, OpenAI-compatible embedding endpoints in memory-lancedb...",
+      "members": [
+        {
+          "prNumber": 17566,
+          "title": "memory-lancedb: support local OpenAI-compatible embeddings",
+          "author": "lumenradley",
+          "state": "open",
+          "rank": 1,
+          "score": 94,
+          "rationale": "Strong, well tested change with new config options, runtime validation, removal of the OpenAI SDK, and local provider support. Includes extended tests and relevant config changes, plus a pnpm-lock update.",
+          "url": "https://github.com/openclaw/openclaw/pull/17566"
+        },
+        {
+          "prNumber": 17874,
+          "title": "feat(memory-lancedb): Custom OpenAI BaseURL & Dimensions Support",
+          "author": "rish2jain",
+          "state": "open",
+          "rank": 2,
+          "score": 75,
+          "rationale": "Smaller, config focused update enabling baseUrl and dimensions with adjusted validation. Lacks tests and docs in this PR, and broader edge-case coverage is lighter.",
+          "url": "https://github.com/openclaw/openclaw/pull/17874"
+        }
+      ]
+    },
+    {
+      "id": 2600,
+      "label": "Problem solved: manual cron.run could incorrectly report already-running when a...",
+      "members": [
+        {
+          "prNumber": 17949,
+          "title": "fix: clear stale runningAtMs in cron.run() before already-running check (#17554)",
+          "author": "yasumorishima",
+          "state": "open",
+          "rank": 1,
+          "score": 82,
+          "rationale": "Regression-tested fix that adds a single-line maintenance call before the already-running check and includes a regression test in service.issue-regressions.test.ts. Aligns with the existing STUCK_RUN_MS handling, uses existing patterns, and minimizes risk.",
+          "url": "https://github.com/openclaw/openclaw/pull/17949"
+        },
+        {
+          "prNumber": 17895,
+          "title": "fix(cron): add staleness check for runningAtMs on manual trigger\n",
+          "author": "PlayerGhost",
+          "state": "open",
+          "rank": 2,
+          "score": 75,
+          "rationale": "Adds the staleness check to cron.run() with consistent comment/documentation and low-risk change. Mentions broad test results (118 cron tests, 542 overall) but does not clearly show new regression tests; solid, but slightly less complete than 17949.",
+          "url": "https://github.com/openclaw/openclaw/pull/17895"
+        },
+        {
+          "prNumber": 17643,
+          "title": "fix: clear stale runningAtMs in cron.run to allow manual triggers",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 3,
+          "score": 66,
+          "rationale": "Clean, targeted change to introduce a threshold and clear stale markers. No explicit new tests described; relies on existing cron tests. Highest focus on correctness but weaker on completeness due to lack of new tests/documentation.",
+          "url": "https://github.com/openclaw/openclaw/pull/17643"
+        }
+      ]
+    },
+    {
+      "id": 2601,
+      "label": "This PR fixes the Telegram adapter by adding support for the poll action, which...",
+      "members": [
+        {
+          "prNumber": 17894,
+          "title": "fix(telegram): add missing poll action gate with input validation\n",
+          "author": "PlayerGhost",
+          "state": "open",
+          "rank": 1,
+          "score": 73,
+          "rationale": "More thorough change with explicit input validation, type updates, and gate handling across multiple files; includes tests evidence and aligns with Telegram poll semantics. Noted caveat: Greptile review mentions a potential bug around pollDurationHours integer handling that could break fractional hours, slightly reducing reliability.",
+          "url": "https://github.com/openclaw/openclaw/pull/17894"
+        },
+        {
+          "prNumber": 17649,
+          "title": "fix: register poll action gate for Telegram adapter (#17528)",
+          "author": "echoVic",
+          "state": "open",
+          "rank": 2,
+          "score": 53,
+          "rationale": "Focused, minimal patch that mirrors Discord pattern by gating the poll action and wiring a handler, but lacks explicit tests/docs in the description and appears less comprehensive overall.",
+          "url": "https://github.com/openclaw/openclaw/pull/17649"
+        }
+      ]
+    },
+    {
+      "id": 2602,
+      "label": "Extends memory-lancedb by adding gemini-embedding-001 (3072 dims) as a...",
+      "members": [
+        {
+          "prNumber": 17701,
+          "title": "fix(memory-lancedb): add gemini-embedding-001 and baseUrl support",
+          "author": "Phineas1500",
+          "state": "open",
+          "rank": 1,
+          "score": 90,
+          "rationale": "Most thorough implementation: adds env var resolution on baseUrl, uiHints, and updated help text; includes tests for gemini model + baseUrl config and env var resolution; consistent with existing patterns across four files; strong test coverage and maintainability.",
+          "url": "https://github.com/openclaw/openclaw/pull/17701"
+        },
+        {
+          "prNumber": 17696,
+          "title": "fix(memory-lancedb): add gemini-embedding-001 and baseUrl support",
+          "author": "aldoeliacim",
+          "state": "open",
+          "rank": 2,
+          "score": 70,
+          "rationale": "Solid initial integration adding gemini-embedding-001 and baseUrl plumbing with tests unchanged. Clean, minimal changes and passes existing tests, but lacks explicit test coverage for env var resolution and broader edge-case validation present in later PR.",
+          "url": "https://github.com/openclaw/openclaw/pull/17696"
+        }
+      ]
+    },
+    {
+      "id": 2603,
+      "label": "Fix suppresses recoverable mutating tool errors when the agent has already...",
+      "members": [
+        {
+          "prNumber": 18466,
+          "title": "fix: suppress recoverable mutating tool errors when agent already replied",
+          "author": "stijnhoste",
+          "state": "open",
+          "rank": 1,
+          "score": 92,
+          "rationale": "Broad, well-contained fix with comprehensive test coverage across recoverable vs non-recoverable errors and assistant-reply edge cases; updates to logic, tests, and e2e behavior reflect global applicability of suppressToolErrors to all tool types. Minor gitignore tweak included.",
+          "url": "https://github.com/openclaw/openclaw/pull/18466"
+        },
+        {
+          "prNumber": 19632,
+          "title": "fix: suppressToolErrors now suppresses exec tool failure notifications",
+          "author": "Gitjay11",
+          "state": "open",
+          "rank": 2,
+          "score": 78,
+          "rationale": "Narrow, focused fix improving suppression for mutating tools when suppressToolErrors is enabled. Default behavior preserved. Test updated accordingly; coverage sufficient for the targeted regression but lacks broader edge-case testing present in PR18466.",
+          "url": "https://github.com/openclaw/openclaw/pull/19632"
+        }
+      ]
+    },
+    {
+      "id": 2604,
+      "label": "This change fixes native Windows build failures by addressing...",
+      "members": [
+        {
+          "prNumber": 19905,
+          "title": "build: replace bash script with cross-platform node script for a2ui bundling",
+          "author": "luolin-ai",
+          "state": "open",
+          "rank": 1,
+          "score": 86,
+          "rationale": "Clear cross-platform port of build script to Node.js; broad touched areas including CI, docs, and environment setup; high maintainability with modern approach; strong verification.",
+          "url": "https://github.com/openclaw/openclaw/pull/19905"
+        },
+        {
+          "prNumber": 18493,
+          "title": "making pnpm build:ui and pnpm build to work on windows",
+          "author": "darkpowerxo",
+          "state": "open",
+          "rank": 2,
+          "score": 78,
+          "rationale": "Addresses Windows path/spawn issues with multiple scripts and a wrapper; comprehensive changes but more risky due to platform-specific shims and broader touchpoints; solid verification but complexity reduces maintainability slightly.",
+          "url": "https://github.com/openclaw/openclaw/pull/18493"
+        }
+      ]
+    },
+    {
+      "id": 2605,
+      "label": "Introduces per-group override support for the Signal channel by adding a...",
+      "members": [
+        {
+          "prNumber": 18865,
+          "title": "fix(signal): add per-group configuration schema",
+          "author": "BinHPdev",
+          "state": "open",
+          "rank": 1,
+          "score": 90,
+          "rationale": "Appears more thorough: adds SignalGroupConfig type, updates multiple related files (including extensions path), includes 3 regression tests, and changelog entry. Uses strict validation and mirrors established patterns to align typings with other channels; strong test coverage and documentation parity.",
+          "url": "https://github.com/openclaw/openclaw/pull/18865"
+        },
+        {
+          "prNumber": 18656,
+          "title": "fix(signal): add missing groups field to Signal channel schema (#18635)",
+          "author": "awkoy",
+          "state": "open",
+          "rank": 2,
+          "score": 86,
+          "rationale": "Solid and consistent with existing channel patterns: adds SignalGroupSchema and groups field, updates SignalAccountConfig typings, and includes regression tests. No runtime changes, focused on schema validation parity with Telegram/IRC/WhatsApp.",
+          "url": "https://github.com/openclaw/openclaw/pull/18656"
+        }
+      ]
+    },
+    {
+      "id": 2606,
+      "label": "This PR fixes compaction failures caused by sending adaptive thinking...",
+      "members": [
+        {
+          "prNumber": 18727,
+          "title": "fix(compaction): disable extended thinking for non-direct Anthropic endpoints",
+          "author": "Phineas1500",
+          "state": "open",
+          "rank": 1,
+          "score": 96,
+          "rationale": "Very thorough implementation with unit tests (normalizeModelForCompaction) and integration tests ensuring correct model state across retries. Changes are well-scoped to compaction.ts and the tests cover multiple endpoint types (direct Anthropic, proxies, bedrock). Existing tests still pass. High maintainability and coverage.",
+          "url": "https://github.com/openclaw/openclaw/pull/18727"
+        },
+        {
+          "prNumber": 18953,
+          "title": "fix(compaction): prevent adaptive thinking on Vertex AI endpoints",
+          "author": "BinHPdev",
+          "state": "open",
+          "rank": 2,
+          "score": 80,
+          "rationale": "Solid targeted fix introducing patchModelForCompaction() and 6 tests for Vertex AI/Portkey scenarios, plus compatibility checks with direct Anthropic and non-Opus models. Some test structure concerns (duplicated function in tests and potential import issues) and lack of manual test and docs reduce overall completeness. Still a strong, focused improvement.",
+          "url": "https://github.com/openclaw/openclaw/pull/18953"
+        }
+      ]
+    },
+    {
+      "id": 2607,
+      "label": "Fixes false-positive MEDIA extraction in tool-result parsing by using the...",
+      "members": [
+        {
+          "prNumber": 19399,
+          "title": "telegram: fix MEDIA false positives and partial final drop",
+          "author": "HOYALIM",
+          "state": "open",
+          "rank": 1,
+          "score": 93,
+          "rationale": "Excellent coverage and scope: uses the shared splitMediaFromOutput parser across tool-result parsing and Telegram flow; fixes false positives and adds targeted regression tests (media prose and regressive final) across multiple files; aligns with related issues; robust changes with minimal risk and high maintainability.",
+          "url": "https://github.com/openclaw/openclaw/pull/19399"
+        },
+        {
+          "prNumber": 18890,
+          "title": "fix(media): parse tool-result MEDIA directives with shared parser",
+          "author": "teededung",
+          "state": "open",
+          "rank": 2,
+          "score": 86,
+          "rationale": "Solid refactor using the shared parser and a regression test for prose MEDIA; narrower scope than PR19399 (fewer touched areas and tests), but still clean, maintainable, and correctly aligned with existing parsing guards.",
+          "url": "https://github.com/openclaw/openclaw/pull/18890"
+        }
+      ]
+    },
+    {
+      "id": 2608,
+      "label": "This change makes the failover logic recognize common network errors...",
+      "members": [
+        {
+          "prNumber": 20026,
+          "title": "Trigger model failover on connection-refused and DNS errors",
+          "author": "Clawborn",
+          "state": "open",
+          "rank": 1,
+          "score": 96,
+          "rationale": "Clean, focused change that extends failover logic with four new error codes and separate includes for readability; test coverage is complete and aligned with existing architecture.",
+          "url": "https://github.com/openclaw/openclaw/pull/20026"
+        },
+        {
+          "prNumber": 19077,
+          "title": "fix(agents): trigger model failover on connection-refused and network-unreachable errors",
+          "author": "ayanesakura",
+          "state": "open",
+          "rank": 2,
+          "score": 80,
+          "rationale": "Solid implementation and test additions, but reported missing coverage for ENETRESET in the Greptile review indicates incomplete edge-case coverage and a minor maintainability gap.",
+          "url": "https://github.com/openclaw/openclaw/pull/19077"
+        }
+      ]
+    },
+    {
+      "id": 2609,
+      "label": "This PR fixes a validation bug that prevented line deletions by rejecting an...",
+      "members": [
+        {
+          "prNumber": 19132,
+          "title": "fix(tools): allow empty newText in edit tool param validation",
+          "author": "lailoo",
+          "state": "open",
+          "rank": 1,
+          "score": 96,
+          "rationale": "Very thorough regression coverage (16 tests) around empty/newText, whitespace, aliases, and missing parameters; concise single-line fix in CLAUDE_PARAM_GROUPS.edit; changelog and tests updated accordingly.",
+          "url": "https://github.com/openclaw/openclaw/pull/19132"
+        },
+        {
+          "prNumber": 19125,
+          "title": "fix(edit): allow empty string newText for line deletion",
+          "author": "aldoeliacim",
+          "state": "open",
+          "rank": 2,
+          "score": 82,
+          "rationale": "Targeted fix with 4 tests for empty/newText; consistent with existing patterns; smaller scope than 19132.",
+          "url": "https://github.com/openclaw/openclaw/pull/19125"
+        }
+      ]
+    },
+    {
+      "id": 2610,
+      "label": "This PR fixes a case-sensitivity bug in Matrix room config lookup by...",
+      "members": [
+        {
+          "prNumber": 19691,
+          "title": "fix(matrix): resolve per-room config with case-insensitive room ID matching",
+          "author": "ayanesakura",
+          "state": "open",
+          "rank": 1,
+          "score": 100,
+          "rationale": "Clear, well-scoped fix using resolveMatrixRoomConfigWithFallback and normalizeKey; adds comprehensive tests for case-insensitive matching and edge cases; low risk and well-documented.",
+          "url": "https://github.com/openclaw/openclaw/pull/19691"
+        },
+        {
+          "prNumber": 19388,
+          "title": "Fix #19278: Case-insensitive Matrix room ID matching",
+          "author": "cedillarack",
+          "state": "open",
+          "rank": 2,
+          "score": 78,
+          "rationale": "Adds tests for case-insensitive matching and alias handling; improves coverage, but notes potential incomplete normalization in the approach, suggesting room for refinement.",
+          "url": "https://github.com/openclaw/openclaw/pull/19388"
+        },
+        {
+          "prNumber": 19294,
+          "title": "fix: normalize room ID case in Matrix config lookup",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 3,
+          "score": 37,
+          "rationale": "Minimal fix to normalize IDs to lowercase before lookup; no tests added, resulting in low completeness despite reasonable code quality.",
+          "url": "https://github.com/openclaw/openclaw/pull/19294"
+        }
+      ]
+    },
+    {
+      "id": 2611,
+      "label": "Fixes blocking of forward-compat models in model selection by teaching the...",
+      "members": [
+        {
+          "prNumber": 19607,
+          "title": "fix(models): allow forward-compat models in allowlist gate",
+          "author": "mcinteerj",
+          "state": "open",
+          "rank": 1,
+          "score": 96,
+          "rationale": "Well-executed, minimal footprint with a corresponding test suite validating forward-compat gates and edge cases. Keeps changes isolated to allowlist, mirrors resolver patterns, and aligns with downstream resolution. High completeness and maintainability.",
+          "url": "https://github.com/openclaw/openclaw/pull/19607"
+        },
+        {
+          "prNumber": 19533,
+          "title": "fix: allow forward-compat models in buildAllowedModelSet",
+          "author": "Anthony-g-dev",
+          "state": "open",
+          "rank": 2,
+          "score": 50,
+          "rationale": "Adds isForwardCompatModelId and a small gate change, but overall incomplete: greptile notes a critical mismatch (no resolver update for Sonnet 4.6), risking runtime 'Unknown model' errors. Tests and full coverage appear lacking.",
+          "url": "https://github.com/openclaw/openclaw/pull/19533"
+        }
+      ]
+    },
+    {
+      "id": 2612,
+      "label": "This fixes model alias resolution so that short-name keys (Style B) like {...",
+      "members": [
+        {
+          "prNumber": 20049,
+          "title": "fix(model-selection): resolve short-name alias keys correctly",
+          "author": "widingmarcus-cyber",
+          "state": "open",
+          "rank": 1,
+          "score": 72,
+          "rationale": "Adds regression test and end-to-end coverage for Style B alias resolution, improving robustness, but notes in the PR indicate related allowlist handling and UI label semantics need follow-up; thus still some risk.",
+          "url": "https://github.com/openclaw/openclaw/pull/20049"
+        },
+        {
+          "prNumber": 20080,
+          "title": "fix: resolve model aliases correctly when keyed by short name",
+          "author": "kamal-ayman",
+          "state": "open",
+          "rank": 2,
+          "score": 48,
+          "rationale": "Fixes core inversion in buildModelAliasIndex but lacks tests and leaves allowlist/key-display issues unresolved, resulting in incomplete changes and higher risk of downstream failures.",
+          "url": "https://github.com/openclaw/openclaw/pull/20080"
+        }
+      ]
+    },
+    {
+      "id": 2613,
+      "label": "This PR removes two hardcoded restrictions that blocked trusted-proxy...",
+      "members": [
+        {
+          "prNumber": 20097,
+          "title": "fix(gateway): trusted-proxy auth rejected when bind=loopback",
+          "author": "xinhuagu",
+          "state": "open",
+          "rank": 1,
+          "score": 96,
+          "rationale": "Clean, targeted changes removing two hardcoded loopback restrictions while preserving safety checks; comprehensive updates including tests and a new loopback+trusted-proxy scenario. No obvious regressions; well-scoped and maintainable.",
+          "url": "https://github.com/openclaw/openclaw/pull/20097"
+        },
+        {
+          "prNumber": 20099,
+          "title": "fix: allow loopback binding with trusted-proxy auth mode",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 2,
+          "score": 70,
+          "rationale": "Solid runtime config adjustment and tests, but incomplete fix as interactive gateway configuration still rewrites bind loopback to lan, and tests rely on old behavior. Overall improvement but not fully complete; still needs follow-up.",
+          "url": "https://github.com/openclaw/openclaw/pull/20099"
+        }
+      ]
+    },
+    {
+      "id": 2614,
+      "label": "PR fixes a bug where extraParams.provider was silently dropped when using...",
+      "members": [
+        {
+          "prNumber": 17654,
+          "title": "feat(openrouter): pass provider routing params via model params",
+          "author": "Billmvp73",
+          "state": "open",
+          "rank": 1,
+          "score": 90,
+          "rationale": "High-quality change with e2e test coverage; clean wrapper merging params.provider into outbound OpenRouter payload, scoped to provider==='openrouter'; preserves existing config format and headers; strong maintainability, minor caveat: depends on existing tests.",
+          "url": "https://github.com/openclaw/openclaw/pull/17654"
+        },
+        {
+          "prNumber": 17148,
+          "title": "feat: pass through OpenRouter provider routing params",
+          "author": "carrotRakko",
+          "state": "open",
+          "rank": 2,
+          "score": 66,
+          "rationale": "Clean, focused change that preserves config format and avoids schema changes with runtime bridging. Guarding and logging mentioned, but limited to description; lacks automated tests and thorough edge-case coverage in the body.",
+          "url": "https://github.com/openclaw/openclaw/pull/17148"
+        }
+      ]
+    },
+    {
+      "id": 2615,
+      "label": "This PR adds an optional warm QMD daemon mode that keeps a QMD process alive...",
+      "members": [
+        {
+          "prNumber": 17910,
+          "title": "feat(memory): QMD daemon mode — persistent process with idle lifecycle",
+          "author": "patrickshao",
+          "state": "open",
+          "rank": 1,
+          "score": 94,
+          "rationale": "Well-scoped feature with optional daemon, thorough docs and tests, and robust fallback to spawn-per-query. Multiple touched areas (docs, types, backend, and tests) indicate strong integration and maintainability. Minor risk from complexity due to many files.",
+          "url": "https://github.com/openclaw/openclaw/pull/17910"
+        },
+        {
+          "prNumber": 19617,
+          "title": "feat(memory): allow QMD searches via mcporter keep-alive",
+          "author": "vignesh07",
+          "state": "open",
+          "rank": 2,
+          "score": 82,
+          "rationale": "Structured opt in mcporter path with config and CLI routing. Good foundation and testing plan, but test isolation issues and permanent caching of daemon start failures could degrade reliability. Overall well-structured but needs cleanup and resilience fixes.",
+          "url": "https://github.com/openclaw/openclaw/pull/19617"
+        }
+      ]
+    },
+    {
+      "id": 2616,
+      "label": "Fix Telegram bot command naming by replacing the hyphen in the native command...",
+      "members": [
+        {
+          "prNumber": 18762,
+          "title": "fix(telegram): replace hyphen in export-session nativeName for setMyCommands",
+          "author": "amabito",
+          "state": "open",
+          "rank": 1,
+          "score": 98,
+          "rationale": "Broad, consistent changes across registry, handler guard, argument parser, and documentation; includes test plan and updates across multiple files. High completeness and alignment with existing patterns.",
+          "url": "https://github.com/openclaw/openclaw/pull/18762"
+        },
+        {
+          "prNumber": 18711,
+          "title": "fix(telegram): replace hyphens with underscores in export-session command",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 2,
+          "score": 65,
+          "rationale": "Small, safe one-character fix updating nativeName in the registry with no test changes required; clear rationale and alignment with naming conventions.",
+          "url": "https://github.com/openclaw/openclaw/pull/18711"
+        }
+      ]
+    },
+    {
+      "id": 2617,
+      "label": "This PR fixes the formal-conformance CI workflow so fork PRs don’t fail when...",
+      "members": [
+        {
+          "prNumber": 17426,
+          "title": "ci(formal): don't fail on fork PRs when PR comment is blocked",
+          "author": "mitre88",
+          "state": "open",
+          "rank": 1,
+          "score": 82,
+          "rationale": "Multi-file, well-scoped changes implementing fork-safe PR commenting with appropriate permission and error handling; includes test changes and alignment with existing patterns. Some ambiguity about accompanying non-functional changes (memory config) and test coverage details.",
+          "url": "https://github.com/openclaw/openclaw/pull/17426"
+        },
+        {
+          "prNumber": 17621,
+          "title": "fix: formal_conformance comment step should not fail job on fork PRs",
+          "author": "cmfinlan",
+          "state": "open",
+          "rank": 2,
+          "score": 53,
+          "rationale": "Minimal, single-file workflow adjustment to prevent fork PR failures; clear intent and low risk, but limited scope and coverage; lacks broader tests/docs.",
+          "url": "https://github.com/openclaw/openclaw/pull/17621"
+        }
+      ]
+    },
+    {
+      "id": 2618,
+      "label": "Problem: after /new or /reset, the session-memory hook read from the active...",
+      "members": [
+        {
+          "prNumber": 19313,
+          "title": "fix(session-memory): preserve rotated transcript selection on /new",
+          "author": "ayanesakura",
+          "state": "open",
+          "rank": 1,
+          "score": 85,
+          "rationale": "Well-scoped fix with regression tests; preserves correct reset transcript selection and adds test coverage; clear changes with minimal risk.",
+          "url": "https://github.com/openclaw/openclaw/pull/19313"
+        },
+        {
+          "prNumber": 18103,
+          "title": "fix: session-memory hook reads reset file after /new or /reset",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 2,
+          "score": 48,
+          "rationale": "Addresses real bug with fallback to reset file but lacks tests for the new path and has potential error-handling gaps; incomplete coverage reduces confidence.",
+          "url": "https://github.com/openclaw/openclaw/pull/18103"
+        }
+      ]
+    },
+    {
+      "id": 2619,
+      "label": "Brave Search API requires full locale codes (e.g.",
+      "members": [
+        {
+          "prNumber": 19031,
+          "title": "fix(web-search): normalize ui_lang parameter for Brave Search API",
+          "author": "moxunjinmu",
+          "state": "open",
+          "rank": 1,
+          "score": 92,
+          "rationale": "Thorough normalization approach with unit and integration tests; better coverage and explicit handling of edge cases.",
+          "url": "https://github.com/openclaw/openclaw/pull/19031"
+        },
+        {
+          "prNumber": 18805,
+          "title": "fix(web-search): skip invalid bare ui_lang codes in Brave Search requests",
+          "author": "andrey-esipov",
+          "state": "open",
+          "rank": 2,
+          "score": 63,
+          "rationale": "Focused, small fix with guard against bare ui_lang codes; lacks unit tests and broader edge-case coverage.",
+          "url": "https://github.com/openclaw/openclaw/pull/18805"
+        }
+      ]
+    },
+    {
+      "id": 2620,
+      "label": "This PR enables sending polls via Telegram by registering the polls action gate...",
+      "members": [
+        {
+          "prNumber": 17723,
+          "title": "Telegram actions: let poll fall back to core sender",
+          "author": "clzoc",
+          "state": "open",
+          "rank": 1,
+          "score": 90,
+          "rationale": "Implements explicit Telegram action filtering to avoid intercepting poll, routes poll through core sender path when appropriate, and includes regression tests; strong alignment with existing adapters and solid error handling.",
+          "url": "https://github.com/openclaw/openclaw/pull/17723"
+        },
+        {
+          "prNumber": 17534,
+          "title": "fix(telegram): add polls action gate to enable poll sending",
+          "author": "corvuslatimer",
+          "state": "open",
+          "rank": 2,
+          "score": 68,
+          "rationale": "Adds gate-based enabling and a Telegram poll handler with validation; follows existing patterns, but lacks explicit unit tests and has an incomplete checklist.",
+          "url": "https://github.com/openclaw/openclaw/pull/17534"
+        }
+      ]
+    },
+    {
+      "id": 2621,
+      "label": "Adds a runtime staleness guard for cron runningAtMs: if the marker is older...",
+      "members": [
+        {
+          "prNumber": 17561,
+          "title": "fix(cron): add runtime staleness guard for runningAtMs (#17554)",
+          "author": "robbyczgw-cla",
+          "state": "open",
+          "rank": 1,
+          "score": 88,
+          "rationale": "Well-scoped enhancements with new helpers (resolveJobTimeoutMs, isStaleRunning, clearStaleRunningMarker), refactors to deduplicate timeout logic, and applied across all runtime paths. Aligns runtime behavior with startup guard and seems maintainable. No dedicated tests were added for the runtime path; existing tests pass, but completeness could be improved with targeted tests for the new staleness path.",
+          "url": "https://github.com/openclaw/openclaw/pull/17561"
+        },
+        {
+          "prNumber": 17664,
+          "title": "fix(cron): detect and clear stale runningAtMs marker in manual run (#17554)",
+          "author": "echoVic",
+          "state": "open",
+          "rank": 2,
+          "score": 74,
+          "rationale": "Focused, low-risk patch targeting the manual run path with a staleness check similar to the timer path and reusing existing timeout logic. Maintains consistency and minimal surface area. Lacks dedicated tests for the new ops.run path, reducing completeness, though the change is straightforward and safe.",
+          "url": "https://github.com/openclaw/openclaw/pull/17664"
+        }
+      ]
+    },
+    {
+      "id": 2622,
+      "label": "The PR adds a 'current' alias for messageId in the message react action that...",
+      "members": [
+        {
+          "prNumber": 18893,
+          "title": "fix(message): use currentMessageId for react fallback and suppress recoverable react warnings",
+          "author": "teededung",
+          "state": "open",
+          "rank": 1,
+          "score": 84,
+          "rationale": "Broad, well-integrated changes wiring currentMessageId through core paths; strong test coverage and integration alignment. Noted concern: the payload suppression is described as broad in tests, which could hide legitimate react warnings.",
+          "url": "https://github.com/openclaw/openclaw/pull/18893"
+        },
+        {
+          "prNumber": 18408,
+          "title": "fix(message): support react current alias and suppress leaked react errors",
+          "author": "sggolakiya",
+          "state": "open",
+          "rank": 2,
+          "score": 74,
+          "rationale": "Focused, clean alias resolution and suppression path with targeted tests. Edge-case of missing current context leads to silent no-op; tests cover happy path but edge-case coverage appears limited.",
+          "url": "https://github.com/openclaw/openclaw/pull/18408"
+        }
+      ]
+    },
+    {
+      "id": 2623,
+      "label": "Fix ensures external channel plugins are discoverable in interactive menus...",
+      "members": [
+        {
+          "prNumber": 17229,
+          "title": "fix(plugin): registry loading for configure onboard",
+          "author": "soimy",
+          "state": "open",
+          "rank": 1,
+          "score": 80,
+          "rationale": "This patch expands the PLUGIN_REQUIRED_COMMANDS whitelist to include configure and onboard, ensuring the plugin registry is loaded before interactive menus for those commands. It follows the existing pattern used by channels, message, and directory commands, preserving backward compatibility and adding no new overhead. Verification describes manual checks and confirms external plugins become visible in configure and onboard flows; no automated tests added.",
+          "url": "https://github.com/openclaw/openclaw/pull/17229"
+        },
+        {
+          "prNumber": 19717,
+          "title": "fix: load plugin registry before channel commands run",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 2,
+          "score": 68,
+          "rationale": "This patch adds a defensive ensurePluginRegistryLoaded call in runChannelsCommand to guarantee the registry is initialized before channel subcommands run. It is low risk and largely redundant with the preaction hook, but increases defensiveness. It does not cover runChannelsCommandWithDanger, and the PR notes this as a potential gap; testing is reported but may not include path coverage.",
+          "url": "https://github.com/openclaw/openclaw/pull/19717"
+        }
+      ]
+    },
+    {
+      "id": 2624,
+      "label": "This PR adds a preloadDaemonCli() function to load daemon-cli dependencies into...",
+      "members": [
+        {
+          "prNumber": 17237,
+          "title": "fix(update): guard post-install imports after npm global update",
+          "author": "tdjackey",
+          "state": "open",
+          "rank": 1,
+          "score": 90,
+          "rationale": "Clear, targeted fix that keeps post-install imports eager to avoid ERR_MODULE_NOT_FOUND after npm global updates. Well-scoped changes, with regression tests and related test updates. High maintainability and confidence.",
+          "url": "https://github.com/openclaw/openclaw/pull/17237"
+        },
+        {
+          "prNumber": 17230,
+          "title": "fix: preload daemon-cli module before npm update",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 2,
+          "score": 58,
+          "rationale": "Adds preloadDaemonCli and wires it into update flow with tests updated to mock the new function. However, Greptile review notes a critical missing dependency preload (response.js), making this an incomplete fix and riskier in production. Good structure but not as complete or safe as PR #17237.",
+          "url": "https://github.com/openclaw/openclaw/pull/17230"
+        }
+      ]
+    },
+    {
+      "id": 2625,
+      "label": "The PR fixes a bug where PDF attachments were inlined as raw binary because...",
+      "members": [
+        {
+          "prNumber": 17286,
+          "title": "fix(media): PDF attachments embedded as raw binary instead of extracted text (#17198)",
+          "author": "yinghaosang",
+          "state": "open",
+          "rank": 1,
+          "score": 92,
+          "rationale": "Thorough, well-tested fix with targeted MIME preservation for PDFs and coverage of multiple edge cases (MIME preservation, end-to-end extraction, extension overrides, and non-PDF behavior). Strong test coverage and clear intent; minimal risk due to narrow scope.",
+          "url": "https://github.com/openclaw/openclaw/pull/17286"
+        },
+        {
+          "prNumber": 19440,
+          "title": "fix: preserve application/pdf MIME type from text heuristic override",
+          "author": "jalehman",
+          "state": "open",
+          "rank": 2,
+          "score": 74,
+          "rationale": "Small, clean change introducing a dedicated extraction MIME set and a guard to preserve raw MIME. High code quality but lower completeness due to lack of explicit new tests or broader edge-case validation in the description.",
+          "url": "https://github.com/openclaw/openclaw/pull/19440"
+        }
+      ]
+    },
+    {
+      "id": 2626,
+      "label": "Adds a defensive bootstrap block to the generated zsh completion script to...",
+      "members": [
+        {
+          "prNumber": 17325,
+          "title": "fix(completion): avoid zsh compdef error when compinit is not initialized",
+          "author": "ephelia-ai",
+          "state": "open",
+          "rank": 1,
+          "score": 99,
+          "rationale": "High-quality change with unit tests coverage for the bootstrap block; exports generateZshCompletion to enable testing; minimal risk to other shells; aligns with validation and test results.",
+          "url": "https://github.com/openclaw/openclaw/pull/17325"
+        },
+        {
+          "prNumber": 18938,
+          "title": "fix(completion): avoid compdef error in zsh by guarding completion init",
+          "author": "gcsenyan",
+          "state": "open",
+          "rank": 2,
+          "score": 84,
+          "rationale": "Solid defensive guard for zsh completion using a standard compinit pattern; targeted improvement with low risk. Lacks explicit tests in the description, reducing completeness score slightly.",
+          "url": "https://github.com/openclaw/openclaw/pull/18938"
+        },
+        {
+          "prNumber": 19109,
+          "title": "fix(completion): initialize compinit before compdef",
+          "author": "Clawborn",
+          "state": "open",
+          "rank": 3,
+          "score": 74,
+          "rationale": "Small, low-risk change adding an initialization guard and minor import reordering. Fewer details on tests or broader validation, resulting in lower completeness.",
+          "url": "https://github.com/openclaw/openclaw/pull/19109"
+        }
+      ]
+    },
+    {
+      "id": 2627,
+      "label": "The PR adds Telegram poll action support and persistent answer routing to...",
+      "members": [
+        {
+          "prNumber": 17441,
+          "title": "feat(telegram): add poll action support",
+          "author": "iacosta3994",
+          "state": "open",
+          "rank": 1,
+          "score": 68,
+          "rationale": "Small, well-scoped addition implementing Telegram poll action using existing sendPoll infrastructure; additive with minimal risk; lacks test coverage updates.",
+          "url": "https://github.com/openclaw/openclaw/pull/17441"
+        },
+        {
+          "prNumber": 17357,
+          "title": "feat(telegram): implement telegram poll action,persistent answer routing, fixed some vulnerabilities ",
+          "author": "akyourowngames",
+          "state": "open",
+          "rank": 2,
+          "score": 66,
+          "rationale": "Extensive changes including vulnerability fix and persistent polling, multiple files touched; strong tests but notable documented risks (durationHours bug, potential API compatibility break) lowering perceived quality.",
+          "url": "https://github.com/openclaw/openclaw/pull/17357"
+        }
+      ]
+    },
+    {
+      "id": 2628,
+      "label": "Extends the private-chat fix from PR #17252 to cover sendStickerTelegram and...",
+      "members": [
+        {
+          "prNumber": 19050,
+          "title": "fix(telegram): skip message_thread_id for private chats to prevent silent message drops (v2)",
+          "author": "Limitless2023",
+          "state": "open",
+          "rank": 1,
+          "score": 94,
+          "rationale": "Broader, well-scoped fix applied at the core buildTelegramThreadReplyParams level, affecting all send paths (text, media, stickers, polls). Thorough test coverage across private/group scenarios; v2 improvements documented; tests pass across 38 telegram test files. High maintainability and reliability due to centralized logic and comprehensive validation.",
+          "url": "https://github.com/openclaw/openclaw/pull/19050"
+        },
+        {
+          "prNumber": 17432,
+          "title": "fix(telegram): skip message_thread_id for private chats in sticker/poll sends",
+          "author": "clawinho",
+          "state": "open",
+          "rank": 2,
+          "score": 88,
+          "rationale": "Targeted extension of the private-chat fix to cover sendStickerTelegram and sendPollTelegram with a proactive approach and updated tests. Clear, maintainable changes and alignment with existing patterns. Slightly narrower in scope than #19050 but well-implemented and well-tested.",
+          "url": "https://github.com/openclaw/openclaw/pull/17432"
+        }
+      ]
+    },
+    {
+      "id": 2629,
+      "label": "Problem: Vertex AI users could not leverage prompt caching because...",
+      "members": [
+        {
+          "prNumber": 17462,
+          "title": "fix(cache): enable cache retention for Google Vertex AI (#15525)",
+          "author": "rrenamed",
+          "state": "open",
+          "rank": 1,
+          "score": 97,
+          "rationale": "Small, focused change extending two provider guards to include google-vertex. Clear minimal risk. Thorough validation plan with e2e tests for Vertex AI and unit tests covering all providers and case-insensitivity. No new dependencies introduced.",
+          "url": "https://github.com/openclaw/openclaw/pull/17462"
+        },
+        {
+          "prNumber": 19376,
+          "title": "fix(llm): enable prompt caching for non-Anthropic providers using anthropic-messages format",
+          "author": "arosstale",
+          "state": "open",
+          "rank": 2,
+          "score": 80,
+          "rationale": "Broader change enabling cache for providers using anthropic-messages format, with multiple files touched and a larger test surface (6-case e2e). Tests reportedly contain lint/test-setup issues (as any usage) that could fail CI, reducing perceived completeness and reliability, though the functional approach is sound and covered by tests.",
+          "url": "https://github.com/openclaw/openclaw/pull/19376"
+        }
+      ]
+    },
+    {
+      "id": 2630,
+      "label": "This PR removes legacy hard-coded config/state paths and redirects all...",
+      "members": [
+        {
+          "prNumber": 17884,
+          "title": "fix: remove legacy paths",
+          "author": "josuebass09",
+          "state": "open",
+          "rank": 1,
+          "score": 96,
+          "rationale": "Comprehensive fix: updates path resolution logic, related tests, and multiple affected files to ensure onboarding/gateway use /home/node/.openclaw. Strong test coverage and coherent changes across config and state-dir logic.",
+          "url": "https://github.com/openclaw/openclaw/pull/17884"
+        },
+        {
+          "prNumber": 17916,
+          "title": "[ fix ] : correct config directory path during onboarding",
+          "author": "Dijo-404",
+          "state": "open",
+          "rank": 2,
+          "score": 66,
+          "rationale": "Targeted fix aligning docker-compose with /home/node/.openclaw via OPENCLAW_STATE_DIR. Smaller change set (mostly docker-compose) with limited test coverage; thoroughness lags behind PR #17884.",
+          "url": "https://github.com/openclaw/openclaw/pull/17916"
+        }
+      ]
+    },
+    {
+      "id": 2631,
+      "label": "The PR fixes DM message threading by correcting how message_thread_id is...",
+      "members": [
+        {
+          "prNumber": 17952,
+          "title": "fix(telegram): support message_thread_id for DM topics",
+          "author": "timbrinded",
+          "state": "open",
+          "rank": 1,
+          "score": 85,
+          "rationale": "Clean, focused fix: passes through positive DM thread IDs for topic support; surgical change with targeted tests; low risk and well-scoped.",
+          "url": "https://github.com/openclaw/openclaw/pull/17952"
+        },
+        {
+          "prNumber": 17968,
+          "title": "fix(telegram): restore DM topic thread ids with send-path fallback",
+          "author": "Leonccaa",
+          "state": "open",
+          "rank": 2,
+          "score": 80,
+          "rationale": "More invasive, touches delivery path and tests across several files; restores DM thread IDs with fallback; thorough tests but includes known risk (delivery path lacking fallback) and broader impact.",
+          "url": "https://github.com/openclaw/openclaw/pull/17968"
+        }
+      ]
+    },
+    {
+      "id": 2632,
+      "label": "This PR fixes a cron scheduling bug where a cron job can become permanently...",
+      "members": [
+        {
+          "prNumber": 18192,
+          "title": "fix(cron): auto-clear stale runningAtMs markers after timeout (#18120)",
+          "author": "BinHPdev",
+          "state": "open",
+          "rank": 1,
+          "score": 88,
+          "rationale": "Well-scoped, minimal-risk change that aligns with existing timeout patterns. Strong test coverage evidenced by dedicated stale-marker tests and passing cron suites; improvements are isolated to isRunnableJob logic and logging. Some potential for log noise with persistent warnings, but overall robust and well-documented.",
+          "url": "https://github.com/openclaw/openclaw/pull/18192"
+        },
+        {
+          "prNumber": 18144,
+          "title": "fix(cron): clear stuck runningAtMs after timeout and add maintenance ticks",
+          "author": "taw0002",
+          "state": "open",
+          "rank": 2,
+          "score": 78,
+          "rationale": "Adds multiple behavioral fixes (executeJob timeout, maintenance ticks, and shorter STUCK_RUN_MS) and follows existing timeout patterns. Clear impact but larger feature surface, with potentially less targeted test coverage for the new maintenance tick path. Maintains consistency with surrounding code but introduces more moving parts to coordinate.",
+          "url": "https://github.com/openclaw/openclaw/pull/18144"
+        }
+      ]
+    },
+    {
+      "id": 2633,
+      "label": "This PR adds per-account support for routing Telegram API calls through a...",
+      "members": [
+        {
+          "prNumber": 19616,
+          "title": "feat(telegram): support custom apiRoot for Telegram Bot API",
+          "author": "CarloCPP",
+          "state": "open",
+          "rank": 1,
+          "score": 88,
+          "rationale": "Well-scoped feature adding per-account apiRoot with URL validation, propagated through core Telegram modules; backward-compatible defaults and comprehensive tests. Generally strong quality and completeness; minor surface complexity due to cross-module changes.",
+          "url": "https://github.com/openclaw/openclaw/pull/19616"
+        },
+        {
+          "prNumber": 18170,
+          "title": "feat(telegram): support local Bot API server via `apiRoot` config",
+          "author": "iemesowum",
+          "state": "open",
+          "rank": 2,
+          "score": 78,
+          "rationale": "Extensive integration enabling local Bot API server routing with a central api-base and SSRF controls. High test coverage and feature depth, but large scope increases risk and introduces explicit security considerations noted in the summary, which slightly weighs on maintainability.",
+          "url": "https://github.com/openclaw/openclaw/pull/18170"
+        }
+      ]
+    },
+    {
+      "id": 2634,
+      "label": "Problem: When all final payloads are errors during Telegram dispatch, the...",
+      "members": [
+        {
+          "prNumber": 18764,
+          "title": "fix(telegram): preserve streamed draft when tool error occurs",
+          "author": "stakeswky",
+          "state": "open",
+          "rank": 1,
+          "score": 94,
+          "rationale": "Thorough, well-documented fix with test coverage and explicit preservation logic. Adds a preserveDraft flow and tests to validate both preserved drafts and normal cleanup.",
+          "url": "https://github.com/openclaw/openclaw/pull/18764"
+        },
+        {
+          "prNumber": 18678,
+          "title": "fix(telegram): preserve draft message when all final payloads are errors",
+          "author": "julianubico",
+          "state": "open",
+          "rank": 2,
+          "score": 70,
+          "rationale": "Minimal, safe guard change (single-line) that preserves preview when a Telegram message exists. Lacks tests/documentation updates, but aligns with existing error-delivery path.",
+          "url": "https://github.com/openclaw/openclaw/pull/18678"
+        }
+      ]
+    },
+    {
+      "id": 2635,
+      "label": "Telegram commands could contain hyphens (e.g., export-session), which are...",
+      "members": [
+        {
+          "prNumber": 18704,
+          "title": "fix(telegram): normalize command names by replacing hyphens with underscores",
+          "author": "Limitless2023",
+          "state": "open",
+          "rank": 1,
+          "score": 88,
+          "rationale": "Cross-cutting, well-structured normalization across menu, handlers, and prompts; preserves command IDs; tests indicate broad coverage; low regression risk.",
+          "url": "https://github.com/openclaw/openclaw/pull/18704"
+        },
+        {
+          "prNumber": 18881,
+          "title": "fix(telegram): normalize hyphenated command names for setMyCommands",
+          "author": "BinHPdev",
+          "state": "open",
+          "rank": 2,
+          "score": 84,
+          "rationale": "Thorough multi-file normalization with new tests and coverage. Potential handler-menu mismatch concerns noted in reviewer analysis, adding some risk despite strong tests.",
+          "url": "https://github.com/openclaw/openclaw/pull/18881"
+        },
+        {
+          "prNumber": 19203,
+          "title": "telegram: convert hyphens to underscores in command names",
+          "author": "janckerchen",
+          "state": "open",
+          "rank": 3,
+          "score": 66,
+          "rationale": "Small, targeted normalization change; simpler to reason about but described tests are not yet implemented, resulting in lower completeness.",
+          "url": "https://github.com/openclaw/openclaw/pull/19203"
+        }
+      ]
+    },
+    {
+      "id": 2636,
+      "label": "This PR fixes the /status display so that the configured contextTokens in the...",
+      "members": [
+        {
+          "prNumber": 18886,
+          "title": "fix(status): prefer configured contextTokens over model metadata",
+          "author": "BinHPdev",
+          "state": "open",
+          "rank": 1,
+          "score": 94,
+          "rationale": "Thorough change with tests, changelog entry, and multiple files updated; well-structured logic to prioritize explicit config tokens; strong overall quality and completeness.",
+          "url": "https://github.com/openclaw/openclaw/pull/18886"
+        },
+        {
+          "prNumber": 18721,
+          "title": "fix: prefer configured contextTokens over model catalog in status display",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 2,
+          "score": 86,
+          "rationale": "Minimal, targeted one-line fix with clean logic and alignment to existing resolution; high code quality but limited completeness (no tests/docs referenced).",
+          "url": "https://github.com/openclaw/openclaw/pull/18721"
+        }
+      ]
+    },
+    {
+      "id": 2637,
+      "label": "This patch fixes a CRLF-based command injection risk in the Windows schtasks...",
+      "members": [
+        {
+          "prNumber": 19016,
+          "title": "fix(daemon): sanitize CRLF in schtasks batch script to prevent command injection",
+          "author": "moxunjinmu",
+          "state": "open",
+          "rank": 1,
+          "score": 81,
+          "rationale": "More comprehensive sanitization approach with sanitizeCmdLine, broader tests (5 dedicated + existing suite), and coverage across key script inputs. Conceptually robust and well-scoped, with clear security focus.",
+          "url": "https://github.com/openclaw/openclaw/pull/19016"
+        },
+        {
+          "prNumber": 18952,
+          "title": "fix: sanitize schtasks env vars to prevent CRLF command injection",
+          "author": "coygeek",
+          "state": "open",
+          "rank": 2,
+          "score": 70,
+          "rationale": "Targeted fix focusing on CRLF in env keys/values with regression tests. Strong but narrower in scope and includes fewer tests; some edge-case sanitization notes remain as suggestions in the description.",
+          "url": "https://github.com/openclaw/openclaw/pull/18952"
+        }
+      ]
+    },
+    {
+      "id": 2638,
+      "label": "Problem: users could select a deprecated ElevenLabs model...",
+      "members": [
+        {
+          "prNumber": 18957,
+          "title": "fix(tts): replace deprecated ElevenLabs eleven_monolingual_v1 model",
+          "author": "BinHPdev",
+          "state": "open",
+          "rank": 1,
+          "score": 82,
+          "rationale": "Thorough change set including a changelog update and test adjustments in addition to the TTS model replacement; well-scoped and low-risk changes. Slight risk due to the additional test file modification and potential cross-file impacts not fully evident from the summary.",
+          "url": "https://github.com/openclaw/openclaw/pull/18957"
+        },
+        {
+          "prNumber": 18958,
+          "title": "fix: replace deprecated eleven_monolingual_v1 with eleven_flash_v2",
+          "author": "jwchmodx",
+          "state": "open",
+          "rank": 2,
+          "score": 80,
+          "rationale": "Clean, minimal change focused on replacing the deprecated model in tts.ts. Lacks accompanying documentation or broader test updates (no changelog entry), making it slightly less comprehensive.",
+          "url": "https://github.com/openclaw/openclaw/pull/18958"
+        }
+      ]
+    },
+    {
+      "id": 2639,
+      "label": "Fix prototype pollution by blocking traversal through __proto__, prototype, and...",
+      "members": [
+        {
+          "prNumber": 19507,
+          "title": "security: block prototype pollution in template path resolver",
+          "author": "Mozzzaic",
+          "state": "open",
+          "rank": 1,
+          "score": 94,
+          "rationale": "More thorough test coverage across all blocked segments, confirmation of legitimate path resolution, and complete test plan; appears well-structured and ready for merge.",
+          "url": "https://github.com/openclaw/openclaw/pull/19507"
+        },
+        {
+          "prNumber": 18981,
+          "title": "fix(security): block prototype chain traversal in hook template resolution",
+          "author": "davidrudduck",
+          "state": "open",
+          "rank": 2,
+          "score": 82,
+          "rationale": "Solid security fix with focused changes, but test plan indicates incomplete checks (build, some functional verifications) and slightly less comprehensive test coverage.",
+          "url": "https://github.com/openclaw/openclaw/pull/18981"
+        }
+      ]
+    },
+    {
+      "id": 2640,
+      "label": "The PR fixes a crash caused by invalid models.providers.*.api values by...",
+      "members": [
+        {
+          "prNumber": 18988,
+          "title": "feat(config): add support for config warnings and improve validation ",
+          "author": "saurav470",
+          "state": "open",
+          "rank": 1,
+          "score": 94,
+          "rationale": "Thorough feature introducing lenient validation path, warnings, updated constants, and comprehensive tests; well-structured changes across multiple modules with clear alignment to existing validation flows.",
+          "url": "https://github.com/openclaw/openclaw/pull/18988"
+        },
+        {
+          "prNumber": 19020,
+          "title": "bugfix(gateway): Handle invalid model provider API config gracefully\\…",
+          "author": "funkyjonx",
+          "state": "open",
+          "rank": 2,
+          "score": 74,
+          "rationale": "Solid fault-tolerant config loading using safeParse and provider disabling with warnings, plus tests; however, noted type-signature issues in validation.ts and some potential gaps in type safety reduce overall quality.",
+          "url": "https://github.com/openclaw/openclaw/pull/19020"
+        }
+      ]
+    },
+    {
+      "id": 2641,
+      "label": "This PR fixes a chicken-and-egg problem where the CLI, when gateway.bind=lan,...",
+      "members": [
+        {
+          "prNumber": 19057,
+          "title": "fix(gateway): use loopback for local CLI connections when bind=lan",
+          "author": "aldoeliacim",
+          "state": "open",
+          "rank": 1,
+          "score": 94,
+          "rationale": "Clean, targeted fix removing the preferLan branch and unifying local URL construction to loopback. Updates tests accordingly and maintains urlSource diagnostic. All tests pass; Closes #19004. Slightly safer with direct loopback handling; no obvious edge-case gaps.",
+          "url": "https://github.com/openclaw/openclaw/pull/19057"
+        },
+        {
+          "prNumber": 19026,
+          "title": "fix(gateway): use loopback for local CLI-to-gateway connections",
+          "author": "Phineas1500",
+          "state": "open",
+          "rank": 2,
+          "score": 87,
+          "rationale": "Focused fix that makes local CLI connections use 127.0.0.1 and preserves LAN IP in urlSource. Tests and linting pass; manual checks confirm behavior. Noted test name misleading issues in review comments, indicating minor maintainability nits.",
+          "url": "https://github.com/openclaw/openclaw/pull/19026"
+        }
+      ]
+    },
+    {
+      "id": 2642,
+      "label": "Fixes spurious error alerts during heartbeats by changing how heartbeat reply...",
+      "members": [
+        {
+          "prNumber": 19339,
+          "title": "fix(heartbeat): skip isError payloads when resolving heartbeat reply",
+          "author": "aldoeliacim",
+          "state": "open",
+          "rank": 1,
+          "score": 91,
+          "rationale": "Two-pass heartbeat reply resolution with a reusable hasContent helper; substantial test coverage (8 cases) including edge scenarios; refactor improves maintainability; preserves existing behavior while preventing spurious alerts.",
+          "url": "https://github.com/openclaw/openclaw/pull/19339"
+        },
+        {
+          "prNumber": 19406,
+          "title": "fix(heartbeat): filter error payloads from heartbeat reply selection",
+          "author": "namabile",
+          "state": "open",
+          "rank": 2,
+          "score": 85,
+          "rationale": "Minimal, targeted fix skipping isError payloads during backward scan; strong coverage with 10 regression tests; low risk change; minor documentation/comment mismatch noted in summary.",
+          "url": "https://github.com/openclaw/openclaw/pull/19406"
+        }
+      ]
+    },
+    {
+      "id": 2643,
+      "label": "This change fixes a bug where isSilentReplyText incorrectly silenced legitimate...",
+      "members": [
+        {
+          "prNumber": 19576,
+          "title": "fix: tighten isSilentReplyText to match whole-text only",
+          "author": "aldoeliacim",
+          "state": "open",
+          "rank": 1,
+          "score": 94,
+          "rationale": "Clear, minimal fix with targeted tests; straightforward refactor from regex to whole-string match. No known issues; tests cover multiple edge cases including whitespace and custom tokens.",
+          "url": "https://github.com/openclaw/openclaw/pull/19576"
+        },
+        {
+          "prNumber": 19916,
+          "title": "fix: strict silent-reply detection to prevent false positives with CJK text",
+          "author": "hayoial",
+          "state": "open",
+          "rank": 2,
+          "score": 88,
+          "rationale": "Solid test coverage and focused change, but includes a lint-style issue (unused import) mentioned in notes, which lowers maintainability slightly. Otherwise well-scoped and robust tests including CJK scenarios.",
+          "url": "https://github.com/openclaw/openclaw/pull/19916"
+        }
+      ]
+    },
+    {
+      "id": 2644,
+      "label": "The PR fixes flaky tests that were influenced by a developer environment...",
+      "members": [
+        {
+          "prNumber": 19937,
+          "title": "fix(gateway): validate token/password auth modes and isolate gateway auth env in tests",
+          "author": "NewdlDewdl",
+          "state": "open",
+          "rank": 1,
+          "score": 92,
+          "rationale": "Adds explicit validation in gateway/server-runtime-config.ts to reject missing credentials for token/password modes, and mirrors robust env isolation in tests. Includes production code change plus comprehensive test coverage for both gateway and browser scenarios, leading to strong maintainability and completeness.",
+          "url": "https://github.com/openclaw/openclaw/pull/19937"
+        },
+        {
+          "prNumber": 19885,
+          "title": "test(gateway,browser): isolate tests from ambient OPENCLAW_GATEWAY_TOKEN",
+          "author": "NewdlDewdl",
+          "state": "open",
+          "rank": 2,
+          "score": 80,
+          "rationale": "Primarily test isolation changes to prevent ambient OPENCLAW_GATEWAY_TOKEN from affecting tests; includes beforeEach/afterEach stubs and browser test env handling. No production code changes, and there is a minor gap (password env var cleanup not fully addressed) that slightly reduces completeness.",
+          "url": "https://github.com/openclaw/openclaw/pull/19885"
+        }
+      ]
+    },
+    {
+      "id": 2645,
+      "label": "Recognizes the single-token keywords default, reset, and clear in /model...",
+      "members": [
+        {
+          "prNumber": 20185,
+          "title": "fix(model): recognize default/reset/clear keywords to clear session model override (#20137)",
+          "author": "yxshee",
+          "state": "open",
+          "rank": 1,
+          "score": 93,
+          "rationale": "More thorough change set across three files, adds 7 unit tests, and updates help text. Intercepts single-token keywords in both resolution paths, preserves provider/default as literal IDs, enables case-insensitive usage, and leverages existing isDefault workflow for session override deletion. Strong completeness and maintainable structure.",
+          "url": "https://github.com/openclaw/openclaw/pull/20185"
+        },
+        {
+          "prNumber": 20195,
+          "title": "fix(commands): handle /model default|reset|clear to reset model override",
+          "author": "zhangjunmengyang",
+          "state": "open",
+          "rank": 2,
+          "score": 78,
+          "rationale": "Focused early-return fix in one module with 4 new tests. Validates keyword interception and isDefault handling but lacks broader tests and docs changes, so completeness is lower despite solid code quality.",
+          "url": "https://github.com/openclaw/openclaw/pull/20195"
+        }
+      ]
+    },
+    {
+      "id": 2646,
+      "label": "This PR prevents tool failure warnings from being sent as separate messages...",
+      "members": [
+        {
+          "prNumber": 17552,
+          "title": "fix(agents): suppress tool error warnings when assistant already replied",
+          "author": "AytuncYildizli",
+          "state": "open",
+          "rank": 1,
+          "score": 98,
+          "rationale": "Well-scoped, clear intent, and maintainable changes. Reorders the shouldShowToolErrorWarning check to respect hasUserFacingReply, adds a guard to prevent emitting error payloads for verbose tool output, and updates tests to cover both scenarios (with and without a user-facing reply). Tests cover unit and end-to-end behavior, and the change is thoroughly validated (pnpm build/check/test) with broad coverage across impacted areas. Overall strong code quality and thoroughness.",
+          "url": "https://github.com/openclaw/openclaw/pull/17552"
+        },
+        {
+          "prNumber": 18910,
+          "title": "fix: suppress spurious tool error warnings for read-only exec commands",
+          "author": "gatewaybuddy",
+          "state": "open",
+          "rank": 2,
+          "score": 44,
+          "rationale": "Approach relies on a read-only allowlist to classify exec/bash as non-mutating, which is risky and led to critical correctness concerns (false negatives for mutating commands). While tests were added and some improvements implemented, the underlying strategy is flawed and could suppress important warnings (e.g., git, sed, docker, etc.). The change introduces significant maintainability and correctness concerns despite some coverage.",
+          "url": "https://github.com/openclaw/openclaw/pull/18910"
+        }
+      ]
+    },
+    {
+      "id": 2647,
+      "label": "Implements per-thread session keys for Slack channels, groups, and DM threads...",
+      "members": [
+        {
+          "prNumber": 17908,
+          "title": "fix(slack): per-thread session keys to prevent context mixing",
+          "author": "tonydehnke",
+          "state": "open",
+          "rank": 1,
+          "score": 94,
+          "rationale": "Strong end-to-end solution with per-thread session keys, TTL and max entries increased, thread-level system event keys, DM thread preservation, and a previousTimestamp fix. Regression tests cover key scenarios; production evidence of zero cross-thread incidents. Tests and docs provided and changes are modular across multiple files.",
+          "url": "https://github.com/openclaw/openclaw/pull/17908"
+        },
+        {
+          "prNumber": 19403,
+          "title": "feat(slack): add dm.threadSession option for per-message thread sessions 🤖",
+          "author": "Vasiliy-Bondarenko",
+          "state": "open",
+          "rank": 2,
+          "score": 84,
+          "rationale": "Feature focused on DM thread sessions with tests and docs. Solid coverage but notes in the Greptile summary point to a dispatch threading mismatch risk under certain config combos, indicating a design gap. No production evidence included; overall valuable but carries more edge-case risk.",
+          "url": "https://github.com/openclaw/openclaw/pull/19403"
+        }
+      ]
+    },
+    {
+      "id": 2648,
+      "label": "This patch updates the memory-search doctor diagnostic to stop recommending the...",
+      "members": [
+        {
+          "prNumber": 18546,
+          "title": "fix(doctor): replace deprecated `auth add` command reference",
+          "author": "Phineas1500",
+          "state": "open",
+          "rank": 1,
+          "score": 92,
+          "rationale": "Minimal, well-scoped change: replaces two deprecated command references with the current 'openclaw configure', aligning messaging with other doctor diagnostics. No behavior changes; tests pass and lint remains clean.",
+          "url": "https://github.com/openclaw/openclaw/pull/18546"
+        },
+        {
+          "prNumber": 18554,
+          "title": "Doctor: fix deprecated auth command in memory search check",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 2,
+          "score": 88,
+          "rationale": "Also a small, targeted update replacing deprecated command usage with 'openclaw models auth login' in two places. Aligns with codebase conventions; tests unaffected as they don't rely on exact command text.",
+          "url": "https://github.com/openclaw/openclaw/pull/18554"
+        }
+      ]
+    },
+    {
+      "id": 2649,
+      "label": "Problem: git installations were always using the dev channel regardless of...",
+      "members": [
+        {
+          "prNumber": 18872,
+          "title": "fix(cli): respect git tags when resolving default update channel",
+          "author": "BinHPdev",
+          "state": "open",
+          "rank": 1,
+          "score": 98,
+          "rationale": "Comprehensive, replacing hardcoded DEFAULT_GIT_CHANNEL with resolveEffectiveUpdateChannel and adding explicit tests for beta-tagged, tagged stable and branch scenarios; aligns with existing patterns (wizard.ts); full test coverage noted and statusTokens fix included.",
+          "url": "https://github.com/openclaw/openclaw/pull/18872"
+        },
+        {
+          "prNumber": 18723,
+          "title": "fix: use resolveEffectiveUpdateChannel to detect git tags for default channel",
+          "author": "MisterGuy420",
+          "state": "open",
+          "rank": 2,
+          "score": 82,
+          "rationale": "Strong, focused changes using resolveEffectiveUpdateChannel and addressing statusTokens; relies on existing tests for coverage; no new tests explicitly mentioned, slightly weaker completeness.",
+          "url": "https://github.com/openclaw/openclaw/pull/18723"
+        }
+      ]
+    }
+  ]
+}
