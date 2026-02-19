@@ -34,7 +34,7 @@ export function clearScansCommand(client: ApiClient): Command {
         await client.post("/clear-scans");
         console.log("All scans and analysis data have been cleared.");
       } catch {
-        console.error("Failed to clear scans. Is the ossgard API running? (ossgard up)");
+        console.error("Failed to clear scans. Is the ossgard API running? (ossgard-api)");
         process.exitCode = 1;
       }
     });
@@ -61,7 +61,7 @@ export function clearReposCommand(client: ApiClient): Command {
         await client.post("/clear-repos");
         console.log("All repositories and associated data have been cleared.");
       } catch {
-        console.error("Failed to clear repos. Is the ossgard API running? (ossgard up)");
+        console.error("Failed to clear repos. Is the ossgard API running? (ossgard-api)");
         process.exitCode = 1;
       }
     });
@@ -88,7 +88,7 @@ export function resetCommand(client: ApiClient): Command {
         await client.post("/reset");
         console.log("Full reset complete. All data has been cleared.");
       } catch {
-        console.error("Failed to reset. Is the ossgard API running? (ossgard up)");
+        console.error("Failed to reset. Is the ossgard API running? (ossgard-api)");
         process.exitCode = 1;
       }
     });

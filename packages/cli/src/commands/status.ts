@@ -31,7 +31,7 @@ export function statusCommand(client: ApiClient): Command {
       try {
         repos = await client.get<RepoWithScanStatus[]>("/repos");
       } catch {
-        console.error("Failed to connect to ossgard API. Is it running? (ossgard up)");
+        console.error("Failed to connect to ossgard API. Is it running? (ossgard-api)");
         process.exitCode = 1;
         return;
       }
