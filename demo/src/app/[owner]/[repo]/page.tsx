@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Github } from "lucide-react";
 import { repos, getRepoData } from "@/data";
 import { StatsBar } from "@/components/stats-bar";
+import { ReviewCarousel } from "@/components/review-carousel";
 
 export function generateStaticParams() {
   return repos.map((r) => ({
@@ -54,7 +55,12 @@ export default async function RepoPage({
           <StatsBar data={data} />
         </div>
 
-        {/* ReviewCarousel placeholder (Task 7) */}
+        {/* Review Carousel */}
+        <ReviewCarousel
+          groups={data.groups}
+          repoOwner={data.repo.owner}
+          repoName={data.repo.name}
+        />
       </div>
     </main>
   );
