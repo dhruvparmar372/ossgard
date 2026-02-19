@@ -86,7 +86,7 @@ $ ossgard-api                    $ ossgard setup
 
                                  $ ossgard scan facebook/react
                                    → Auto-tracks the repo if not already tracked
-                                 $ ossgard dupes facebook/react
+                                 $ ossgard duplicates facebook/react
 ```
 
 ### Local AI stack (optional)
@@ -121,17 +121,20 @@ The `ossgard setup` wizard defaults to `localhost:6333` (Qdrant) and `localhost:
 ```bash
 ossgard setup                      # register account + configure services
 ossgard setup --force              # reconfigure an existing account
+ossgard doctor                     # check prerequisites and service health
 ossgard scan facebook/react        # run a duplicate scan (auto-tracks repo)
 ossgard scan facebook/react --full # full re-scan (ignore incremental optimizations)
 ossgard scan facebook/react --no-wait  # start scan without waiting for completion
-ossgard dupes facebook/react       # view duplicate groups
-ossgard dupes facebook/react --min-score 70  # filter by minimum score
+ossgard duplicates facebook/react  # view duplicate groups
+ossgard duplicates facebook/react --min-score 70  # filter by minimum score
+ossgard review facebook/react 1234 # find duplicates for a specific PR
 ossgard status                     # list tracked repos and active scans
 ossgard config show                # view local CLI configuration
 ossgard config get api.url         # get a specific config value
 ossgard config set api.url http://localhost:3400  # set a config value
-ossgard clear-scans                # delete all scans and analysis (keeps repos/PRs)
-ossgard clear-repos                # delete everything (repos, PRs, scans, analysis)
+ossgard clean --scans              # delete scans and analysis (keeps repos/PRs)
+ossgard clean --repos              # delete repos, PRs, scans, and analysis
+ossgard clean --all                # full reset — delete everything including accounts
 ```
 
 Most commands support `--json` for machine-readable output.
@@ -230,12 +233,12 @@ packages/
   api/       Hono HTTP server, pipeline processors, services, SQLite DB
                - db/           Database layer (SQLite migrations, queries)
                - middleware/    API key auth
-               - routes/       REST endpoints (accounts, repos, scans, dupes)
+               - routes/       REST endpoints (accounts, repos, scans, duplicates)
                - services/     Service resolver, validators, LLM/embedding/vector providers
                - pipeline/     Job processors (ingest, detect, strategies/)
                - queue/        Job queue and worker loop
   cli/       Commander-based CLI
-               - commands/     Command implementations (setup, config, scan, dupes, status, clear-scans, clear-repos)
+               - commands/     Command implementations (setup, doctor, scan, duplicates, review, status, config, clean)
   shared/    Types and Zod schemas shared across packages
 local-ai/
   vector-store.yml    Local Qdrant via Docker (optional)

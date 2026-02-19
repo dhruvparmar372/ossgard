@@ -6,9 +6,10 @@ import { statusCommand } from "./commands/status.js";
 import { registerSetupCommand } from "./commands/setup.js";
 import { registerConfigCommand } from "./commands/config.js";
 import { scanCommand } from "./commands/scan.js";
-import { dupesCommand } from "./commands/dupes.js";
+import { duplicatesCommand } from "./commands/duplicates.js";
 import { reviewCommand } from "./commands/review.js";
-import { clearScansCommand, clearReposCommand, resetCommand } from "./commands/reset.js";
+import { cleanCommand } from "./commands/clean.js";
+import { doctorCommand } from "./commands/doctor.js";
 
 const config = new Config();
 const apiUrl = process.env.OSSGARD_API_URL ?? config.get("api.url") as string | undefined;
@@ -22,15 +23,20 @@ program
   .description("Scan GitHub repos for duplicate PRs and rank them")
   .version("0.1.0");
 
+// Setup & diagnostics
 registerSetupCommand(program);
+program.addCommand(doctorCommand(client));
+
+// Primary workflow
+program.addCommand(scanCommand(client));
+program.addCommand(duplicatesCommand(client));
+program.addCommand(reviewCommand(client));
+
+// Informational
+program.addCommand(statusCommand(client));
 registerConfigCommand(program, client);
 
-program.addCommand(statusCommand(client));
-program.addCommand(scanCommand(client));
-program.addCommand(dupesCommand(client));
-program.addCommand(reviewCommand(client));
-program.addCommand(clearScansCommand(client));
-program.addCommand(clearReposCommand(client));
-program.addCommand(resetCommand(client));
+// Destructive
+program.addCommand(cleanCommand(client));
 
 program.parse();

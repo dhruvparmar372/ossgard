@@ -52,8 +52,8 @@ function printGroup(group: DupeGroupResponse): void {
   }
 }
 
-export function dupesCommand(client: ApiClient): Command {
-  return new Command("dupes")
+export function duplicatesCommand(client: ApiClient): Command {
+  return new Command("duplicates")
     .description("Show duplicate PR groups for a repository")
     .argument("<owner/repo>", "Repository slug (e.g. facebook/react)")
     .option("--json", "Output as JSON")

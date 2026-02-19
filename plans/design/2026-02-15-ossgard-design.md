@@ -128,7 +128,7 @@ CLI                         API                          Job Processor
 
 **What stays synchronous** (instant, no job needed):
 - `track` / `untrack` — just INSERT/DELETE in repos table
-- `dupes` — reads pre-computed results from SQLite
+- `duplicates` — reads pre-computed results from SQLite
 - `status` — reads from SQLite
 - `config` — reads/writes local TOML file
 
@@ -387,7 +387,7 @@ ossgard/
 ├── packages/
 │   ├── cli/                    # CLI client (npm: ossgard)
 │   │   ├── src/
-│   │   │   ├── commands/       # setup, scan, dupes, status, config, clear-scans, clear-repos
+│   │   │   ├── commands/       # setup, doctor, scan, duplicates, review, status, config, clean
 │   │   │   ├── output/         # formatters (table, json)
 │   │   │   └── client.ts       # HTTP client to ossgard-api
 │   │   └── package.json
@@ -460,16 +460,15 @@ interface JobProcessor {
 | Command | Description | Key flags |
 |---------|------------|-----------|
 | `ossgard setup` | Register account + configure services | `--force` (reconfigure) |
-| `ossgard scan <owner/repo>` | Enqueue scan job, poll and display progress (auto-tracks repo) | `--full`, `--no-wait`, `--limit <N>` |
-| `ossgard dupes <owner/repo>` | Show duplicate groups with rankings | `--json`, `--min-score N` |
+| `ossgard doctor` | Check prerequisites and service health | `--json` |
+| `ossgard scan <owner/repo>` | Enqueue scan job, poll and display progress (auto-tracks repo) | `--full`, `--no-wait`, `--limit <N>`, `--json` |
+| `ossgard duplicates <owner/repo>` | Show duplicate groups with rankings | `--json`, `--min-score N` |
+| `ossgard review <owner/repo> <pr>` | Find duplicates for a specific PR | `--json` |
 | `ossgard status` | Show tracked repos, scan status, dupe counts | `--json` |
-| `ossgard config show` | View local CLI configuration | — |
-| `ossgard config set <key> <val>` | Set config value | — |
-| `ossgard config get <key>` | Read config value | — |
-| `ossgard clear-scans` | Delete all scans and analysis (keeps repos/PRs) | — |
-| `ossgard clear-repos` | Delete everything (repos, PRs, scans, analysis) | — |
+| `ossgard config show\|get\|set` | View or modify local CLI configuration | — |
+| `ossgard clean` | Delete ossgard data | `--scans`, `--repos`, `--all`, `--force` |
 
-All commands support `--json` for machine-readable output.
+Most commands support `--json` for machine-readable output.
 
 ---
 
@@ -568,4 +567,4 @@ The pipeline code, rate limiting, LLM providers, and scoring strategies are unch
 2. New pipeline step between Rank and Done: **Align**
 3. LLM reads VISION.md + PR description, scores alignment (0-100)
 4. New `ScoringStrategy` implementation: `VisionAlignmentStrategy`
-5. Results surfaced in `ossgard dupes` output as an additional column
+5. Results surfaced in `ossgard duplicates` output as an additional column
