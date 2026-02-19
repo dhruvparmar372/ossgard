@@ -1,0 +1,40 @@
+# ossgard
+
+> AI-powered duplicate pull request detection for open-source repositories.
+
+ossgard is a CLI tool and API server that scans GitHub repositories to find duplicate pull requests. It uses embedding-based similarity search combined with LLM-powered pairwise verification to identify PRs that address the same issue, implement the same feature, or fix the same bug.
+
+## How It Works
+
+1. **Ingest**: Fetches all open PRs from a GitHub repository
+2. **Embed**: Extracts intent summaries and code signals, then computes embeddings for each PR
+3. **Verify**: Uses LLM pairwise comparison to confirm candidate duplicate pairs
+4. **Rank**: Groups confirmed duplicates and ranks them by code quality, completeness, and test coverage
+
+## Key Features
+
+- Detects duplicate PRs using dual-signal analysis (code paths + intent)
+- Ranks duplicates by quality so maintainers know which PR to merge
+- Provides LLM-generated rationale for each ranking decision
+- Supports batch processing for cost-efficient scanning of large repos
+- CLI-first with optional API server for automation
+
+## Use Cases
+
+- Open-source maintainers reviewing large PR backlogs
+- Finding redundant contributions across hundreds of open PRs
+- Identifying which of several similar PRs has the best implementation
+- Reducing reviewer fatigue by surfacing duplicate work early
+
+## Links
+
+- GitHub: https://github.com/dhruvparmar372/ossgard
+- Demo: https://ossgard.dev
+
+## Technical Details
+
+- Built with TypeScript, Bun, Hono (API), Commander (CLI)
+- Uses Qdrant vector store for embedding similarity search
+- Supports OpenAI and Anthropic as LLM/embedding providers
+- SQLite database for local-first data storage
+- Static Next.js demo app for showcasing scan results
