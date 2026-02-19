@@ -18,33 +18,21 @@ export function PrCard({ member, variant }: PrCardProps) {
           : "border-border bg-card"
       }`}
     >
-      {/* Top row: variant badge + state badge */}
-      <div className="flex items-center gap-2">
-        {isMerge ? (
-          <Badge variant="default" className="rounded-sm text-[10px] uppercase tracking-wider">
-            Merge
-          </Badge>
-        ) : (
-          <Badge
-            variant="secondary"
-            className="rounded-sm bg-amber-500/15 text-[10px] uppercase tracking-wider text-amber-500"
-          >
-            Close
-          </Badge>
-        )}
-        {member.state !== "open" && (
+      {/* State badge (only if not open) */}
+      {member.state !== "open" && (
+        <div className="mb-2">
           <Badge variant="outline" className="rounded-sm text-[10px] capitalize text-muted-foreground">
             {member.state}
           </Badge>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* PR title as link */}
       <a
         href={member.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-2 inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span className="line-clamp-2">{member.title}</span>
         <ExternalLink className="size-3 shrink-0 text-muted-foreground" />
@@ -58,13 +46,6 @@ export function PrCard({ member, variant }: PrCardProps) {
         </span>
         <span className="font-mono">#{member.prNumber}</span>
       </div>
-
-      {/* Rationale (close variants only, if non-empty) */}
-      {!isMerge && member.rationale && (
-        <p className="mt-3 border-t border-border pt-3 text-xs leading-relaxed text-muted-foreground">
-          {member.rationale}
-        </p>
-      )}
     </div>
   );
 }

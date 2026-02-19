@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PrCard } from "@/components/pr-card";
-import { CloseDupesButton } from "@/components/close-dupes-button";
+// import { CloseDupesButton } from "@/components/close-dupes-button";
 import type { DupeGroup } from "@/lib/types";
 
 interface ReviewCarouselProps {
@@ -99,7 +99,7 @@ export function ReviewCarousel({ groups, repoOwner, repoName }: ReviewCarouselPr
         </div>
       )}
 
-      {/* Close duplicates action */}
+      {/* Close duplicates action — hidden for now
       {recommended && duplicates.filter((m) => m.state === "open").length > 0 && (
         <CloseDupesButton
           key={group.id}
@@ -109,6 +109,7 @@ export function ReviewCarousel({ groups, repoOwner, repoName }: ReviewCarouselPr
           recommendedPrNumber={recommended.prNumber}
         />
       )}
+      */}
     </section>
   );
 }

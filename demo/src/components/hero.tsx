@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Github } from "lucide-react";
 
 function TerminalLine({
   children,
@@ -85,14 +85,25 @@ export function Hero() {
         {/* Terminal mockup */}
         <Terminal />
 
-        {/* CTA */}
-        <a
-          href="#repos"
-          className="group inline-flex items-center gap-2 rounded-sm border border-primary/30 bg-primary/10 px-6 py-2.5 font-mono text-sm text-primary transition-colors hover:border-primary/60 hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          See it in action
-          <ChevronDown className="size-4 transition-transform group-hover:translate-y-0.5" />
-        </a>
+        {/* CTAs */}
+        <div className="flex items-center gap-4">
+          <a
+            href="#repos"
+            className="group inline-flex items-center gap-2 rounded-sm border border-primary/30 bg-primary/10 px-6 py-2.5 font-mono text-sm text-primary transition-colors hover:border-primary/60 hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            See it in action
+            <ChevronDown className="size-4 transition-transform group-hover:translate-y-0.5" />
+          </a>
+          <a
+            href="https://github.com/dhruvparmar372/ossgard"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-sm border border-border px-6 py-2.5 font-mono text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Github className="size-4" />
+            GitHub
+          </a>
+        </div>
       </div>
     </section>
   );

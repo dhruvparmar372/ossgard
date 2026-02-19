@@ -46,15 +46,8 @@ export function GitHubTokenModal({
             GitHub Personal Access Token
           </DialogTitle>
           <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
-            A token is required to close PRs on your behalf. You need the{" "}
-            <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-xs text-foreground">
-              public_repo
-            </code>{" "}
-            scope for public repos, or{" "}
-            <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-xs text-foreground">
-              repo
-            </code>{" "}
-            for private repos.
+            A GitHub token with write access to the repository is required to
+            close duplicate PRs on your behalf.
           </DialogDescription>
         </DialogHeader>
 
