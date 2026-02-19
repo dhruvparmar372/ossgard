@@ -250,17 +250,5 @@ describe("Database", () => {
       const scan = db.createScan(repoId, accountId);
       expect(scan.strategy).toBe("pairwise-llm");
     });
-
-    it("accepts an explicit strategy", () => {
-      const scan = db.createScan(repoId, accountId, "legacy");
-      expect(scan.strategy).toBe("legacy");
-    });
-
-    it("round-trips strategy through getScan", () => {
-      const scan = db.createScan(repoId, accountId, "legacy");
-      const fetched = db.getScan(scan.id);
-      expect(fetched).not.toBeNull();
-      expect(fetched!.strategy).toBe("legacy");
-    });
   });
 });

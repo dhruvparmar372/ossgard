@@ -12,8 +12,8 @@ export interface ResolvedServices {
   embedding: EmbeddingProvider;
   vectorStore: VectorStore;
   scanConfig: {
-    codeSimilarityThreshold: number;
-    intentSimilarityThreshold: number;
+    candidateThreshold: number;
+    maxCandidatesPerPr: number;
   };
 }
 
@@ -55,8 +55,8 @@ export class ServiceResolver {
       embedding: factory.createEmbeddingProvider(),
       vectorStore: await factory.createVectorStore(),
       scanConfig: {
-        codeSimilarityThreshold: cfg.scan?.code_similarity_threshold ?? 0.85,
-        intentSimilarityThreshold: cfg.scan?.intent_similarity_threshold ?? 0.80,
+        candidateThreshold: cfg.scan?.candidate_threshold ?? 0.65,
+        maxCandidatesPerPr: cfg.scan?.max_candidates_per_pr ?? 5,
       },
     };
   }

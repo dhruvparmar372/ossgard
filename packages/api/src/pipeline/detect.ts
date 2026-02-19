@@ -26,15 +26,16 @@ export class DetectProcessor implements JobProcessor {
     const scan = this.db.getScan(scanId);
     if (!scan) throw new Error(`Scan not found: ${scanId}`);
 
-    const strategyName = scan.strategy;
-    const strategy = getStrategy(strategyName);
+    // Always use pairwise-llm — legacy strategy has been removed.
+    // Old DB rows may still have strategy="legacy", so ignore scan.strategy.
+    const strategy = getStrategy("pairwise-llm");
 
     // Use only the PRs from this scan's ingest, not all PRs in the DB
     const prs = prNumbers?.length
       ? this.db.getPRsByNumbers(repoId, prNumbers)
       : this.db.listOpenPRs(repoId);
 
-    detectLog.info("Running strategy", { scanId, strategy: strategyName, prs: prs.length });
+    detectLog.info("Running strategy", { scanId, strategy: "pairwise-llm", prs: prs.length });
 
     const result = await strategy.execute({
       prs,
@@ -69,7 +70,7 @@ export class DetectProcessor implements JobProcessor {
 
     detectLog.info("Strategy complete", {
       scanId,
-      strategy: strategyName,
+      strategy: "pairwise-llm",
       groups: result.groups.length,
     });
   }

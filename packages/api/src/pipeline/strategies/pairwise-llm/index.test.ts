@@ -81,8 +81,8 @@ function createMockResolver(services: Partial<ResolvedServices>): ServiceResolve
       embedding: services.embedding,
       vectorStore: services.vectorStore,
       scanConfig: services.scanConfig ?? {
-        codeSimilarityThreshold: 0.85,
-        intentSimilarityThreshold: 0.80,
+        candidateThreshold: 0.65,
+        maxCandidatesPerPr: 5,
       },
     }),
   } as unknown as ServiceResolver;

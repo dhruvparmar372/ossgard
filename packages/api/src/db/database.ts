@@ -265,11 +265,11 @@ export class Database {
     return result.changes > 0;
   }
 
-  createScan(repoId: number, accountId: number, strategy: DuplicateStrategyName = "pairwise-llm"): Scan {
+  createScan(repoId: number, accountId: number): Scan {
     const stmt = this.raw.prepare(
-      "INSERT INTO scans (repo_id, account_id, status, strategy) VALUES (?, ?, 'queued', ?) RETURNING *"
+      "INSERT INTO scans (repo_id, account_id, status, strategy) VALUES (?, ?, 'queued', 'pairwise-llm') RETURNING *"
     );
-    const row = stmt.get(repoId, accountId, strategy) as ScanRow;
+    const row = stmt.get(repoId, accountId) as ScanRow;
     return mapScanRow(row);
   }
 

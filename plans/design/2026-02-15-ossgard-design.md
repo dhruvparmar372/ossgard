@@ -4,6 +4,8 @@
 **Status:** Approved
 **Version:** MLP (v0.1)
 
+> **Note (2026-02-19):** The 5-phase dedup pipeline described below (`Ingest → Embed → Cluster → Verify → Rank` as separate job types) reflects the original v0.1 design. It has been replaced by the pairwise-llm strategy, which runs everything inside a single `detect` job. See `plans/done/pairwise-llm-strategy.md` for the current implementation. The architecture, data model, and job queue abstractions below remain accurate.
+
 ## Problem
 
 Large open-source projects (like OpenClaw with 3000+ open PRs) face an impossible triage burden. Multiple contributors submit duplicate PRs solving the same problem, and maintainers have no automated way to detect duplicates or determine which PR is best. This wastes reviewer time and contributor effort.

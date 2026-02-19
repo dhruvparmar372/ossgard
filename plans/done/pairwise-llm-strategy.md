@@ -1,5 +1,7 @@
 # Pairwise-LLM Duplicate Detection Strategy
 
+> **Note:** The legacy strategy (`embed → cluster → verify → rank` as separate job types) has been removed. Pairwise-llm is now the only duplicate detection strategy. Legacy processors, the `--strategy` flag, and the `"legacy"` strategy name no longer exist.
+
 ## Problem
 
 The current duplicate detection pipeline uses Union-Find clustering, which assumes transitivity: if PR A matches B and B matches C, all three are grouped together. Similarity is not transitive. This produces massive false-positive groups (e.g., 70 unrelated PRs labeled "Unrelated: miscellaneous...").
@@ -82,10 +84,6 @@ CLI: `ossgard scan owner/repo --strategy=pairwise-llm` (default) or `--strategy=
 
 API: `POST /repos/:owner/:name/scan` accepts optional `strategy` field.
 
-## Legacy Strategy
-
-Wraps the existing `embed → cluster → verify → rank` pipeline behind the strategy interface. Core logic extracted from the current processors into callable functions. No behavioral changes.
-
 ## Pairwise-LLM Strategy
 
 Four internal phases:
@@ -140,33 +138,17 @@ Uses existing `EmbeddingProvider` infrastructure. New collection names avoid con
 | `DetectProcessor` | `pipeline/detect.ts` | Job processor that dispatches to the right strategy |
 | `strategy-registry` | `pipeline/strategy-registry.ts` | Maps strategy names to implementations |
 
-## Comparison Workflow
-
-Run separate scans with each strategy and compare:
-
-```bash
-ossgard scan owner/repo --strategy=legacy
-ossgard dupes owner/repo --json > legacy-results.json
-
-ossgard scan owner/repo --strategy=pairwise-llm
-ossgard dupes owner/repo --json > pairwise-results.json
-
-diff legacy-results.json pairwise-results.json
-```
-
-The `dupes` API endpoint can also filter by strategy via query param.
-
 ## What Changes, What Stays
 
 | Component | Status |
 |---|---|
-| Ingest | Unchanged. Shared by both strategies. Enqueues `detect` job (was `embed`). |
-| Embed/Cluster/Verify/Rank processors | Core logic extracted into `run*` functions. Used by LegacyStrategy. Processors remain for backward compat. |
-| DB schema | `strategy` column added to `scans`. |
-| Shared types | `DuplicateStrategyName`, `strategy` on `Scan`, `"detect"` added to `JobType`, scan config extended. |
-| API scan route | Accepts `strategy` param, passes to `createScan`. |
-| CLI scan command | `--strategy` flag, default `pairwise-llm`. |
-| Job orchestration | `DetectProcessor` reads scan strategy, dispatches via `strategy-registry`. |
+| Ingest | Unchanged. Enqueues `detect` job. |
+| Legacy processors (embed, cluster, verify, rank) | **Deleted.** All legacy `.ts` files and tests removed. |
+| DB schema | `strategy` column remains for backward compat (hardcoded to `"pairwise-llm"`). |
+| Shared types | `DuplicateStrategyName` is `"pairwise-llm"` only. `JobType` is `"scan" \| "ingest" \| "detect"`. `ScanStatus` no longer includes `"clustering"`. |
+| API scan route | No `strategy` param. `createScan` hardcodes `"pairwise-llm"`. |
+| CLI scan command | No `--strategy` flag. |
+| Job orchestration | `DetectProcessor` always uses `"pairwise-llm"` via `getStrategy()`. |
 
 ## Research References
 

@@ -26,19 +26,16 @@ The API server connects to a vector store (Qdrant) and LLM/embedding providers (
 
 ### Pipeline
 
-Every scan runs through five chained job phases:
+Every scan runs through two chained job phases — Ingest and Detect — where Detect runs the full pairwise-llm duplicate detection strategy internally:
 
 ```
-Ingest ──► Embed ──► Cluster ──► Verify ──► Rank
+Ingest ──► Detect (Intent Extract → Embed → Candidate Retrieval → Pairwise Verify → Group → Rank)
 ```
 
 | Phase | What it does |
 |-------|-------------|
 | **Ingest** | Fetches open PRs, diffs, and file lists from GitHub using a 10-worker parallel pool. Supports ETags for diff caching and skips unchanged PRs by comparing `updatedAt` timestamps for fast incremental scans |
-| **Embed** | Generates two embedding vectors per PR (code fingerprint from file paths, intent fingerprint from title + body + file paths). Token-aware truncation prevents context overflow. Supports Ollama (768-dim `nomic-embed-text`, 1024-dim `mxbai-embed-large`) and OpenAI (`text-embedding-3-large` 3072-dim, `text-embedding-3-small` 1536-dim) |
-| **Cluster** | Groups PRs by identical diff hashes (fast path) then by embedding similarity using union-find (code > 0.85, intent > 0.80) |
-| **Verify** | Sends candidate groups to the LLM to filter false positives and classify relationships. Tracks input/output token usage per scan |
-| **Rank** | Asks the LLM to score and rank PRs within each verified group by code quality and completeness. Tracks input/output token usage per scan |
+| **Detect** | Runs the pairwise-llm strategy end-to-end: (1) LLM extracts a normalized intent summary per PR, (2) embeds intent + code diffs into Qdrant, (3) k-NN candidate retrieval on both signals, (4) pairwise LLM verification of each candidate pair, (5) clique-based grouping (no transitivity), (6) LLM ranking by code quality and completeness. Tracks input/output token usage per scan |
 
 Jobs are queued in SQLite and processed by an in-process worker loop, making scans resumable across restarts. On startup, the server recovers any interrupted jobs by resetting them back to `queued` status.
 
@@ -163,8 +160,8 @@ The server-side account config supports optional scan settings to tune duplicate
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
-| `code_similarity_threshold` | 0.85 | Minimum cosine similarity for code embeddings to be considered duplicates |
-| `intent_similarity_threshold` | 0.80 | Minimum cosine similarity for intent embeddings to be considered duplicates |
+| `candidate_threshold` | 0.65 | Minimum cosine similarity for k-NN candidate retrieval |
+| `max_candidates_per_pr` | 5 | Maximum number of nearest neighbors to consider per PR |
 
 #### Batch processing
 
@@ -178,8 +175,6 @@ Batch mode is ignored for Ollama (no batch API). When only a single request exis
 Both batch providers use progressive poll intervals (starting at 10s, scaling up to a 120s cap) and tolerate up to 3 consecutive 5xx errors before failing, making them resilient to transient API issues. Batches are also resumable — if the server restarts mid-batch, the batch ID is persisted in `phaseCursor` so polling resumes where it left off instead of re-submitting.
 
 **Prompt caching:** Anthropic providers (both sync and batch) automatically use [prompt caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) on system prompts. Since verify and rank use the same system prompt for every group in a scan, all calls after the first get a cache hit, reducing cost and latency.
-
-**Smart embed skipping:** The embed phase tracks an `embed_hash` per PR (derived from diff hash, title, body, and file paths). On subsequent scans, PRs whose embedding-relevant fields haven't changed are skipped entirely, avoiding redundant embedding API calls.
 
 #### Token counting and usage tracking
 
@@ -237,7 +232,7 @@ packages/
                - middleware/    API key auth
                - routes/       REST endpoints (accounts, repos, scans, dupes)
                - services/     Service resolver, validators, LLM/embedding/vector providers
-               - pipeline/     Job processors (ingest, embed, cluster, verify, rank)
+               - pipeline/     Job processors (ingest, detect, strategies/)
                - queue/        Job queue and worker loop
   cli/       Commander-based CLI
                - commands/     Command implementations (setup, config, scan, dupes, status, clear-scans, clear-repos)

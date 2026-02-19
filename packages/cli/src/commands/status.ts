@@ -13,7 +13,6 @@ const PHASE_LABELS: Record<ScanStatus, string> = {
   queued: "Queued",
   ingesting: "Ingesting PRs",
   embedding: "Computing embeddings",
-  clustering: "Clustering duplicates",
   verifying: "Verifying with LLM",
   ranking: "Ranking duplicates",
   done: "Done",

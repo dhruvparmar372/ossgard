@@ -3,7 +3,7 @@ import type { AppEnv } from "../app.js";
 import { ServiceResolver } from "../services/service-resolver.js";
 import { DiffTooLargeError } from "../services/github-client.js";
 import { hashDiff } from "../pipeline/normalize-diff.js";
-import { buildCodeInput, buildIntentInput, computeEmbedHash, CODE_COLLECTION, INTENT_COLLECTION } from "../pipeline/embed.js";
+import { buildCodeInput, buildIntentInput, computeEmbedHash, CODE_COLLECTION, INTENT_COLLECTION } from "../pipeline/embed-utils.js";
 import { TOKEN_BUDGET_FACTOR } from "../services/token-counting.js";
 
 const dupes = new Hono<AppEnv>();

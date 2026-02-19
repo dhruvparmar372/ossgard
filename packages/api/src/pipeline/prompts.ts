@@ -11,46 +11,6 @@ const TRUNCATED_BODY_CHARS = 500;
 const TRUNCATED_FILE_COUNT = 20;
 
 /**
- * Builds a prompt asking the LLM to verify which PRs in a candidate group
- * are actually duplicates of each other.
- *
- * Expected JSON response format:
- * {
- *   "groups": [{ "prIds": number[], "label": string, "confidence": number, "relationship": string }],
- *   "unrelated": number[]
- * }
- */
-export function buildVerifyPrompt(prs: PR[], tokenCounter?: TokenCounter): Message[] {
-  const systemContent = `You are a code review assistant that identifies duplicate or closely related pull requests.
-Analyze the provided PRs and group the ones that are duplicates or near-duplicates.
-Consider: identical file changes, similar intent/purpose, overlapping code modifications.
-
-IMPORTANT: Respond with ONLY raw JSON. Do NOT wrap in markdown code blocks, do NOT add any text before or after the JSON. Your entire response must be parseable by JSON.parse().
-
-You MUST respond with valid JSON in this exact format:
-{
-  "groups": [
-    {
-      "prIds": [<list of PR id values that are duplicates>],
-      "label": "<short description of what these PRs do>",
-      "confidence": <0.0-1.0>,
-      "relationship": "<exact_duplicate|near_duplicate|related>"
-    }
-  ],
-  "unrelated": [<list of PR id values that are not duplicates of anything>]
-}`;
-
-  const userPreamble = "Analyze these candidate duplicate PRs and identify which are actually duplicates:\n\n";
-
-  const prSummaries = buildPRSummaries(prs, systemContent, userPreamble, tokenCounter, true);
-
-  return [
-    { role: "system", content: systemContent },
-    { role: "user", content: userPreamble + prSummaries },
-  ];
-}
-
-/**
  * Builds a prompt asking the LLM to rank PRs in a verified duplicate group
  * by code quality and completeness.
  *

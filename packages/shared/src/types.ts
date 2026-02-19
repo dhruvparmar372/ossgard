@@ -26,14 +26,13 @@ export type ScanStatus =
   | "queued"
   | "ingesting"
   | "embedding"
-  | "clustering"
   | "verifying"
   | "ranking"
   | "done"
   | "failed"
   | "paused";
 
-export type DuplicateStrategyName = "legacy" | "pairwise-llm";
+export type DuplicateStrategyName = "pairwise-llm";
 
 export interface Scan {
   id: number;
@@ -70,10 +69,6 @@ export interface DupeGroupMember {
 export type JobType =
   | "scan"
   | "ingest"
-  | "embed"
-  | "cluster"
-  | "verify"
-  | "rank"
   | "detect";
 
 export type JobStatus =
@@ -102,7 +97,7 @@ export interface AccountConfig {
   llm: { provider: string; url: string; model: string; api_key: string; batch?: boolean };
   embedding: { provider: string; url: string; model: string; api_key: string; batch?: boolean };
   vector_store: { url: string; api_key: string };
-  scan?: { concurrency?: number; code_similarity_threshold?: number; intent_similarity_threshold?: number; strategy?: DuplicateStrategyName; candidate_threshold?: number; max_candidates_per_pr?: number };
+  scan?: { concurrency?: number; candidate_threshold?: number; max_candidates_per_pr?: number };
 }
 
 export interface Account {

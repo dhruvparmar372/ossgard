@@ -277,14 +277,14 @@ describe("PairwiseLLMStrategy integration", () => {
         embedding: mockEmbedding,
         vectorStore: mockVectorStore,
         scanConfig: {
-          codeSimilarityThreshold: 0.85,
-          intentSimilarityThreshold: 0.8,
+          candidateThreshold: 0.65,
+          maxCandidatesPerPr: 5,
         },
       }),
     } as unknown as ServiceResolver;
 
     // ---- Execute strategy ----
-    const scan = db.createScan(repo.id, account.id, "pairwise-llm");
+    const scan = db.createScan(repo.id, account.id);
     const prs = db.listOpenPRs(repo.id);
 
     const ctx: StrategyContext = {
@@ -540,14 +540,14 @@ describe("PairwiseLLMStrategy integration", () => {
         embedding: mockEmbedding,
         vectorStore: mockVectorStore,
         scanConfig: {
-          codeSimilarityThreshold: 0.85,
-          intentSimilarityThreshold: 0.8,
+          candidateThreshold: 0.65,
+          maxCandidatesPerPr: 5,
         },
       }),
     } as unknown as ServiceResolver;
 
     // ---- Execute strategy ----
-    const scan = db.createScan(repo.id, account.id, "pairwise-llm");
+    const scan = db.createScan(repo.id, account.id);
     const prs = db.listOpenPRs(repo.id);
 
     const ctx: StrategyContext = {

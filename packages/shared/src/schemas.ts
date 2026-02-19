@@ -38,8 +38,8 @@ export const AccountConfigSchema = z.object({
   }),
   scan: z.object({
     concurrency: z.number().optional(),
-    code_similarity_threshold: z.number().optional(),
-    intent_similarity_threshold: z.number().optional(),
+    candidate_threshold: z.number().optional(),
+    max_candidates_per_pr: z.number().optional(),
   }).optional(),
 });
 export type AccountConfigSchema = z.infer<typeof AccountConfigSchema>;
@@ -73,8 +73,8 @@ export const PatchAccountConfig = z.object({
     }).partial().optional(),
     scan: z.object({
       concurrency: z.number().optional(),
-      code_similarity_threshold: z.number().optional(),
-      intent_similarity_threshold: z.number().optional(),
+      candidate_threshold: z.number().optional(),
+      max_candidates_per_pr: z.number().optional(),
     }).partial().optional(),
   }),
 });
@@ -86,7 +86,6 @@ export const ScanProgressResponse = z.object({
     "queued",
     "ingesting",
     "embedding",
-    "clustering",
     "verifying",
     "ranking",
     "done",

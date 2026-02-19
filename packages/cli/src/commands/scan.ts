@@ -8,7 +8,6 @@ const PHASE_LABELS: Record<ScanStatus, string> = {
   queued: "Queued",
   ingesting: "Ingesting PRs",
   embedding: "Computing embeddings",
-  clustering: "Clustering duplicates",
   verifying: "Verifying with LLM",
   ranking: "Ranking duplicates",
   done: "Done",
@@ -26,13 +25,12 @@ export function scanCommand(client: ApiClient): Command {
     .argument("<owner/repo>", "Repository slug (e.g. facebook/react)")
     .option("--full", "Run a full scan (re-scan everything)")
     .option("--limit <count>", "Maximum number of PRs to ingest", parseInt)
-    .option("--strategy <name>", "Duplicate detection strategy (legacy or pairwise-llm)", "pairwise-llm")
     .option("--no-wait", "Don't wait for scan to complete")
     .option("--json", "Output as JSON")
     .action(
       async (
         slug: string,
-        opts: { full?: boolean; limit?: number; strategy?: string; wait?: boolean; json?: boolean }
+        opts: { full?: boolean; limit?: number; wait?: boolean; json?: boolean }
       ) => {
         if (!requireSetup()) return;
         const { owner, name } = parseSlug(slug);
@@ -40,7 +38,6 @@ export function scanCommand(client: ApiClient): Command {
         const body: Record<string, unknown> = {};
         if (opts.full) body.full = true;
         if (opts.limit) body.maxPrs = opts.limit;
-        if (opts.strategy) body.strategy = opts.strategy;
 
         const result = await client.post<{
           scanId: number;
