@@ -57,6 +57,7 @@ export class AnthropicBatchProvider implements BatchChatProvider {
 
     const body: Record<string, unknown> = {
       model: this.model,
+      temperature: 0,
       max_tokens: 8192,
       messages: nonSystemMessages.map((m) => ({
         role: m.role,
@@ -138,6 +139,7 @@ export class AnthropicBatchProvider implements BatchChatProvider {
 
         const params: Record<string, unknown> = {
           model: this.model,
+          temperature: 0,
           max_tokens: 8192,
           messages: nonSystemMessages.map((m) => ({
             role: m.role,

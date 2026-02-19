@@ -41,6 +41,7 @@ export class OpenAIChatProvider implements ChatProvider {
         },
         body: JSON.stringify({
           model: this.model,
+          temperature: 0,
           max_completion_tokens: 8192,
           response_format: { type: "json_object" },
           messages: messages.map((m) => ({

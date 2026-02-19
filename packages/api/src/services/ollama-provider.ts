@@ -71,7 +71,7 @@ export class OllamaProvider implements EmbeddingProvider, ChatProvider {
         messages,
         stream: false,
         format: "json",
-        options: { num_ctx: 8192 },
+        options: { num_ctx: 8192, temperature: 0 },
       }),
     });
 
