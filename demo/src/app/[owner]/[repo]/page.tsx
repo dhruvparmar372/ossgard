@@ -4,6 +4,7 @@ import { ArrowLeft, Github } from "lucide-react";
 import { repos, getRepoData } from "@/data";
 import { StatsBar } from "@/components/stats-bar";
 import { ReviewCarousel } from "@/components/review-carousel";
+import { DownloadButton } from "@/components/download-button";
 
 export function generateStaticParams() {
   return repos.map((r) => ({
@@ -38,16 +39,19 @@ export default async function RepoPage({
               {owner}/{repo}
             </h1>
           </div>
-          <a
-            href={data.repo.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-sm border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={`View ${owner}/${repo} on GitHub`}
-          >
-            <Github className="size-4" />
-            <span className="hidden sm:inline">GitHub</span>
-          </a>
+          <div className="flex items-center gap-2">
+            <DownloadButton data={data} />
+            <a
+              href={data.repo.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-sm border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`View ${owner}/${repo} on GitHub`}
+            >
+              <Github className="size-4" />
+              <span className="hidden sm:inline">GitHub</span>
+            </a>
+          </div>
         </div>
 
         {/* Stats Bar */}
@@ -56,11 +60,7 @@ export default async function RepoPage({
         </div>
 
         {/* Review Carousel */}
-        <ReviewCarousel
-          groups={data.groups}
-          repoOwner={data.repo.owner}
-          repoName={data.repo.name}
-        />
+        <ReviewCarousel groups={data.groups} />
       </div>
     </main>
   );

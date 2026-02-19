@@ -4,16 +4,13 @@ import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PrCard } from "@/components/pr-card";
-// import { CloseDupesButton } from "@/components/close-dupes-button";
 import type { DupeGroup } from "@/lib/types";
 
 interface ReviewCarouselProps {
   groups: DupeGroup[];
-  repoOwner: string;
-  repoName: string;
 }
 
-export function ReviewCarousel({ groups, repoOwner, repoName }: ReviewCarouselProps) {
+export function ReviewCarousel({ groups }: ReviewCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   if (groups.length === 0) {
@@ -98,18 +95,6 @@ export function ReviewCarousel({ groups, repoOwner, repoName }: ReviewCarouselPr
           </div>
         </div>
       )}
-
-      {/* Close duplicates action — hidden for now
-      {recommended && duplicates.filter((m) => m.state === "open").length > 0 && (
-        <CloseDupesButton
-          key={group.id}
-          owner={repoOwner}
-          repoName={repoName}
-          duplicateMembers={duplicates.filter((m) => m.state === "open")}
-          recommendedPrNumber={recommended.prNumber}
-        />
-      )}
-      */}
     </section>
   );
 }
