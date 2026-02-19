@@ -286,6 +286,109 @@ describe("OpenAIBatchChatProvider", () => {
       expect(fetchFn).toHaveBeenCalledTimes(5);
     });
 
+    it("retries batch creation on token limit error with backoff", async () => {
+      const fetchFn = vi
+        .fn()
+        // Upload file
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: "file-abc" }),
+        })
+        // Create batch #1
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: "batch-token-limit-1" }),
+        })
+        // Poll #1 -> failed with token limit
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              status: "failed",
+              errors: {
+                data: [
+                  {
+                    message:
+                      "Enqueued token limit reached for gpt-5-nano in organization org-123. Limit: 2,000,000 enqueued tokens.",
+                  },
+                ],
+              },
+            }),
+        })
+        // Create batch #2 (retry)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: "batch-token-limit-2" }),
+        })
+        // Poll #2 -> completed
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              status: "completed",
+              output_file_id: "file-out-retry",
+            }),
+        })
+        // Download results
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () =>
+            Promise.resolve(
+              [
+                JSON.stringify({
+                  custom_id: "req-1",
+                  response: {
+                    status_code: 200,
+                    body: {
+                      choices: [{ message: { content: '{"ok": true}' } }],
+                      usage: { prompt_tokens: 50, completion_tokens: 10 },
+                    },
+                  },
+                }),
+                JSON.stringify({
+                  custom_id: "req-2",
+                  response: {
+                    status_code: 200,
+                    body: {
+                      choices: [{ message: { content: '{"ok": true}' } }],
+                      usage: { prompt_tokens: 50, completion_tokens: 10 },
+                    },
+                  },
+                }),
+              ].join("\n")
+            ),
+        }) as unknown as typeof fetch;
+
+      const logger = {
+        info: vi.fn(),
+        warn: vi.fn(),
+      } as any;
+
+      const provider = new OpenAIBatchChatProvider({
+        apiKey: "sk-test",
+        model: "gpt-4o-mini",
+        fetchFn,
+        pollIntervalMs: 0,
+        tokenLimitRetryBaseMs: 0,
+        logger,
+      });
+
+      const results = await provider.chatBatch([
+        { id: "req-1", messages: [{ role: "user", content: "test" }] },
+        { id: "req-2", messages: [{ role: "user", content: "test2" }] },
+      ]);
+
+      expect(results).toHaveLength(2);
+      expect(results[0].response).toEqual({ ok: true });
+      // 6 calls: upload, create-1, poll-1(failed), create-2, poll-2(completed), download
+      expect(fetchFn).toHaveBeenCalledTimes(6);
+      // Should have logged a token limit warning
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Token limit reached, retrying batch creation",
+        expect.objectContaining({ attempt: 1, maxAttempts: 5 })
+      );
+    });
+
     it("throws on batch failure status", async () => {
       const fetchFn = vi
         .fn()

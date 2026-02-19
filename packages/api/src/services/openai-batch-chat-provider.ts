@@ -15,12 +15,16 @@ function stripCodeBlock(raw: string): string {
   return raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
 }
 
+const MAX_TOKEN_LIMIT_RETRIES = 5;
+const TOKEN_LIMIT_BASE_DELAY_MS = 60_000; // 1 minute
+
 export interface OpenAIBatchChatProviderOptions {
   apiKey: string;
   model: string;
   pollIntervalMs?: number;
   maxPollIntervalMs?: number;
   timeoutMs?: number;
+  tokenLimitRetryBaseMs?: number;
   fetchFn?: typeof fetch;
   logger?: Logger;
 }
@@ -34,6 +38,7 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
   private basePollIntervalMs: number;
   private maxPollIntervalMs: number;
   private timeoutMs: number;
+  private tokenLimitRetryBaseMs: number;
   private fetchFn: typeof fetch;
   private encoder: Tiktoken;
   private logger?: Logger;
@@ -45,6 +50,7 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
     this.basePollIntervalMs = options.pollIntervalMs ?? 10_000;
     this.maxPollIntervalMs = options.maxPollIntervalMs ?? 120_000;
     this.timeoutMs = options.timeoutMs ?? 24 * 60 * 60 * 1000;
+    this.tokenLimitRetryBaseMs = options.tokenLimitRetryBaseMs ?? TOKEN_LIMIT_BASE_DELAY_MS;
     this.encoder = createTiktokenEncoder(options.model);
     this.logger = options.logger;
   }
@@ -64,6 +70,7 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
         },
         body: JSON.stringify({
           model: this.model,
+          temperature: 0,
           max_completion_tokens: 8192,
           response_format: { type: "json_object" },
           messages: messages.map((m) => ({
@@ -113,12 +120,18 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
       return [{ id: requests[0].id, response: result.response, usage: result.usage }];
     }
 
-    let batchId: string;
+    let outputFileId: string;
 
     if (options?.existingBatchId) {
-      // Resume: skip file upload + batch creation
-      batchId = options.existingBatchId;
-      this.logger?.info("Resuming existing batch", { batchId });
+      // Resume: skip file upload + batch creation, just poll
+      this.logger?.info("Resuming existing batch", { batchId: options.existingBatchId });
+      const result = await this.pollBatchToCompletion(options.existingBatchId, Date.now() + this.timeoutMs);
+      if (result.status !== "completed" || !result.outputFileId) {
+        throw new Error(result.status === "completed"
+          ? "OpenAI batch completed but no output_file_id — all requests may have failed."
+          : `OpenAI batch ${result.error ?? "failed"}`);
+      }
+      outputFileId = result.outputFileId;
     } else {
       // 1. Build JSONL content
       const jsonlLines = requests.map((req) =>
@@ -128,6 +141,7 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
           url: "/v1/chat/completions",
           body: {
             model: this.model,
+            temperature: 0,
             max_completion_tokens: 8192,
             response_format: { type: "json_object" },
             messages: req.messages.map((m) => ({
@@ -165,7 +179,27 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
       const uploadData = (await uploadRes.json()) as { id: string };
       const inputFileId = uploadData.id;
 
-      // 3. Create batch
+      // 3. Create batch + poll (with token limit retry)
+      const batchResult = await this.createAndPollBatch(inputFileId, options);
+      outputFileId = batchResult.outputFileId;
+    }
+
+    // 4. Download and parse results
+    return this.downloadAndParseResults(outputFileId, requests);
+  }
+
+  /**
+   * Creates a batch from an uploaded file and polls until completion.
+   * Retries with exponential backoff when hitting the org's enqueued token limit.
+   */
+  private async createAndPollBatch(
+    inputFileId: string,
+    options?: BatchChatOptions
+  ): Promise<{ outputFileId: string; batchId: string }> {
+    const deadline = Date.now() + this.timeoutMs;
+
+    for (let tokenLimitAttempt = 0; ; tokenLimitAttempt++) {
+      // Create batch
       const createRes = await this.fetchFn("https://api.openai.com/v1/batches", {
         method: "POST",
         headers: {
@@ -186,15 +220,57 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
       }
 
       const batchData = (await createRes.json()) as { id: string };
-      batchId = batchData.id;
+      const batchId = batchData.id;
       this.logger?.info("Batch created", { batchId });
       options?.onBatchCreated?.(batchId);
-    }
 
-    // 4. Poll until completed (progressive intervals with transient error tolerance)
-    const deadline = Date.now() + this.timeoutMs;
+      // Poll until completed
+      const result = await this.pollBatchToCompletion(batchId, deadline);
+
+      if (result.status === "completed") {
+        if (!result.outputFileId) {
+          throw new Error(
+            "OpenAI batch completed but no output_file_id — all requests may have failed. Check error_file_id for details."
+          );
+        }
+        return { outputFileId: result.outputFileId, batchId };
+      }
+
+      // Token limit error — retry with backoff
+      if (result.status === "token_limit" && tokenLimitAttempt < MAX_TOKEN_LIMIT_RETRIES) {
+        const delay = Math.min(
+          this.tokenLimitRetryBaseMs * Math.pow(2, tokenLimitAttempt),
+          10 * 60_000 // cap at 10 minutes
+        );
+        this.logger?.warn("Token limit reached, retrying batch creation", {
+          batchId,
+          attempt: tokenLimitAttempt + 1,
+          maxAttempts: MAX_TOKEN_LIMIT_RETRIES,
+          delayMs: delay,
+          error: result.error,
+        });
+        await this.sleep(delay);
+        continue;
+      }
+
+      // Non-retryable failure
+      throw new Error(result.error ?? "OpenAI batch failed");
+    }
+  }
+
+  /**
+   * Polls a batch until it reaches a terminal state.
+   * Returns a discriminated result indicating completion, token limit error, or other failure.
+   */
+  private async pollBatchToCompletion(
+    batchId: string,
+    deadline: number
+  ): Promise<
+    | { status: "completed"; outputFileId: string | null }
+    | { status: "token_limit"; error: string }
+    | { status: "failed"; error: string }
+  > {
     const startTime = Date.now();
-    let outputFileId: string | null = null;
     let pollCount = 0;
     let consecutiveErrors = 0;
 
@@ -221,7 +297,7 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
         consecutiveErrors++;
         const errMsg = err instanceof Error ? err.message : String(err);
         if (consecutiveErrors >= 4) {
-          throw new Error(`OpenAI batch poll failed after ${consecutiveErrors} consecutive errors: ${errMsg}`);
+          return { status: "failed", error: `Poll failed after ${consecutiveErrors} consecutive errors: ${errMsg}` };
         }
         this.logger?.warn("Transient poll error (network)", { batchId, consecutiveErrors, error: errMsg });
         continue;
@@ -234,9 +310,7 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
           this.logger?.warn("Transient poll error", { batchId, status, consecutiveErrors });
           continue;
         }
-        throw new Error(
-          `OpenAI batch poll error: ${pollRes.status} ${pollRes.statusText}`
-        );
+        return { status: "failed", error: `Poll error: ${pollRes.status} ${pollRes.statusText}` };
       }
 
       consecutiveErrors = 0;
@@ -262,9 +336,8 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
       });
 
       if (pollData.status === "completed") {
-        outputFileId = pollData.output_file_id ?? null;
         this.logger?.info("Batch completed", { batchId, elapsedMs });
-        break;
+        return { status: "completed", outputFileId: pollData.output_file_id ?? null };
       }
 
       if (
@@ -273,20 +346,29 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
         pollData.status === "cancelled"
       ) {
         const firstError = pollData.errors?.data?.[0]?.message;
-        const detail = firstError ? `: ${firstError}` : "";
-        throw new Error(`OpenAI batch ${pollData.status}${detail}`);
+        const detail = firstError ?? `Batch ${pollData.status}`;
+
+        // Detect token limit errors — these are retryable
+        if (firstError && /enqueued token limit/i.test(firstError)) {
+          return { status: "token_limit", error: detail };
+        }
+
+        return { status: "failed", error: `OpenAI batch ${pollData.status}: ${detail}` };
       }
 
       if (Date.now() + nextInterval > deadline) {
-        throw new Error(`OpenAI batch timed out after ${this.timeoutMs}ms`);
+        return { status: "failed", error: `Batch timed out after ${this.timeoutMs}ms` };
       }
     }
 
-    if (!outputFileId) {
-      throw new Error("OpenAI batch completed but no output_file_id — all requests may have failed. Check error_file_id for details.");
-    }
+    return { status: "failed", error: `Batch timed out after ${this.timeoutMs}ms` };
+  }
 
-    // 5. Download results
+  /** Downloads batch output file and parses JSONL results. */
+  private async downloadAndParseResults(
+    outputFileId: string,
+    requests: BatchChatRequest[]
+  ): Promise<BatchChatResult[]> {
     const downloadRes = await this.fetchFn(
       `https://api.openai.com/v1/files/${outputFileId}/content`,
       {
