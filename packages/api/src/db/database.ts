@@ -85,6 +85,7 @@ interface PRRow {
   state: string;
   github_etag: string | null;
   embed_hash: string | null;
+  intent_summary: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -102,6 +103,7 @@ function mapPRRow(row: PRRow): PR {
     state: row.state as PR["state"],
     githubEtag: row.github_etag,
     embedHash: row.embed_hash,
+    intentSummary: row.intent_summary,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -174,6 +176,7 @@ export class Database {
       "ALTER TABLE scans ADD COLUMN output_tokens INTEGER DEFAULT 0",
       "ALTER TABLE scans ADD COLUMN phase_cursor TEXT",
       "ALTER TABLE scans ADD COLUMN strategy TEXT NOT NULL DEFAULT 'pairwise-llm'",
+      "ALTER TABLE prs ADD COLUMN intent_summary TEXT",
     ];
     for (const sql of migrations) {
       try {
@@ -335,7 +338,8 @@ export class Database {
         file_paths = excluded.file_paths,
         state = excluded.state,
         updated_at = excluded.updated_at,
-        embed_hash = NULL
+        embed_hash = NULL,
+        intent_summary = NULL
       RETURNING *
     `);
     const row = stmt.get(
@@ -389,6 +393,90 @@ export class Database {
   updatePREmbedHash(prId: number, hash: string): void {
     const stmt = this.raw.prepare("UPDATE prs SET embed_hash = ? WHERE id = ?");
     stmt.run(hash, prId);
+  }
+
+  updatePRCacheFields(prId: number, embedHash: string, intentSummary: string): void {
+    const stmt = this.raw.prepare(
+      "UPDATE prs SET embed_hash = ?, intent_summary = ? WHERE id = ?"
+    );
+    stmt.run(embedHash, intentSummary, prId);
+  }
+
+  // ── Pairwise Cache methods ──
+
+  getPairwiseCache(
+    repoId: number,
+    pairs: Array<{ prA: number; prB: number; hashA: string; hashB: string }>
+  ): Map<string, { isDuplicate: boolean; confidence: number; relationship: string; rationale: string }> {
+    const result = new Map<string, { isDuplicate: boolean; confidence: number; relationship: string; rationale: string }>();
+    if (pairs.length === 0) return result;
+
+    const stmt = this.raw.prepare(
+      "SELECT * FROM pairwise_cache WHERE repo_id = ? AND pr_a_number = ? AND pr_b_number = ?"
+    );
+
+    for (const { prA, prB, hashA, hashB } of pairs) {
+      const minPr = Math.min(prA, prB);
+      const maxPr = Math.max(prA, prB);
+      const expectedHashA = prA <= prB ? hashA : hashB;
+      const expectedHashB = prA <= prB ? hashB : hashA;
+
+      const row = stmt.get(repoId, minPr, maxPr) as {
+        hash_a: string; hash_b: string;
+        is_duplicate: number; confidence: number; relationship: string; rationale: string;
+      } | null;
+
+      if (row && row.hash_a === expectedHashA && row.hash_b === expectedHashB) {
+        result.set(`${minPr}-${maxPr}`, {
+          isDuplicate: row.is_duplicate === 1,
+          confidence: row.confidence,
+          relationship: row.relationship,
+          rationale: row.rationale,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  setPairwiseCache(
+    repoId: number,
+    entries: Array<{
+      prA: number; prB: number;
+      hashA: string; hashB: string;
+      result: { isDuplicate: boolean; confidence: number; relationship: string; rationale: string };
+    }>
+  ): void {
+    if (entries.length === 0) return;
+
+    const stmt = this.raw.prepare(`
+      INSERT OR REPLACE INTO pairwise_cache
+        (repo_id, pr_a_number, pr_b_number, hash_a, hash_b, is_duplicate, confidence, relationship, rationale)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const tx = this.raw.transaction(() => {
+      for (const { prA, prB, hashA, hashB, result } of entries) {
+        stmt.run(
+          repoId, prA, prB, hashA, hashB,
+          result.isDuplicate ? 1 : 0,
+          result.confidence,
+          result.relationship,
+          result.rationale
+        );
+      }
+    });
+    tx();
+  }
+
+  clearPairwiseCache(repoId: number): void {
+    this.raw.prepare("DELETE FROM pairwise_cache WHERE repo_id = ?").run(repoId);
+  }
+
+  resetPRCacheFields(repoId: number): void {
+    this.raw.prepare(
+      "UPDATE prs SET embed_hash = NULL, intent_summary = NULL WHERE repo_id = ?"
+    ).run(repoId);
   }
 
   getPRsByIds(ids: number[]): PR[] {
@@ -493,6 +581,8 @@ export class Database {
     this.raw.run("DELETE FROM dupe_groups");
     this.raw.run("DELETE FROM scans");
     this.raw.run("DELETE FROM jobs");
+    this.raw.run("DELETE FROM pairwise_cache");
+    this.raw.run("UPDATE prs SET embed_hash = NULL, intent_summary = NULL");
   }
 
   clearRepos(): void {
@@ -500,6 +590,7 @@ export class Database {
     this.raw.run("DELETE FROM dupe_groups");
     this.raw.run("DELETE FROM scans");
     this.raw.run("DELETE FROM jobs");
+    this.raw.run("DELETE FROM pairwise_cache");
     this.raw.run("DELETE FROM prs");
     this.raw.run("DELETE FROM repos");
   }
@@ -509,6 +600,7 @@ export class Database {
     this.raw.run("DELETE FROM dupe_groups");
     this.raw.run("DELETE FROM scans");
     this.raw.run("DELETE FROM jobs");
+    this.raw.run("DELETE FROM pairwise_cache");
     this.raw.run("DELETE FROM prs");
     this.raw.run("DELETE FROM repos");
     this.raw.run("DELETE FROM accounts");

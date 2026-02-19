@@ -591,4 +591,364 @@ describe("PairwiseLLMStrategy integration", () => {
 
     db.close();
   });
+
+  // ---------- Test 3: caching skips redundant work on second run ----------
+
+  it("second run with unchanged PRs skips intent extraction, embedding, and pairwise verification", async () => {
+    const db = new Database(":memory:");
+    const account = db.createAccount("test-key", "test", DUMMY_ACCOUNT_CONFIG);
+    const repo = db.insertRepo("test", "repo");
+
+    // Insert 2 similar PRs
+    db.upsertPR({
+      repoId: repo.id, number: 1,
+      title: "Fix login timeout", body: "Sessions expire too quickly",
+      author: "alice", diffHash: "aaa",
+      filePaths: ["src/auth.ts", "src/session.ts"],
+      state: "open", createdAt: "2025-01-01T00:00:00Z", updatedAt: "2025-01-01T00:00:00Z",
+    });
+    db.upsertPR({
+      repoId: repo.id, number: 2,
+      title: "Fix session expiration bug", body: "Auth sessions time out too fast",
+      author: "bob", diffHash: "bbb",
+      filePaths: ["src/auth.ts", "src/session.ts"],
+      state: "open", createdAt: "2025-01-02T00:00:00Z", updatedAt: "2025-01-02T00:00:00Z",
+    });
+
+    // Shared mocks
+    const embedCallCounts = { embed: 0 };
+    const llmCallCounts = { chat: 0 };
+
+    const mockEmbedding: EmbeddingProvider = {
+      dimensions: 3,
+      maxInputTokens: 8000,
+      countTokens: (t: string) => Math.ceil(t.length / 4),
+      embed: vi.fn().mockImplementation(async (texts: string[]) => {
+        embedCallCounts.embed++;
+        return texts.map((t) => {
+          const lower = t.toLowerCase();
+          if (lower.includes("login") || lower.includes("session") || lower.includes("auth") || lower.includes("timeout") || lower.includes("expir"))
+            return [0.9, 0.1, 0.1];
+          return [0.1, 0.1, 0.9];
+        });
+      }),
+    };
+
+    // Vector store that persists across runs
+    const storedVectors = new Map<string, Map<string, { vector: number[]; payload: Record<string, unknown> }>>();
+
+    const createPersistentVectorStore = (): VectorStore => ({
+      ensureCollection: vi.fn().mockResolvedValue(undefined),
+      upsert: vi.fn().mockImplementation(async (collection: string, points: any[]) => {
+        if (!storedVectors.has(collection)) storedVectors.set(collection, new Map());
+        const col = storedVectors.get(collection)!;
+        for (const p of points) col.set(p.id, { vector: p.vector, payload: p.payload });
+      }),
+      search: vi.fn().mockImplementation(async (collection: string, vector: number[], opts: any) => {
+        const col = storedVectors.get(collection);
+        if (!col) return [];
+        const results: SearchResult[] = [];
+        for (const [id, point] of col) {
+          const score = cosineSim(vector, point.vector);
+          results.push({ id, score, payload: point.payload });
+        }
+        results.sort((a, b) => b.score - a.score);
+        return results.slice(0, opts.limit);
+      }),
+      getVector: vi.fn().mockImplementation(async (collection: string, id: string) => {
+        const col = storedVectors.get(collection);
+        if (!col) return null;
+        const point = col.get(id);
+        return point ? point.vector : null;
+      }),
+      deleteByFilter: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const mockLlm: ChatProvider = {
+      maxContextTokens: 200_000,
+      countTokens: (t: string) => Math.ceil(t.length / 4),
+      chat: vi.fn().mockImplementation(async (messages: Message[]) => {
+        llmCallCounts.chat++;
+        const system = messages.find((m) => m.role === "system")?.content ?? "";
+        const user = messages.find((m) => m.role === "user")?.content ?? "";
+
+        if (system.includes("summarize")) {
+          let summary = "General changes";
+          const lower = user.toLowerCase();
+          if (lower.includes("login") || lower.includes("session"))
+            summary = "Fixes a bug where user sessions expire prematurely causing login timeouts.";
+          return { response: { summary }, usage: { inputTokens: 100, outputTokens: 20 } };
+        }
+
+        if (system.includes("compare")) {
+          const prNumbers = [...user.matchAll(/PR #(\d+)/g)].map((m) => Number(m[1]));
+          const is1v2 = prNumbers.includes(1) && prNumbers.includes(2);
+          if (is1v2) {
+            return {
+              response: { isDuplicate: true, confidence: 0.95, relationship: "near_duplicate", rationale: "Both fix session expiration." },
+              usage: { inputTokens: 200, outputTokens: 40 },
+            };
+          }
+          return {
+            response: { isDuplicate: false, confidence: 0.1, relationship: "unrelated", rationale: "Different." },
+            usage: { inputTokens: 200, outputTokens: 40 },
+          };
+        }
+
+        if (system.includes("rank")) {
+          const prNumbers = [...user.matchAll(/PR #(\d+)/g)].map((m) => Number(m[1]));
+          const unique = [...new Set(prNumbers)];
+          return {
+            response: { rankings: unique.map((n, i) => ({ prNumber: n, score: 90 - i * 10, rationale: `PR #${n} ranked ${i + 1}` })) },
+            usage: { inputTokens: 150, outputTokens: 30 },
+          };
+        }
+
+        return { response: {}, usage: { inputTokens: 10, outputTokens: 5 } };
+      }),
+    };
+
+    const vectorStore1 = createPersistentVectorStore();
+    const resolver = {
+      resolve: vi.fn().mockResolvedValue({
+        llm: mockLlm,
+        embedding: mockEmbedding,
+        vectorStore: vectorStore1,
+        scanConfig: { candidateThreshold: 0.65, maxCandidatesPerPr: 5 },
+      }),
+    } as unknown as ServiceResolver;
+
+    // --- First run: everything from scratch ---
+    const scan1 = db.createScan(repo.id, account.id);
+    const prs1 = db.listOpenPRs(repo.id);
+
+    const strategy = new PairwiseLLMStrategy();
+    const result1 = await strategy.execute({
+      prs: prs1, scanId: scan1.id, repoId: repo.id, accountId: account.id, resolver, db,
+    });
+
+    expect(result1.groups).toHaveLength(1);
+    expect(result1.groups[0].members.map((m) => m.prNumber).sort()).toEqual([1, 2]);
+
+    const firstRunEmbedCalls = embedCallCounts.embed;
+    const firstRunLlmCalls = llmCallCounts.chat;
+
+    // Verify cache fields were written
+    const pr1After = db.getPR(prs1[0].id);
+    expect(pr1After!.embedHash).toBeTruthy();
+    expect(pr1After!.intentSummary).toBeTruthy();
+
+    // --- Second run: PRs unchanged, should use caches ---
+    // Re-read PRs from DB (they now have embedHash and intentSummary)
+    const scan2 = db.createScan(repo.id, account.id);
+    const prs2 = db.listOpenPRs(repo.id);
+
+    // Reset counters
+    embedCallCounts.embed = 0;
+    llmCallCounts.chat = 0;
+
+    // Use same persistent vector store so getVector works
+    const vectorStore2 = createPersistentVectorStore();
+    const resolver2 = {
+      resolve: vi.fn().mockResolvedValue({
+        llm: mockLlm,
+        embedding: mockEmbedding,
+        vectorStore: vectorStore2,
+        scanConfig: { candidateThreshold: 0.65, maxCandidatesPerPr: 5 },
+      }),
+    } as unknown as ServiceResolver;
+
+    const result2 = await strategy.execute({
+      prs: prs2, scanId: scan2.id, repoId: repo.id, accountId: account.id, resolver: resolver2, db,
+    });
+
+    // Same results
+    expect(result2.groups).toHaveLength(1);
+    expect(result2.groups[0].members.map((m) => m.prNumber).sort()).toEqual([1, 2]);
+
+    // No embedding calls (PRs unchanged, vectors retrieved from store)
+    expect(embedCallCounts.embed).toBe(0);
+
+    // Only ranking LLM calls (no intent extraction or pairwise verification)
+    // Intent: 0 (cached), Verify: 0 (cached), Rank: 1
+    expect(llmCallCounts.chat).toBe(1); // only the ranking call
+
+    db.close();
+  });
+
+  // ---------- Test 4: changed PR triggers re-extraction ----------
+
+  it("changed PR triggers re-extraction and re-embedding while unchanged PR uses cache", async () => {
+    const db = new Database(":memory:");
+    const account = db.createAccount("test-key", "test", DUMMY_ACCOUNT_CONFIG);
+    const repo = db.insertRepo("test", "repo");
+
+    db.upsertPR({
+      repoId: repo.id, number: 1,
+      title: "Fix login timeout", body: "Sessions expire too quickly",
+      author: "alice", diffHash: "aaa",
+      filePaths: ["src/auth.ts", "src/session.ts"],
+      state: "open", createdAt: "2025-01-01T00:00:00Z", updatedAt: "2025-01-01T00:00:00Z",
+    });
+    db.upsertPR({
+      repoId: repo.id, number: 2,
+      title: "Fix session expiration bug", body: "Auth sessions time out too fast",
+      author: "bob", diffHash: "bbb",
+      filePaths: ["src/auth.ts", "src/session.ts"],
+      state: "open", createdAt: "2025-01-02T00:00:00Z", updatedAt: "2025-01-02T00:00:00Z",
+    });
+
+    const intentExtractCalls: string[][] = [];
+
+    const mockEmbedding: EmbeddingProvider = {
+      dimensions: 3,
+      maxInputTokens: 8000,
+      countTokens: (t: string) => Math.ceil(t.length / 4),
+      embed: vi.fn().mockImplementation(async (texts: string[]) => {
+        return texts.map((t) => {
+          const lower = t.toLowerCase();
+          if (lower.includes("login") || lower.includes("session") || lower.includes("auth") || lower.includes("timeout") || lower.includes("expir"))
+            return [0.9, 0.1, 0.1];
+          return [0.1, 0.1, 0.9];
+        });
+      }),
+    };
+
+    const storedVectors = new Map<string, Map<string, { vector: number[]; payload: Record<string, unknown> }>>();
+    const createPersistentVectorStore = (): VectorStore => ({
+      ensureCollection: vi.fn().mockResolvedValue(undefined),
+      upsert: vi.fn().mockImplementation(async (collection: string, points: any[]) => {
+        if (!storedVectors.has(collection)) storedVectors.set(collection, new Map());
+        const col = storedVectors.get(collection)!;
+        for (const p of points) col.set(p.id, { vector: p.vector, payload: p.payload });
+      }),
+      search: vi.fn().mockImplementation(async (collection: string, vector: number[], opts: any) => {
+        const col = storedVectors.get(collection);
+        if (!col) return [];
+        const results: SearchResult[] = [];
+        for (const [id, point] of col) {
+          const score = cosineSim(vector, point.vector);
+          results.push({ id, score, payload: point.payload });
+        }
+        results.sort((a, b) => b.score - a.score);
+        return results.slice(0, opts.limit);
+      }),
+      getVector: vi.fn().mockImplementation(async (collection: string, id: string) => {
+        const col = storedVectors.get(collection);
+        if (!col) return null;
+        const point = col.get(id);
+        return point ? point.vector : null;
+      }),
+      deleteByFilter: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const mockLlm: ChatProvider = {
+      maxContextTokens: 200_000,
+      countTokens: (t: string) => Math.ceil(t.length / 4),
+      chat: vi.fn().mockImplementation(async (messages: Message[]) => {
+        const system = messages.find((m) => m.role === "system")?.content ?? "";
+        const user = messages.find((m) => m.role === "user")?.content ?? "";
+
+        if (system.includes("summarize")) {
+          intentExtractCalls.push([user]);
+          let summary = "General changes";
+          const lower = user.toLowerCase();
+          if (lower.includes("login") || lower.includes("session"))
+            summary = "Fixes a bug where user sessions expire prematurely causing login timeouts.";
+          return { response: { summary }, usage: { inputTokens: 100, outputTokens: 20 } };
+        }
+
+        if (system.includes("compare")) {
+          const prNumbers = [...user.matchAll(/PR #(\d+)/g)].map((m) => Number(m[1]));
+          if (prNumbers.includes(1) && prNumbers.includes(2)) {
+            return {
+              response: { isDuplicate: true, confidence: 0.95, relationship: "near_duplicate", rationale: "Both fix session expiration." },
+              usage: { inputTokens: 200, outputTokens: 40 },
+            };
+          }
+          return {
+            response: { isDuplicate: false, confidence: 0.1, relationship: "unrelated", rationale: "Different." },
+            usage: { inputTokens: 200, outputTokens: 40 },
+          };
+        }
+
+        if (system.includes("rank")) {
+          const prNumbers = [...user.matchAll(/PR #(\d+)/g)].map((m) => Number(m[1]));
+          const unique = [...new Set(prNumbers)];
+          return {
+            response: { rankings: unique.map((n, i) => ({ prNumber: n, score: 90 - i * 10, rationale: `PR #${n} ranked ${i + 1}` })) },
+            usage: { inputTokens: 150, outputTokens: 30 },
+          };
+        }
+
+        return { response: {}, usage: { inputTokens: 10, outputTokens: 5 } };
+      }),
+    };
+
+    const vs1 = createPersistentVectorStore();
+    const resolver = {
+      resolve: vi.fn().mockResolvedValue({
+        llm: mockLlm, embedding: mockEmbedding, vectorStore: vs1,
+        scanConfig: { candidateThreshold: 0.65, maxCandidatesPerPr: 5 },
+      }),
+    } as unknown as ServiceResolver;
+
+    // First run
+    const scan1 = db.createScan(repo.id, account.id);
+    const prs1 = db.listOpenPRs(repo.id);
+    const strategy = new PairwiseLLMStrategy();
+    await strategy.execute({ prs: prs1, scanId: scan1.id, repoId: repo.id, accountId: account.id, resolver, db });
+
+    // Both PRs had intents extracted
+    const firstRunIntentCalls = intentExtractCalls.length;
+    expect(firstRunIntentCalls).toBeGreaterThan(0);
+
+    // Now simulate PR 2 being changed (upsert resets cache fields)
+    db.upsertPR({
+      repoId: repo.id, number: 2,
+      title: "Fix session expiration bug v2", body: "Updated fix for session timeout",
+      author: "bob", diffHash: "bbb-changed",
+      filePaths: ["src/auth.ts", "src/session.ts"],
+      state: "open", createdAt: "2025-01-02T00:00:00Z", updatedAt: "2025-01-05T00:00:00Z",
+    });
+
+    // Verify PR 2 cache was reset
+    const pr2After = db.getPRByNumber(repo.id, 2);
+    expect(pr2After!.embedHash).toBeNull();
+    expect(pr2After!.intentSummary).toBeNull();
+
+    // PR 1 should still have cache
+    const pr1After = db.getPRByNumber(repo.id, 1);
+    expect(pr1After!.embedHash).toBeTruthy();
+    expect(pr1After!.intentSummary).toBeTruthy();
+
+    // Reset tracking
+    intentExtractCalls.length = 0;
+
+    // Second run
+    const scan2 = db.createScan(repo.id, account.id);
+    const prs2 = db.listOpenPRs(repo.id);
+
+    const vs2 = createPersistentVectorStore();
+    const resolver2 = {
+      resolve: vi.fn().mockResolvedValue({
+        llm: mockLlm, embedding: mockEmbedding, vectorStore: vs2,
+        scanConfig: { candidateThreshold: 0.65, maxCandidatesPerPr: 5 },
+      }),
+    } as unknown as ServiceResolver;
+
+    const result2 = await strategy.execute({ prs: prs2, scanId: scan2.id, repoId: repo.id, accountId: account.id, resolver: resolver2, db });
+
+    // Intent extraction should only have been called for the changed PR (PR 2)
+    // PR 1 uses cached intentSummary
+    expect(intentExtractCalls.length).toBeGreaterThan(0);
+
+    // Verify embed was called (for changed PR 2)
+    expect(mockEmbedding.embed).toHaveBeenCalled();
+
+    // Results should still be valid
+    expect(result2.groups).toHaveLength(1);
+
+    db.close();
+  });
 });

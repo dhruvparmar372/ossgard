@@ -68,6 +68,20 @@ CREATE TABLE IF NOT EXISTS dupe_group_members (
   UNIQUE(group_id, pr_id)
 );
 
+CREATE TABLE IF NOT EXISTS pairwise_cache (
+  repo_id     INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+  pr_a_number INTEGER NOT NULL,
+  pr_b_number INTEGER NOT NULL,
+  hash_a      TEXT NOT NULL,
+  hash_b      TEXT NOT NULL,
+  is_duplicate INTEGER NOT NULL,
+  confidence  REAL NOT NULL,
+  relationship TEXT NOT NULL,
+  rationale   TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (repo_id, pr_a_number, pr_b_number)
+);
+
 CREATE TABLE IF NOT EXISTS jobs (
   id              TEXT PRIMARY KEY,
   type            TEXT NOT NULL,

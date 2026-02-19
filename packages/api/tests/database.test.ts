@@ -27,6 +27,7 @@ describe("Database", () => {
       expect(tableNames).toContain("dupe_groups");
       expect(tableNames).toContain("dupe_group_members");
       expect(tableNames).toContain("jobs");
+      expect(tableNames).toContain("pairwise_cache");
     });
 
     it("enables WAL mode for file-based databases", () => {
@@ -232,6 +233,149 @@ describe("Database", () => {
       const results = db.getPRsByIds([pr1.id, 9999]);
       expect(results).toHaveLength(1);
       expect(results[0].id).toBe(pr1.id);
+    });
+  });
+
+  describe("PR cache fields", () => {
+    let repoId: number;
+
+    beforeEach(() => {
+      const repo = db.insertRepo("facebook", "react");
+      repoId = repo.id;
+    });
+
+    const basePR = () => ({
+      repoId: 0,
+      number: 1,
+      title: "Fix bug",
+      body: "Fixes a critical bug",
+      author: "octocat",
+      diffHash: "abc123",
+      filePaths: ["src/index.ts", "src/utils.ts"],
+      state: "open" as const,
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-02T00:00:00Z",
+    });
+
+    it("updatePRCacheFields sets both embed_hash and intent_summary", () => {
+      const pr = db.upsertPR({ ...basePR(), repoId });
+      expect(pr.embedHash).toBeNull();
+      expect(pr.intentSummary).toBeNull();
+
+      db.updatePRCacheFields(pr.id, "hash123", "Fixes a bug in auth");
+      const updated = db.getPR(pr.id);
+      expect(updated!.embedHash).toBe("hash123");
+      expect(updated!.intentSummary).toBe("Fixes a bug in auth");
+    });
+
+    it("upsertPR resets both embed_hash and intent_summary on conflict", () => {
+      const pr = db.upsertPR({ ...basePR(), repoId });
+      db.updatePRCacheFields(pr.id, "hash123", "Fixes a bug in auth");
+
+      // Verify cache fields are set
+      const cached = db.getPR(pr.id);
+      expect(cached!.embedHash).toBe("hash123");
+      expect(cached!.intentSummary).toBe("Fixes a bug in auth");
+
+      // Upsert again (simulating a changed PR)
+      const updated = db.upsertPR({ ...basePR(), repoId, title: "Fix bug v2" });
+      expect(updated.embedHash).toBeNull();
+      expect(updated.intentSummary).toBeNull();
+    });
+  });
+
+  describe("pairwise cache", () => {
+    let repoId: number;
+
+    beforeEach(() => {
+      const repo = db.insertRepo("facebook", "react");
+      repoId = repo.id;
+    });
+
+    it("setPairwiseCache inserts entries and getPairwiseCache retrieves them", () => {
+      db.setPairwiseCache(repoId, [
+        {
+          prA: 1, prB: 2, hashA: "aaa", hashB: "bbb",
+          result: { isDuplicate: true, confidence: 0.95, relationship: "near_duplicate", rationale: "Same bug fix" },
+        },
+      ]);
+
+      const results = db.getPairwiseCache(repoId, [
+        { prA: 1, prB: 2, hashA: "aaa", hashB: "bbb" },
+      ]);
+      expect(results.size).toBe(1);
+      const entry = results.get("1-2");
+      expect(entry).toBeDefined();
+      expect(entry!.isDuplicate).toBe(true);
+      expect(entry!.confidence).toBe(0.95);
+      expect(entry!.relationship).toBe("near_duplicate");
+      expect(entry!.rationale).toBe("Same bug fix");
+    });
+
+    it("getPairwiseCache returns nothing when hashes differ", () => {
+      db.setPairwiseCache(repoId, [
+        {
+          prA: 1, prB: 2, hashA: "aaa", hashB: "bbb",
+          result: { isDuplicate: true, confidence: 0.95, relationship: "near_duplicate", rationale: "Same bug fix" },
+        },
+      ]);
+
+      // Query with different hashA
+      const results = db.getPairwiseCache(repoId, [
+        { prA: 1, prB: 2, hashA: "changed", hashB: "bbb" },
+      ]);
+      expect(results.size).toBe(0);
+    });
+
+    it("setPairwiseCache replaces existing entries", () => {
+      db.setPairwiseCache(repoId, [
+        {
+          prA: 1, prB: 2, hashA: "aaa", hashB: "bbb",
+          result: { isDuplicate: true, confidence: 0.95, relationship: "near_duplicate", rationale: "Same bug fix" },
+        },
+      ]);
+
+      db.setPairwiseCache(repoId, [
+        {
+          prA: 1, prB: 2, hashA: "aaa2", hashB: "bbb2",
+          result: { isDuplicate: false, confidence: 0.1, relationship: "unrelated", rationale: "Different" },
+        },
+      ]);
+
+      const results = db.getPairwiseCache(repoId, [
+        { prA: 1, prB: 2, hashA: "aaa2", hashB: "bbb2" },
+      ]);
+      expect(results.size).toBe(1);
+      expect(results.get("1-2")!.isDuplicate).toBe(false);
+    });
+
+    it("clearPairwiseCache removes all entries for a repo", () => {
+      db.setPairwiseCache(repoId, [
+        {
+          prA: 1, prB: 2, hashA: "aaa", hashB: "bbb",
+          result: { isDuplicate: true, confidence: 0.95, relationship: "near_duplicate", rationale: "Same fix" },
+        },
+        {
+          prA: 3, prB: 4, hashA: "ccc", hashB: "ddd",
+          result: { isDuplicate: false, confidence: 0.1, relationship: "unrelated", rationale: "Unrelated" },
+        },
+      ]);
+
+      db.clearPairwiseCache(repoId);
+
+      const results = db.getPairwiseCache(repoId, [
+        { prA: 1, prB: 2, hashA: "aaa", hashB: "bbb" },
+        { prA: 3, prB: 4, hashA: "ccc", hashB: "ddd" },
+      ]);
+      expect(results.size).toBe(0);
+    });
+
+    it("handles empty inputs gracefully", () => {
+      const results = db.getPairwiseCache(repoId, []);
+      expect(results.size).toBe(0);
+
+      // Should not throw
+      db.setPairwiseCache(repoId, []);
     });
   });
 

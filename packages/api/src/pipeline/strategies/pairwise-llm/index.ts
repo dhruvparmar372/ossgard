@@ -1,9 +1,11 @@
+import type { PR } from "@ossgard/shared";
 import type { DuplicateStrategy, StrategyContext, StrategyResult, StrategyDupeGroup } from "../../strategy.js";
 import { IntentExtractor } from "./intent-extractor.js";
 import { PairwiseVerifier, type CandidatePair } from "./pairwise-verifier.js";
 import { CliqueGrouper, type ConfirmedEdge } from "./clique-grouper.js";
 import { isBatchChatProvider } from "../../../services/llm-provider.js";
 import { buildRankPrompt } from "../../prompts.js";
+import { computeEmbedHash } from "../../embed-utils.js";
 import { log } from "../../../logger.js";
 
 const CODE_V2_COLLECTION = "ossgard-code-v2";
@@ -57,12 +59,50 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
     let totalInput = 0;
     let totalOutput = 0;
 
+    // --- Compute hashes and partition PRs into cached vs changed ---
+    const hashMap = new Map<number, string>(); // prNumber → currentHash
+    const changedPRs: PR[] = [];
+    const unchangedPRs: PR[] = [];
+
+    for (const pr of prs) {
+      const currentHash = computeEmbedHash(pr);
+      hashMap.set(pr.number, currentHash);
+      if (pr.embedHash === currentHash) {
+        unchangedPRs.push(pr);
+      } else {
+        changedPRs.push(pr);
+      }
+    }
+
+    strategyLog.info("[detect] Cache partition", {
+      scanId, total: prs.length, cached: unchangedPRs.length, changed: changedPRs.length,
+    });
+
     // --- Phase 1: Intent Extraction ---
     db.updateScanStatus(scanId, "embedding"); // reuse status for progress
     strategyLog.info("Phase 1: Extracting intents", { scanId, prs: prs.length });
 
-    const extractor = new IntentExtractor(llm);
-    const intents = await extractor.extract(prs);
+    // Build intents map: cached intents for unchanged PRs, LLM for changed PRs
+    const intents = new Map<number, string>();
+
+    // Load cached intents for unchanged PRs
+    for (const pr of unchangedPRs) {
+      if (pr.intentSummary) {
+        intents.set(pr.number, pr.intentSummary);
+      } else {
+        // Has embed_hash but no intent_summary — treat as changed
+        changedPRs.push(pr);
+      }
+    }
+
+    // Extract intents for changed PRs via LLM
+    if (changedPRs.length > 0) {
+      const extractor = new IntentExtractor(llm);
+      const newIntents = await extractor.extract(changedPRs);
+      for (const [prNum, summary] of newIntents) {
+        intents.set(prNum, summary);
+      }
+    }
 
     // --- Phase 2: Embed (intent summaries + diff content) ---
     strategyLog.info("Phase 2: Embedding", { scanId });
@@ -70,34 +110,75 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
     await vectorStore.ensureCollection(INTENT_V2_COLLECTION, embedding.dimensions);
     await vectorStore.ensureCollection(CODE_V2_COLLECTION, embedding.dimensions);
 
-    // Embed intent summaries
-    const intentTexts = prs.map((pr) => intents.get(pr.number) ?? pr.title);
-    const intentVectors = await embedding.embed(intentTexts);
+    // We need vectors for ALL PRs for k-NN search, but only embed changed PRs.
+    // For changed PRs: compute and upsert new embeddings.
+    // For unchanged PRs: vectors already in Qdrant from previous run.
+    // However, we still need the vectors in-memory for k-NN search in Phase 3.
+    // Strategy: embed changed PRs, then do k-NN search per-PR using vectorStore.search.
 
-    await vectorStore.upsert(
-      INTENT_V2_COLLECTION,
-      prs.map((pr, i) => ({
-        id: `${repoId}-${pr.number}-intent-v2`,
-        vector: intentVectors[i],
-        payload: { repoId, prNumber: pr.number, prId: pr.id },
-      }))
-    );
+    // Track vectors for all PRs (needed for k-NN in Phase 3)
+    const intentVectorMap = new Map<number, number[]>(); // prNumber → vector
+    const codeVectorMap = new Map<number, number[]>();
 
-    // Embed normalized diff content (using filePaths + title as proxy for now)
-    const codeTexts = prs.map((pr) => {
-      const paths = pr.filePaths.join("\n");
-      return paths.length > 0 ? `${pr.title}\n${paths}` : pr.title;
-    });
-    const codeVectors = await embedding.embed(codeTexts);
+    if (changedPRs.length > 0) {
+      // Intent embeddings for changed PRs
+      const intentTexts = changedPRs.map((pr) => intents.get(pr.number) ?? pr.title);
+      const intentVectors = await embedding.embed(intentTexts);
+      await vectorStore.upsert(
+        INTENT_V2_COLLECTION,
+        changedPRs.map((pr, i) => ({
+          id: `${repoId}-${pr.number}-intent-v2`,
+          vector: intentVectors[i],
+          payload: { repoId, prNumber: pr.number, prId: pr.id },
+        }))
+      );
+      for (let i = 0; i < changedPRs.length; i++) {
+        intentVectorMap.set(changedPRs[i].number, intentVectors[i]);
+      }
 
-    await vectorStore.upsert(
-      CODE_V2_COLLECTION,
-      prs.map((pr, i) => ({
-        id: `${repoId}-${pr.number}-code-v2`,
-        vector: codeVectors[i],
-        payload: { repoId, prNumber: pr.number, prId: pr.id },
-      }))
-    );
+      // Code embeddings for changed PRs
+      const codeTexts = changedPRs.map((pr) => {
+        const paths = pr.filePaths.join("\n");
+        return paths.length > 0 ? `${pr.title}\n${paths}` : pr.title;
+      });
+      const codeVectors = await embedding.embed(codeTexts);
+      await vectorStore.upsert(
+        CODE_V2_COLLECTION,
+        changedPRs.map((pr, i) => ({
+          id: `${repoId}-${pr.number}-code-v2`,
+          vector: codeVectors[i],
+          payload: { repoId, prNumber: pr.number, prId: pr.id },
+        }))
+      );
+      for (let i = 0; i < changedPRs.length; i++) {
+        codeVectorMap.set(changedPRs[i].number, codeVectors[i]);
+      }
+
+      // Persist cache fields for changed PRs
+      for (const pr of changedPRs) {
+        const hash = hashMap.get(pr.number)!;
+        const summary = intents.get(pr.number) ?? "";
+        db.updatePRCacheFields(pr.id, hash, summary);
+      }
+    }
+
+    // For unchanged PRs, retrieve vectors from Qdrant
+    for (const pr of unchangedPRs) {
+      if (intents.has(pr.number)) {
+        // PR was already handled (has cached intent)
+        const intentPoint = await vectorStore.getVector(
+          INTENT_V2_COLLECTION,
+          `${repoId}-${pr.number}-intent-v2`
+        );
+        if (intentPoint) intentVectorMap.set(pr.number, intentPoint);
+
+        const codePoint = await vectorStore.getVector(
+          CODE_V2_COLLECTION,
+          `${repoId}-${pr.number}-code-v2`
+        );
+        if (codePoint) codeVectorMap.set(pr.number, codePoint);
+      }
+    }
 
     // --- Phase 3: Candidate Retrieval + Pairwise Verification ---
     db.updateScanStatus(scanId, "verifying");
@@ -109,14 +190,16 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
     const prByNumber = new Map(prs.map((pr) => [pr.number, pr]));
 
     // k-NN on both collections
-    for (let i = 0; i < prs.length; i++) {
-      const pr = prs[i];
+    for (const pr of prs) {
+      const intentVector = intentVectorMap.get(pr.number);
+      const codeVector = codeVectorMap.get(pr.number);
 
-      for (const [collection, vector] of [
-        [INTENT_V2_COLLECTION, intentVectors[i]],
-        [CODE_V2_COLLECTION, codeVectors[i]],
-      ] as const) {
-        const neighbors = await vectorStore.search(collection, vector as number[], {
+      const searches: Array<[string, number[]]> = [];
+      if (intentVector) searches.push([INTENT_V2_COLLECTION, intentVector]);
+      if (codeVector) searches.push([CODE_V2_COLLECTION, codeVector]);
+
+      for (const [collection, vector] of searches) {
+        const neighbors = await vectorStore.search(collection, vector, {
           limit: maxK * 2,
           filter: { must: [{ key: "repoId", match: { value: repoId } }] },
         });
@@ -146,19 +229,64 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
 
     strategyLog.info("Candidate pairs found", { scanId, pairs: candidatePairs.size });
 
-    // Pairwise LLM verification
-    const verifier = new PairwiseVerifier(llm);
+    // Check pairwise cache before LLM verification
     const pairs = [...candidatePairs.values()];
-    const { results: verifyResults, tokenUsage: verifyTokens } = await verifier.verifyBatch(pairs);
-    totalInput += verifyTokens.inputTokens;
-    totalOutput += verifyTokens.outputTokens;
+    const pairCacheLookups = pairs.map((p) => {
+      const minPr = Math.min(p.prA.number, p.prB.number);
+      const maxPr = Math.max(p.prA.number, p.prB.number);
+      return {
+        prA: minPr,
+        prB: maxPr,
+        hashA: hashMap.get(minPr)!,
+        hashB: hashMap.get(maxPr)!,
+      };
+    });
+    const cachedResults = db.getPairwiseCache(repoId, pairCacheLookups);
 
-    // Build confirmed edges
-    const confirmedEdges: ConfirmedEdge[] = pairs.map((pair, i) => ({
-      prA: pair.prA.number,
-      prB: pair.prB.number,
-      result: verifyResults[i],
-    }));
+    const uncachedPairs: CandidatePair[] = [];
+    const confirmedEdges: ConfirmedEdge[] = [];
+
+    for (const pair of pairs) {
+      const key = `${Math.min(pair.prA.number, pair.prB.number)}-${Math.max(pair.prA.number, pair.prB.number)}`;
+      const cached = cachedResults.get(key);
+      if (cached) {
+        // Cache hit — use stored result directly as a confirmed edge
+        confirmedEdges.push({ prA: pair.prA.number, prB: pair.prB.number, result: cached });
+      } else {
+        uncachedPairs.push(pair);
+      }
+    }
+
+    // Only verify uncached pairs via LLM
+    if (uncachedPairs.length > 0) {
+      const verifier = new PairwiseVerifier(llm);
+      const { results: verifyResults, tokenUsage: verifyTokens } = await verifier.verifyBatch(uncachedPairs);
+      totalInput += verifyTokens.inputTokens;
+      totalOutput += verifyTokens.outputTokens;
+
+      // Store results in cache and build edges
+      const cacheEntries = [];
+      for (let i = 0; i < uncachedPairs.length; i++) {
+        const pair = uncachedPairs[i];
+        const result = verifyResults[i];
+        const minPr = Math.min(pair.prA.number, pair.prB.number);
+        const maxPr = Math.max(pair.prA.number, pair.prB.number);
+        cacheEntries.push({
+          prA: minPr,
+          prB: maxPr,
+          hashA: hashMap.get(minPr)!,
+          hashB: hashMap.get(maxPr)!,
+          result,
+        });
+        confirmedEdges.push({ prA: pair.prA.number, prB: pair.prB.number, result });
+      }
+      db.setPairwiseCache(repoId, cacheEntries);
+    }
+
+    const pairsCachedCount = pairs.length - uncachedPairs.length;
+    strategyLog.info("[detect] Pairwise cache", {
+      scanId, cached: pairsCachedCount, verified: uncachedPairs.length,
+    });
 
     // --- Phase 4: Grouping + Ranking ---
     db.updateScanStatus(scanId, "ranking");
@@ -218,6 +346,15 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
         if (group) strategyGroups.push(group);
       }
     }
+
+    // Cache stats summary
+    strategyLog.info("[detect] Cache stats", {
+      scanId,
+      prsCached: unchangedPRs.length,
+      prsTotal: prs.length,
+      pairsCached: pairsCachedCount,
+      pairsTotal: pairs.length,
+    });
 
     return {
       groups: strategyGroups,

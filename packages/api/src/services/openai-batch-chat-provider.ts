@@ -15,6 +15,11 @@ function stripCodeBlock(raw: string): string {
   return raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
 }
 
+/** Reasoning models (o-series, gpt-5 family) don't support temperature. */
+function isReasoningModel(model: string): boolean {
+  return /^o\d/.test(model) || /^gpt-5/.test(model);
+}
+
 const MAX_TOKEN_LIMIT_RETRIES = 5;
 const TOKEN_LIMIT_BASE_DELAY_MS = 60_000; // 1 minute
 
@@ -70,7 +75,7 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
         },
         body: JSON.stringify({
           model: this.model,
-          temperature: 0,
+          ...(isReasoningModel(this.model) ? {} : { temperature: 0 }),
           max_completion_tokens: 8192,
           response_format: { type: "json_object" },
           messages: messages.map((m) => ({
@@ -141,7 +146,7 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
           url: "/v1/chat/completions",
           body: {
             model: this.model,
-            temperature: 0,
+            ...(isReasoningModel(this.model) ? {} : { temperature: 0 }),
             max_completion_tokens: 8192,
             response_format: { type: "json_object" },
             messages: req.messages.map((m) => ({

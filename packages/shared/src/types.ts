@@ -18,6 +18,7 @@ export interface PR {
   state: "open" | "closed" | "merged";
   githubEtag: string | null;
   embedHash: string | null;
+  intentSummary: string | null;
   createdAt: string;
   updatedAt: string;
 }

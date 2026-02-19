@@ -20,6 +20,7 @@ function makePR(overrides: Partial<PR> = {}): PR {
     state: "open",
     githubEtag: null,
     embedHash: null,
+    intentSummary: null,
     createdAt: "2025-01-01T00:00:00Z",
     updatedAt: "2025-01-01T00:00:00Z",
     ...overrides,
@@ -70,6 +71,9 @@ function createMockVectorStore(searchBehavior?: (collection: string, vector: num
 function createMockDb(): Database {
   return {
     updateScanStatus: vi.fn(),
+    updatePRCacheFields: vi.fn(),
+    getPairwiseCache: vi.fn().mockReturnValue(new Map()),
+    setPairwiseCache: vi.fn(),
   } as unknown as Database;
 }
 
