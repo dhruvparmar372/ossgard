@@ -186,7 +186,7 @@ ossgard uses provider-level token counting to build embedding and LLM inputs tha
 | Anthropic | Heuristic (~3.5 chars/token) | 200,000 tokens |
 | Ollama | Heuristic (~4 chars/token) | 8,192 tokens |
 
-LLM token usage (input and output) is tracked per scan during the verify and rank phases. Use `ossgard status --json` to see accumulated token counts for completed scans.
+LLM token usage (input and output) is tracked per scan during the detect phase. Use `ossgard status --json` to see accumulated token counts for completed scans.
 
 #### Environment variables
 

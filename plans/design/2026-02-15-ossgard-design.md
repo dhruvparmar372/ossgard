@@ -4,8 +4,6 @@
 **Status:** Approved
 **Version:** MLP (v0.1)
 
-> **Note (2026-02-19):** The 5-phase dedup pipeline described below (`Ingest → Embed → Cluster → Verify → Rank` as separate job types) reflects the original v0.1 design. It has been replaced by the pairwise-llm strategy, which runs everything inside a single `detect` job. See `plans/done/pairwise-llm-strategy.md` for the current implementation. The architecture, data model, and job queue abstractions below remain accurate.
-
 ## Problem
 
 Large open-source projects (like OpenClaw with 3000+ open PRs) face an impossible triage burden. Multiple contributors submit duplicate PRs solving the same problem, and maintainers have no automated way to detect duplicates or determine which PR is best. This wastes reviewer time and contributor effort.
@@ -90,7 +88,7 @@ All intelligence lives in the API. The CLI is just HTTP calls + output formattin
 
 ### Key design decision: Async-first job architecture
 
-Every long-running operation (scan, ingest, embed, etc.) is a **background job**, not a synchronous HTTP request. The API returns immediately with a job/scan ID, and the CLI polls for progress.
+Every long-running operation (scan, ingest, detect) is a **background job**, not a synchronous HTTP request. The API returns immediately with a job/scan ID, and the CLI polls for progress.
 
 This is critical for two reasons:
 1. Scans take minutes — can't hold HTTP connections open
@@ -124,7 +122,7 @@ CLI                         API                          Job Processor
 
 | Operation | Why async | Job type |
 |-----------|----------|----------|
-| `scan` (full) | Minutes of work across 5 pipeline phases | `scan_job` — orchestrates phase sub-jobs |
+| `scan` (full) | Minutes of work across ingest + detect | `scan_job` — orchestrates sub-jobs |
 | `scan` (incremental) | Still fetches/embeds new PRs | Same, but lighter |
 | `track` (initial) | Registration is instant, but can trigger first scan | `POST /repos` is sync, optionally enqueues `scan_job` |
 
@@ -138,17 +136,15 @@ CLI                         API                          Job Processor
 
 ```
 scan_job (orchestrator)
-  └─► ingest_job ──► embed_job ──► cluster_job ──► verify_job ──► rank_job
+  └─► ingest_job ──► detect_job
 ```
 
-Each phase job:
+The `detect_job` runs the full pairwise-llm strategy internally (intent extraction, embedding, candidate retrieval, pairwise verification, grouping, ranking). Each job:
 1. Reads its cursor from the `scans` table
-2. Does its work in batches (e.g., embed 100 PRs at a time)
+2. Does its work in batches
 3. Updates the cursor after each batch
 4. If interrupted (rate limit, crash, restart), the next pickup resumes from cursor
 5. On completion, enqueues the next phase
-
-This makes each phase independently pausable and resumable, and each fits within a Cloudflare Worker's time limit when ported later.
 
 **Job queue abstraction:**
 
@@ -171,21 +167,20 @@ Locally, the job processor runs as a worker loop inside the API process — pull
 
 ## Dedup Pipeline
 
-The core engine runs on every scan. Designed so cheap operations run first on all PRs, and expensive LLM calls only run on the small set of candidates.
+The core engine runs on every scan. An `ingest` job fetches PR data from GitHub, then a `detect` job runs the pairwise-llm strategy which handles everything from embedding to final ranking.
 
 ```
-┌─────────┐    ┌─────────┐    ┌──────────┐    ┌──────────┐    ┌─────────┐
-│1. Ingest│───►│2. Embed │───►│3. Cluster│───►│4. Verify │───►│5. Rank  │
-│         │    │         │    │          │    │   (LLM)  │    │  (LLM)  │
-│Fetch PRs│    │Code +   │    │Cosine    │    │Confirm   │    │Quality +│
-│via GH   │    │Intent   │    │similarity│    │true dupes│    │complete-│
-│API      │    │vectors  │    │neighbors │    │from      │    │ness     │
-│         │    │         │    │→ groups  │    │candidates│    │scoring  │
-└─────────┘    └─────────┘    └──────────┘    └──────────┘    └─────────┘
-   cheap          cheap          cheap          targeted        targeted
+┌─────────┐    ┌──────────────────────────────────────────────────────────┐
+│  Ingest │───►│                        Detect                           │
+│         │    │                                                          │
+│Fetch PRs│    │ Intent Extract → Embed → Candidate Retrieval →           │
+│via GH   │    │ Pairwise Verify (LLM) → Group (cliques) → Rank (LLM)   │
+│API      │    │                                                          │
+└─────────┘    └──────────────────────────────────────────────────────────┘
+   cheap                              targeted
 ```
 
-### Step 1: Ingest
+### Ingest
 
 Fetch all open PRs via GitHub REST API (paginated, 100/page). Per PR:
 - Title, body (description)
@@ -195,68 +190,32 @@ Fetch all open PRs via GitHub REST API (paginated, 100/page). Per PR:
 
 **Incremental scans:** After first full scan, only fetch PRs updated since `last_scan_at`. ETags stored per PR for conditional requests (304s don't count against rate limit).
 
-### Step 2: Embed
+### Detect (pairwise-llm strategy)
 
-Each PR gets two embeddings via Ollama's `nomic-embed-text` (768 dimensions):
+The detect phase runs the full duplicate detection pipeline inside a single job:
 
-| Embedding | Input | Catches |
-|-----------|-------|---------|
-| Code fingerprint | Normalized diff: strip whitespace, sort hunks by file path, truncate to fit model context | Same code changes, different descriptions |
-| Intent fingerprint | `{title}\n{body}\n{file_paths.join('\n')}` | Same goal, different implementations |
+**Phase 1: Intent Extraction.** For each PR, prompt the LLM to generate a 2-3 sentence normalized intent summary from the title, body, and truncated diff. Batchable via the `chatBatch` API.
 
-Both stored in Qdrant with PR ID as vector ID, repo and scan metadata for filtering.
+**Phase 2: Embed.** Two embeddings per PR stored in Qdrant:
+- **Intent embedding** (`ossgard-intent-v2`): embed the LLM-generated intent summary
+- **Code embedding** (`ossgard-code-v2`): embed the normalized diff content
 
-**Pre-embedding fast path:** Identical `diff_hash` values are grouped immediately without needing embeddings.
+Supports Ollama (768-dim `nomic-embed-text`, 1024-dim `mxbai-embed-large`) and OpenAI (`text-embedding-3-large` 3072-dim, `text-embedding-3-small` 1536-dim). Token-aware truncation prevents context overflow.
 
-### Step 3: Cluster
+**Phase 3: Candidate Retrieval + Pairwise Verification.** For each PR, k-NN search on both intent and code embeddings (top K neighbors above threshold, default 0.65). Deduplicate candidate pairs. For each unique pair, LLM pairwise verification determines if the pair is a true duplicate. No transitivity — each pair is judged independently. Batchable.
 
-For each PR, query Qdrant for top-K nearest neighbors on both embedding spaces:
-- Code similarity > 0.85 threshold → strong candidate
-- Intent similarity > 0.80 threshold → candidate
-- Either exceeding threshold creates an edge in a similarity graph
-
-Connected components algorithm on the graph produces **candidate duplicate groups**. High recall, some false positives expected.
-
-### Step 4: Verify (LLM)
-
-For each candidate group, send to LLM with structured prompt:
-
-```
-You are reviewing {N} pull requests that may be duplicates.
-For each pair, determine if they are:
-- DUPLICATE: Solving the same problem with same or different approach
-- OVERLAPPING: Partial scope overlap but not true duplicates
-- UNRELATED: False positive, not actually duplicates
-
-Return JSON with verified groups and confidence scores.
-```
-
-LLM sees title, description, file list, and truncated diff per PR. This is the precision step — catches embedding false positives and splits wrongly-merged clusters.
-
-### Step 5: Rank
-
-For each verified group, LLM ranks PRs:
-
-```
-Rank these PRs from best to worst candidate for merging.
-Score on:
-1. Code quality (clean, idiomatic, no regressions)
-2. Completeness (tests, docs, edge cases handled)
-
-Return ordered list with scores (0-100) and one-line rationale per PR.
-```
-
-**Extensibility:** Scoring criteria defined via a `ScoringStrategy` interface. v0.1 ships with code quality + completeness. Future versions add more signals by implementing the interface.
+**Phase 4: Grouping + Ranking.** Build a graph of confirmed duplicate edges. Find cliques (groups where every pair was confirmed by the LLM) using greedy clique building from highest-confidence edges. Rank PRs within each group by code quality and completeness via LLM. Output final `DupeGroup[]`.
 
 ### Cost profile (3000-PR repo, first scan)
 
 | Step | Resources | Estimated time |
 |------|-----------|---------------|
 | Ingest | ~6000 GitHub API requests | ~10min (rate-limited) |
-| Embed | ~6000 embeddings (Ollama, local) | ~2-5min |
-| Cluster | ~3000 Qdrant queries | ~15s |
-| Verify | ~50-100 LLM calls (candidates only) | ~2-5min |
-| Rank | ~50-100 LLM calls (groups only) | ~1-3min |
+| Intent extraction | ~3000 LLM calls (batchable) | ~2-5min |
+| Embed | ~6000 embeddings | ~2-5min |
+| Candidate retrieval | ~3000 Qdrant queries | ~15s |
+| Pairwise verification | ~50-200 LLM calls (candidates only, batchable) | ~2-5min |
+| Ranking | ~50-100 LLM calls (groups only, batchable) | ~1-3min |
 
 ---
 
@@ -308,9 +267,9 @@ For secondary rate limits (403 + abuse detection), minimum 60s backoff.
 Scans are composed of chained jobs (see "Async-first job architecture" above). Each phase is a separate job with its own cursor:
 
 ```
-INGESTING ──► EMBEDDING ──► CLUSTERING ──► VERIFYING ──► RANKING ──► DONE
-     │              │                           │             │
-     └──► PAUSED ◄──┘                           └── PAUSED ◄─┘
+INGESTING ──► EMBEDDING ──► VERIFYING ──► RANKING ──► DONE
+     │              │             │            │
+     └──► PAUSED ◄──┘             └─ PAUSED ◄─┘
 ```
 
 The `phase_cursor` field in the `scans` table stores JSON state for resumability. When a job is paused (rate limit, crash, restart), it sets `run_after` on the job row and the worker loop picks it up when the cooldown expires. The CLI can be killed at any time — the scan continues in the background. `ossgard status` shows in-flight scans.
@@ -361,6 +320,7 @@ CREATE TABLE prs (
   file_paths      TEXT,                   -- JSON array
   state           TEXT NOT NULL DEFAULT 'open',
   github_etag     TEXT,
+  embed_hash      TEXT,
   created_at      TEXT NOT NULL,
   updated_at      TEXT NOT NULL,
   UNIQUE(repo_id, number)
@@ -369,10 +329,14 @@ CREATE TABLE prs (
 CREATE TABLE scans (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   repo_id         INTEGER NOT NULL REFERENCES repos(id),
-  status          TEXT NOT NULL DEFAULT 'ingesting',
+  account_id      INTEGER NOT NULL REFERENCES accounts(id),
+  status          TEXT NOT NULL DEFAULT 'queued',
+  strategy        TEXT NOT NULL DEFAULT 'pairwise-llm',
   phase_cursor    TEXT,                   -- JSON resumability state
   pr_count        INTEGER DEFAULT 0,
   dupe_group_count INTEGER DEFAULT 0,
+  input_tokens    INTEGER DEFAULT 0,
+  output_tokens   INTEGER DEFAULT 0,
   started_at      TEXT NOT NULL DEFAULT (datetime('now')),
   completed_at    TEXT,
   error           TEXT
@@ -399,7 +363,7 @@ CREATE TABLE dupe_group_members (
 
 CREATE TABLE jobs (
   id          TEXT PRIMARY KEY,                    -- UUID
-  type        TEXT NOT NULL,                       -- "scan", "ingest", "embed", "cluster", "verify", "rank"
+  type        TEXT NOT NULL,                       -- "scan", "ingest", "detect"
   payload     TEXT NOT NULL,                       -- JSON (repo_id, scan_id, phase-specific params)
   status      TEXT NOT NULL DEFAULT 'queued',      -- queued/running/done/failed/paused
   result      TEXT,                                -- JSON
@@ -423,7 +387,7 @@ ossgard/
 ├── packages/
 │   ├── cli/                    # CLI client (npm: ossgard)
 │   │   ├── src/
-│   │   │   ├── commands/       # init, up, down, track, scan, dupes, status, config
+│   │   │   ├── commands/       # setup, scan, dupes, status, config, clear-scans, clear-repos
 │   │   │   ├── output/         # formatters (table, json)
 │   │   │   └── client.ts       # HTTP client to ossgard-api
 │   │   └── package.json
@@ -431,7 +395,7 @@ ossgard/
 │   ├── api/                    # Backend brain (Docker)
 │   │   ├── src/
 │   │   │   ├── routes/         # Hono route handlers
-│   │   │   ├── pipeline/       # ingest, embed, cluster, verify, rank
+│   │   │   ├── pipeline/       # ingest, detect, strategies/
 │   │   │   ├── services/       # github-client, llm-provider, vector-store
 │   │   │   ├── db/             # SQLite schema, migrations, queries
 │   │   │   └── queue/          # scan job queue (in-process, SQLite-backed)
@@ -484,7 +448,7 @@ interface JobQueue {
 
 // Job processor — each pipeline phase implements this
 interface JobProcessor {
-  type: string;                                   // "ingest", "embed", etc.
+  type: string;                                   // "scan", "ingest", "detect"
   process(job: Job, ctx: PipelineContext): Promise<void>;
 }
 ```
@@ -495,16 +459,15 @@ interface JobProcessor {
 
 | Command | Description | Key flags |
 |---------|------------|-----------|
-| `ossgard init` | Create `~/.ossgard/config.toml`, prompt for GitHub PAT | — |
-| `ossgard up` | Start Docker Compose stack, pull Ollama models if needed | `--detach` |
-| `ossgard down` | Stop Docker Compose stack | — |
-| `ossgard track <owner/repo>` | Register a repo for tracking | — |
-| `ossgard untrack <owner/repo>` | Remove a tracked repo | — |
-| `ossgard scan <owner/repo>` | Enqueue scan job, poll and display progress | `--full` (ignore incremental), `--no-wait` (fire and forget) |
+| `ossgard setup` | Register account + configure services | `--force` (reconfigure) |
+| `ossgard scan <owner/repo>` | Enqueue scan job, poll and display progress (auto-tracks repo) | `--full`, `--no-wait`, `--limit <N>` |
 | `ossgard dupes <owner/repo>` | Show duplicate groups with rankings | `--json`, `--min-score N` |
 | `ossgard status` | Show tracked repos, scan status, dupe counts | `--json` |
+| `ossgard config show` | View local CLI configuration | — |
 | `ossgard config set <key> <val>` | Set config value | — |
 | `ossgard config get <key>` | Read config value | — |
+| `ossgard clear-scans` | Delete all scans and analysis (keeps repos/PRs) | — |
+| `ossgard clear-repos` | Delete everything (repos, PRs, scans, analysis) | — |
 
 All commands support `--json` for machine-readable output.
 
@@ -528,8 +491,8 @@ model = "nomic-embed-text"    # Ollama embedding model
 
 [scan]
 concurrency = 10              # max concurrent GitHub API requests
-code_similarity_threshold = 0.85
-intent_similarity_threshold = 0.80
+candidate_threshold = 0.65    # cosine similarity for k-NN candidate retrieval
+max_candidates_per_pr = 5     # k in k-NN search
 ```
 
 ---
