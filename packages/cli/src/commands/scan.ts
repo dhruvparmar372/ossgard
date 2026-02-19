@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { ApiClient } from "../client.js";
 import { requireSetup } from "../guard.js";
+import { exitWithError } from "../errors.js";
 import { parseSlug } from "./track.js";
 import type { Scan, ScanStatus } from "@ossgard/shared";
 
@@ -26,13 +27,18 @@ export function scanCommand(client: ApiClient): Command {
     .option("--full", "Run a full scan (re-scan everything)")
     .option("--limit <count>", "Maximum number of PRs to ingest", parseInt)
     .option("--no-wait", "Don't wait for scan to complete")
-    .option("--json", "Output as JSON")
+    .option("--json", "Output as JSON (JSONL progress events)")
+    .addHelpText("after", `
+Examples:
+  $ ossgard scan facebook/react
+  $ ossgard scan facebook/react --limit 100 --no-wait
+  $ ossgard scan facebook/react --full --json`)
     .action(
       async (
         slug: string,
         opts: { full?: boolean; limit?: number; wait?: boolean; json?: boolean }
       ) => {
-        if (!requireSetup()) return;
+        requireSetup();
         const { owner, name } = parseSlug(slug);
 
         const body: Record<string, unknown> = {};
@@ -47,7 +53,10 @@ export function scanCommand(client: ApiClient): Command {
         const scanId = result.scanId;
         const alreadyRunning = !result.jobId;
 
-        if (alreadyRunning) {
+        if (opts.json) {
+          // JSONL: one JSON object per line
+          console.log(JSON.stringify({ event: "started", scanId, status: "queued" }));
+        } else if (alreadyRunning) {
           console.log(`Scan #${scanId} already in progress for ${owner}/${name}`);
         } else {
           console.log(`Scan #${scanId} started for ${owner}/${name}`);
@@ -55,9 +64,6 @@ export function scanCommand(client: ApiClient): Command {
 
         // --no-wait: just print the scan ID and exit
         if (opts.wait === false) {
-          if (opts.json) {
-            console.log(JSON.stringify({ scanId, status: "queued" }));
-          }
           return;
         }
 
@@ -68,11 +74,20 @@ export function scanCommand(client: ApiClient): Command {
 
           if (scan.status !== lastStatus) {
             lastStatus = scan.status;
-            const label = PHASE_LABELS[scan.status] ?? scan.status;
 
             if (opts.json) {
-              console.log(JSON.stringify(scan));
+              const event = scan.status === "done" ? "done"
+                : scan.status === "failed" ? "failed"
+                : "progress";
+              console.log(JSON.stringify({
+                event,
+                scanId: scan.id,
+                status: scan.status,
+                prCount: scan.prCount,
+                dupeGroupCount: scan.dupeGroupCount,
+              }));
             } else {
+              const label = PHASE_LABELS[scan.status] ?? scan.status;
               const parts = [`  [${label}]`];
               if (scan.prCount > 0) {
                 parts.push(`${scan.prCount} PRs`);
@@ -91,7 +106,7 @@ export function scanCommand(client: ApiClient): Command {
               );
               if (scan.dupeGroupCount > 0) {
                 console.log(
-                  `Run \`ossgard dupes ${owner}/${name}\` to view results.`
+                  `Run \`ossgard duplicates ${owner}/${name}\` to view results.`
                 );
               }
             }
@@ -99,11 +114,9 @@ export function scanCommand(client: ApiClient): Command {
           }
 
           if (scan.status === "failed") {
-            if (!opts.json) {
-              console.error(`\nScan failed: ${scan.error ?? "unknown error"}`);
-            }
-            process.exitCode = 1;
-            return;
+            exitWithError("SCAN_FAILED", scan.error ?? "Scan failed: unknown error", {
+              exitCode: 1,
+            });
           }
 
           await sleep(1000);

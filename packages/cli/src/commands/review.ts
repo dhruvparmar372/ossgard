@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { ApiClient, ApiError } from "../client.js";
 import { requireSetup } from "../guard.js";
+import { exitWithError } from "../errors.js";
 import { parseSlug } from "./track.js";
 
 interface ReviewMember {
@@ -65,13 +66,17 @@ export function reviewCommand(client: ApiClient): Command {
     .argument("<owner/repo>", "Repository slug (e.g. facebook/react)")
     .argument("<pr>", "PR number or GitHub URL")
     .option("--json", "Output as JSON")
+    .addHelpText("after", `
+Examples:
+  $ ossgard review facebook/react 1234
+  $ ossgard review facebook/react https://github.com/facebook/react/pull/1234 --json`)
     .action(
       async (
         slug: string,
         prArg: string,
         opts: { json?: boolean }
       ) => {
-        if (!requireSetup()) return;
+        requireSetup();
         const { owner, name } = parseSlug(slug);
         const prNumber = parsePRArg(prArg);
 
@@ -83,17 +88,20 @@ export function reviewCommand(client: ApiClient): Command {
         } catch (err) {
           if (err instanceof ApiError) {
             if (err.status === 404) {
+              let message: string;
               try {
                 const parsed = JSON.parse(err.body);
-                console.error(parsed.error ?? err.body);
+                message = parsed.error ?? err.body;
               } catch {
-                console.error(err.body);
+                message = err.body;
               }
-              process.exitCode = 1;
-              return;
+              exitWithError("NOT_FOUND", message, { exitCode: 1 });
             }
           }
-          throw err;
+          exitWithError("API_UNREACHABLE", "Failed to connect to ossgard API. Is it running?", {
+            suggestion: "ossgard-api",
+            exitCode: 4,
+          });
         }
 
         if (opts.json) {

@@ -5,7 +5,7 @@ Make the ossgard CLI easy for coding agents (e.g. Claude Code) to discover, invo
 ## Current Problems
 
 1. **No discovery mechanism** — an agent must read `--help` and parse human-readable text to learn what commands exist and what arguments they take
-2. **Interactive prompts block agents** — `dupes` opens a readline prompt ("Review duplicate groups? (Y/n)") that hangs a non-TTY caller; `clear-scans`/`clear-repos`/`reset` prompt for confirmation with no way to skip except `--force`
+2. **Interactive prompts block agents** — `duplicates` opens a readline prompt ("Review duplicate groups? (Y/n)") that hangs a non-TTY caller; `clean` prompts for scope selection and confirmation with no way to skip except `--force`
 3. **Error output is unstructured** — errors are `console.error(string)`, so an agent can't distinguish error types or extract actionable suggestions
 4. **Exit codes are binary** — everything is 0 or 1, no way to distinguish "not configured" from "API unreachable" from "scan failed"
 5. **No progress streaming in JSON mode** — `scan --json` prints a full JSON object per status change but they're separate `console.log` calls with no newline-delimited protocol; an agent can't reliably parse the stream
@@ -66,18 +66,19 @@ An agent runs `ossgard --commands` once to build a tool schema for all available
 
 ### 2. Non-interactive mode (TTY detection + `--no-interactive`)
 
-**Files:** `packages/cli/src/commands/dupes.ts`, `packages/cli/src/commands/reset.ts` (or `clean.ts` if naming cleanup lands first)
+**Files:** `packages/cli/src/commands/duplicates.ts`, `packages/cli/src/commands/clean.ts`
 
 **Rule:** When stdout is not a TTY (`!process.stdout.isTTY`) or `--no-interactive` is passed, skip all interactive prompts and print all output directly.
 
 Changes per command:
 
-**`dupes.ts`** (lines 121-147):
+**`duplicates.ts`**:
 - When non-interactive: skip the "Review duplicate groups?" prompt and print all groups immediately
 - The readline-based pagination loop becomes a single sequential dump
 
-**`reset.ts`** / `clean.ts`:
+**`clean.ts`**:
 - When non-interactive and `--force` is not set: exit with error code 2 and message `"Confirmation required. Use --force to skip."` instead of hanging on a readline prompt
+- When non-interactive and no scope flag given: exit with error code 2 and message `"Specify one of --scans, --repos, or --all."` instead of opening interactive scope picker
 - When `--force` is set: proceed as today (no change)
 
 **`index.ts`**:
@@ -214,12 +215,12 @@ Commands and their examples:
 
 ### 7. Consistent `--json` on all commands
 
-**Files:** `packages/cli/src/commands/reset.ts` (or `clean.ts`)
+**File:** `packages/cli/src/commands/clean.ts`
 
-Currently `clear-scans`, `clear-repos`, and `reset` have no `--json` flag. Add it:
+Currently `clean` has no `--json` flag. Add it:
 
 ```json
-{"ok": true, "action": "clear-scans", "message": "All scans and analysis data have been cleared."}
+{"ok": true, "action": "clean-scans", "message": "All scans and analysis data have been cleared."}
 ```
 
 This lets an agent confirm the action succeeded without parsing human text.

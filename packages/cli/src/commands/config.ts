@@ -86,7 +86,13 @@ function redactLocal(val: string): string {
 export function registerConfigCommand(program: Command, client: ApiClient): void {
   const configCmd = program
     .command("config")
-    .description("Manage ossgard configuration");
+    .description("Manage ossgard configuration")
+    .addHelpText("after", `
+Examples:
+  $ ossgard config show
+  $ ossgard config show --local
+  $ ossgard config get api.url
+  $ ossgard config set api.url http://localhost:3400`);
 
   configCmd
     .command("show")

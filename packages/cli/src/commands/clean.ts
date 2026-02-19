@@ -1,6 +1,8 @@
 import { Command } from "commander";
 import { ApiClient } from "../client.js";
 import { requireSetup } from "../guard.js";
+import { exitWithError } from "../errors.js";
+import { isInteractive } from "../interactive.js";
 import * as readline from "node:readline";
 
 type CleanScope = "scans" | "repos" | "all";
@@ -59,22 +61,33 @@ export function cleanCommand(client: ApiClient): Command {
     .option("--repos", "Delete repos, PRs, scans, and analysis")
     .option("--all", "Full reset — delete everything including accounts")
     .option("--force", "Skip confirmation prompt")
-    .action(async (opts: { scans?: boolean; repos?: boolean; all?: boolean; force?: boolean }) => {
-      if (!requireSetup()) return;
+    .option("--json", "Output as JSON")
+    .addHelpText("after", `
+Examples:
+  $ ossgard clean --scans --force
+  $ ossgard clean --repos
+  $ ossgard clean --all --force`)
+    .action(async (opts: { scans?: boolean; repos?: boolean; all?: boolean; force?: boolean; json?: boolean }) => {
+      requireSetup();
 
       // Check for multiple flags
       const flagCount = [opts.scans, opts.repos, opts.all].filter(Boolean).length;
       if (flagCount > 1) {
-        console.error("Specify exactly one of --scans, --repos, or --all.");
-        process.exitCode = 1;
-        return;
+        exitWithError("INVALID_INPUT", "Specify exactly one of --scans, --repos, or --all.", {
+          exitCode: 2,
+        });
       }
 
       let scope: CleanScope;
       if (opts.scans) scope = "scans";
       else if (opts.repos) scope = "repos";
       else if (opts.all) scope = "all";
-      else {
+      else if (!isInteractive()) {
+        exitWithError("INVALID_INPUT", "Specify one of --scans, --repos, or --all.", {
+          suggestion: "ossgard clean --scans --force",
+          exitCode: 2,
+        });
+      } else {
         // Interactive: ask which scope
         const chosen = await chooseScope();
         if (!chosen) {
@@ -86,6 +99,12 @@ export function cleanCommand(client: ApiClient): Command {
 
       // Confirm unless --force
       if (!opts.force) {
+        if (!isInteractive()) {
+          exitWithError("INVALID_INPUT", "Confirmation required. Use --force to skip.", {
+            suggestion: "ossgard clean --scans --force",
+            exitCode: 2,
+          });
+        }
         const yes = await confirm(`${SCOPE_WARNINGS[scope]} Continue? (y/N) `);
         if (!yes) {
           console.log("Aborted.");
@@ -95,10 +114,16 @@ export function cleanCommand(client: ApiClient): Command {
 
       try {
         await client.post(SCOPE_ENDPOINTS[scope]);
-        console.log(SCOPE_SUCCESS[scope]);
+        if (opts.json) {
+          console.log(JSON.stringify({ ok: true, action: `clean-${scope}`, message: SCOPE_SUCCESS[scope] }));
+        } else {
+          console.log(SCOPE_SUCCESS[scope]);
+        }
       } catch {
-        console.error("Failed to clean data. Is the ossgard API running? (ossgard-api)");
-        process.exitCode = 1;
+        exitWithError("API_UNREACHABLE", "Failed to clean data. Is the ossgard API running?", {
+          suggestion: "ossgard-api",
+          exitCode: 4,
+        });
       }
     });
 }

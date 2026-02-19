@@ -2,6 +2,8 @@ import { Command } from "commander";
 import { createInterface, Interface as RLInterface } from "node:readline";
 import { ApiClient, ApiError } from "../client.js";
 import { requireSetup } from "../guard.js";
+import { exitWithError } from "../errors.js";
+import { isInteractive } from "../interactive.js";
 import { parseSlug } from "./track.js";
 
 function ask(rl: RLInterface, prompt: string): Promise<string> {
@@ -58,12 +60,17 @@ export function duplicatesCommand(client: ApiClient): Command {
     .argument("<owner/repo>", "Repository slug (e.g. facebook/react)")
     .option("--json", "Output as JSON")
     .option("--min-score <score>", "Minimum score to display", parseFloat)
+    .addHelpText("after", `
+Examples:
+  $ ossgard duplicates facebook/react
+  $ ossgard duplicates facebook/react --json
+  $ ossgard duplicates facebook/react --min-score 70`)
     .action(
       async (
         slug: string,
         opts: { json?: boolean; minScore?: number }
       ) => {
-        if (!requireSetup()) return;
+        requireSetup();
         const { owner, name } = parseSlug(slug);
 
         let data: DupesResponse;
@@ -74,17 +81,20 @@ export function duplicatesCommand(client: ApiClient): Command {
         } catch (err) {
           if (err instanceof ApiError) {
             if (err.status === 404) {
+              let message: string;
               try {
                 const parsed = JSON.parse(err.body);
-                console.error(parsed.error ?? err.body);
+                message = parsed.error ?? err.body;
               } catch {
-                console.error(err.body);
+                message = err.body;
               }
-              process.exitCode = 1;
-              return;
+              exitWithError("NOT_FOUND", message, { exitCode: 1 });
             }
           }
-          throw err;
+          exitWithError("API_UNREACHABLE", "Failed to connect to ossgard API. Is it running?", {
+            suggestion: "ossgard-api",
+            exitCode: 4,
+          });
         }
 
         // Filter by min-score if specified
@@ -117,6 +127,15 @@ export function duplicatesCommand(client: ApiClient): Command {
 
         // Sort by prCount descending
         const sorted = [...data.groups].sort((a, b) => b.prCount - a.prCount);
+
+        // Non-interactive: dump all groups without prompts
+        if (!isInteractive()) {
+          for (const group of sorted) {
+            console.log();
+            printGroup(group);
+          }
+          return;
+        }
 
         const rl = createInterface({
           input: process.stdin,

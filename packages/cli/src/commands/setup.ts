@@ -51,6 +51,10 @@ export function registerSetupCommand(program: Command): void {
     .command("setup")
     .description("Interactive setup wizard for ossgard")
     .option("--force", "Re-run setup even if already configured")
+    .addHelpText("after", `
+Examples:
+  $ ossgard setup
+  $ ossgard setup --force`)
     .action(async (opts: { force?: boolean }) => {
       const config = new Config();
 

@@ -1,15 +1,17 @@
 import { Config } from "./config.js";
+import { exitWithError } from "./errors.js";
 
 /**
  * Check that ossgard setup has been completed.
- * Returns true if setup is complete, false otherwise (with error message).
+ * Exits with structured error if not configured.
  */
-export function requireSetup(configDir?: string): boolean {
+export function requireSetup(configDir?: string): true {
   const config = new Config(configDir);
   if (!config.isComplete()) {
-    console.error('ossgard is not configured. Run "ossgard setup" first.');
-    process.exitCode = 1;
-    return false;
+    exitWithError("NOT_CONFIGURED", 'ossgard is not configured. Run "ossgard setup" first.', {
+      suggestion: "ossgard setup",
+      exitCode: 3,
+    });
   }
   return true;
 }

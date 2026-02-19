@@ -7,16 +7,15 @@ import { Config } from "./config.js";
 
 describe("requireSetup", () => {
   let tempDir: string;
-  let originalExitCode: number | undefined;
+  let originalExit: typeof process.exit;
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "ossgard-guard-"));
-    originalExitCode = process.exitCode;
-    process.exitCode = undefined;
+    originalExit = process.exit;
   });
 
   afterEach(() => {
-    process.exitCode = originalExitCode;
+    process.exit = originalExit;
   });
 
   it("returns true when config is complete", () => {
@@ -24,23 +23,59 @@ describe("requireSetup", () => {
     config.save({ api: { url: "http://localhost:3400", key: "test-key-123" } });
 
     expect(requireSetup(tempDir)).toBe(true);
-    expect(process.exitCode).toBeUndefined();
   });
 
-  it("returns false and sets exitCode when config is incomplete", () => {
+  it("calls process.exit(3) when config is incomplete", () => {
+    let exitCode: number | undefined;
+    process.exit = ((code?: number) => {
+      exitCode = code;
+      throw new Error("process.exit");
+    }) as never;
+
     const consoleSpy = mock(() => {});
     const origError = console.error;
     console.error = consoleSpy;
 
-    const result = requireSetup(tempDir);
+    try {
+      requireSetup(tempDir);
+    } catch {
+      // expected — process.exit throws
+    }
 
     console.error = origError;
-    // Capture before resetting — reset to 0 so bun doesn't exit non-zero
-    const exitCode = process.exitCode;
-    process.exitCode = 0;
 
-    expect(result).toBe(false);
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(3);
     expect(consoleSpy).toHaveBeenCalled();
+  });
+
+  it("outputs JSON error when in json mode", () => {
+    let exitCode: number | undefined;
+    process.exit = ((code?: number) => {
+      exitCode = code;
+      throw new Error("process.exit");
+    }) as never;
+
+    const logSpy = mock(() => {});
+    const origLog = console.log;
+    console.log = logSpy;
+
+    // Enable JSON mode
+    const { setJsonMode } = require("./json-mode.js");
+    setJsonMode(true);
+
+    try {
+      requireSetup(tempDir);
+    } catch {
+      // expected
+    }
+
+    console.log = origLog;
+    setJsonMode(false);
+
+    expect(exitCode).toBe(3);
+    expect(logSpy).toHaveBeenCalled();
+    const output = JSON.parse(logSpy.mock.calls[0][0] as string);
+    expect(output.ok).toBe(false);
+    expect(output.error.code).toBe("NOT_CONFIGURED");
   });
 });

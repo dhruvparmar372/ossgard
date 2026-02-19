@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { ApiClient } from "../client.js";
 import { requireSetup } from "../guard.js";
+import { exitWithError } from "../errors.js";
 import type { Repo, ScanStatus } from "@ossgard/shared";
 
 type RepoWithScanStatus = Repo & {
@@ -24,15 +25,20 @@ export function statusCommand(client: ApiClient): Command {
   return new Command("status")
     .description("Show tracked repositories and their status")
     .option("--json", "Output as JSON")
+    .addHelpText("after", `
+Examples:
+  $ ossgard status
+  $ ossgard status --json`)
     .action(async (opts: { json?: boolean }) => {
-      if (!requireSetup()) return;
+      requireSetup();
       let repos: RepoWithScanStatus[];
       try {
         repos = await client.get<RepoWithScanStatus[]>("/repos");
       } catch {
-        console.error("Failed to connect to ossgard API. Is it running? (ossgard-api)");
-        process.exitCode = 1;
-        return;
+        exitWithError("API_UNREACHABLE", "Failed to connect to ossgard API. Is it running?", {
+          suggestion: "ossgard-api",
+          exitCode: 4,
+        });
       }
 
       if (opts.json) {

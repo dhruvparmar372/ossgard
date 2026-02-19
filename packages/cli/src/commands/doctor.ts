@@ -21,6 +21,10 @@ export function doctorCommand(client: ApiClient): Command {
   return new Command("doctor")
     .description("Check prerequisites and service health")
     .option("--json", "Output as JSON")
+    .addHelpText("after", `
+Examples:
+  $ ossgard doctor
+  $ ossgard doctor --json`)
     .action(async (opts: { json?: boolean }) => {
       const report: DoctorReport = {
         config: { ok: false },
