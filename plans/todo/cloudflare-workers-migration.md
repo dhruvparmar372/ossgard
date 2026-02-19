@@ -2,14 +2,28 @@
 
 Host the ossgard API on Cloudflare Workers so users can point the CLI at a cloud instance instead of running the API server locally. Replace the local infrastructure (SQLite file, Qdrant, direct provider calls) with the Cloudflare stack (D1, Vectorize, AI Gateway, Queues).
 
+## Current Codebase State (as of 2026-02-19)
+
+Key facts about the codebase that inform this plan:
+
+- **Monorepo**: `packages/api` (Hono+Bun), `packages/cli` (Commander.js), `packages/shared` (types + Zod schemas only)
+- **Pipeline is 3 phases**: `scan → ingest → detect` (defined as `JobType = "scan" | "ingest" | "detect"` in `shared/src/types.ts`). The `detect` phase internally handles embedding, clustering, verification, and ranking via the `pairwise-llm` strategy.
+- **`VectorStore` interface already exists** (`api/src/services/vector-store.ts`) with `QdrantStore` implementation. A `VectorizeStore` exists as a compiled artifact in `dist/` but not in `src/`.
+- **`JobQueue` interface already exists** (`api/src/queue/types.ts`) with `LocalJobQueue` implementation.
+- **`Database` class is sync and concrete** — no `IDatabase` interface. All callers (routes, processors) use the concrete `Database` class with sync method calls.
+- **Providers lack `baseUrl`**: `AnthropicProvider`, `OpenAIChatProvider`, `OpenAIEmbeddingProvider` all have hardcoded API URLs. Only `OllamaProvider` accepts a configurable `baseUrl`.
+- **Prior Cloudflare work in `dist/` only**: `CloudflareChatProvider`, `CloudflareEmbeddingProvider`, and `VectorizeStore` exist as compiled `.js`/`.d.ts` in `packages/api/dist/services/` but have no corresponding source in `src/` and are not wired into `ServiceFactory`.
+- **`AppEnv` is concretely typed**: `app.ts` types `db: Database` and `queue: LocalJobQueue` — must become interfaces.
+- **CLI setup** offers `ollama|anthropic` for LLM, `ollama|openai` for embedding. No cloud mode.
+
 ## Stack Mapping
 
 | Current | Cloudflare | Change needed |
 |---------|-----------|---------------|
 | Hono on Bun | Hono on Workers | Entry point swap (`Bun.serve` → `export default`) |
 | SQLite via `bun:sqlite` | D1 | Async driver, same SQL |
-| Qdrant | Vectorize | New `VectorStore` implementation |
-| Direct Anthropic/OpenAI calls | AI Gateway proxy | Swap base URLs |
+| Qdrant | Vectorize | New `VectorStore` impl (partial prior work in `dist/`) |
+| Direct Anthropic/OpenAI calls | AI Gateway proxy | Add `baseUrl` to providers + URL rewriting |
 | In-process job queue + worker loop | Queues + Durable Objects | Biggest rewrite |
 | `fs` for config/db path | No filesystem | All state in D1 |
 
@@ -20,11 +34,13 @@ Create `packages/worker/` alongside the existing `packages/api/`. Both share the
 ```
 packages/worker/
   src/
-    index.ts          # Worker entry point (fetch handler + queue consumers)
-    d1-database.ts    # Database class backed by D1
-    d1-job-queue.ts   # JobQueue backed by Queues API
-    vectorize-store.ts # VectorStore backed by Vectorize
-    batch-poller.ts   # Durable Object for batch polling
+    index.ts           # Worker entry point (fetch handler + queue consumer)
+    d1-database.ts     # IDatabase implementation backed by D1
+    queues-adapter.ts  # JobQueue implementation backed by Queues API (enqueue → queue.send)
+    vectorize-store.ts # VectorStore backed by Vectorize bindings
+    batch-poller.ts    # Durable Object for batch polling (long-running batch API calls)
+  migrations/
+    0001_initial.sql   # Schema from api/src/db/schema.ts
   wrangler.toml
 ```
 
@@ -45,11 +61,11 @@ database_id = "<to-be-created>"
 
 [[vectorize]]
 binding = "VECTORIZE_CODE"
-index_name = "ossgard-code"
+index_name = "ossgard-code-v2"    # matches CODE_V2_COLLECTION in pairwise-llm strategy
 
 [[vectorize]]
 binding = "VECTORIZE_INTENT"
-index_name = "ossgard-intent"
+index_name = "ossgard-intent-v2"  # matches INTENT_V2_COLLECTION in pairwise-llm strategy
 
 [[queues.producers]]
 binding = "PIPELINE_QUEUE"
@@ -77,8 +93,8 @@ new_classes = ["BatchPoller"]
 // packages/worker/src/index.ts
 import { Hono } from "hono";
 import { D1Database } from "./d1-database";
-import { D1JobQueue } from "./d1-job-queue";
-// ... routes, processors
+import { QueuesAdapter } from "./queues-adapter";
+// ... shared routes, processors from @ossgard/shared
 
 export interface Env {
   DB: D1Database;
@@ -145,7 +161,7 @@ packages/worker/migrations/
 
 ## Phase 3: Vectorize adapter
 
-Implement the `VectorStore` interface backed by Cloudflare Vectorize.
+Implement the `VectorStore` interface (`api/src/services/vector-store.ts`) backed by Cloudflare Vectorize. **Note:** a compiled `VectorizeStore` already exists in `packages/api/dist/services/vectorize-store.js` using an HTTP REST API approach. For Workers, the implementation should use the native Vectorize binding instead.
 
 ```typescript
 class VectorizeStore implements VectorStore {
@@ -223,7 +239,13 @@ Anthropic: https://api.anthropic.com → https://gateway.ai.cloudflare.com/v1/{a
 OpenAI:    https://api.openai.com    → https://gateway.ai.cloudflare.com/v1/{accountId}/{gateway}/openai
 ```
 
-The actual provider classes don't change — they already accept a configurable base URL. The factory just swaps it before construction.
+**Important:** The provider classes do NOT currently accept a configurable base URL (except `OllamaProvider`). The following changes are needed:
+- `AnthropicProvider`: add optional `baseUrl` param (currently hardcoded to `https://api.anthropic.com/v1/messages`)
+- `OpenAIChatProvider`: add optional `baseUrl` param (currently hardcoded to `https://api.openai.com/v1/chat/completions`)
+- `OpenAIEmbeddingProvider`: add optional `baseUrl` param (currently hardcoded to `https://api.openai.com/v1/embeddings`)
+- `AnthropicBatchProvider`, `OpenAIBatchChatProvider`, `OpenAIBatchEmbeddingProvider`: same treatment for their respective hardcoded URLs
+
+The factory then passes the rewritten URL as `baseUrl` during construction.
 
 ### Benefits
 
@@ -234,7 +256,9 @@ The actual provider classes don't change — they already accept a configurable 
 
 ### Implementation
 
-Modify `ServiceFactory.createLLMProvider()` and `ServiceFactory.createEmbeddingProvider()` to check for `aiGateway` in the config and prepend the gateway URL prefix. No changes to the provider classes themselves.
+1. Add optional `baseUrl` parameter to `AnthropicProvider`, `OpenAIChatProvider`, `OpenAIEmbeddingProvider`, and their batch variants.
+2. Add optional `aiGateway` field to `AccountConfig` in `packages/shared/src/types.ts` and `AccountConfigSchema` in `packages/shared/src/schemas.ts`.
+3. Modify `ServiceFactory.createLLMProvider()` and `ServiceFactory.createEmbeddingProvider()` to check for `aiGateway` in the config, compute the gateway URL, and pass it as `baseUrl` to the providers.
 
 ## Phase 5: Job pipeline on Queues
 
@@ -267,7 +291,7 @@ HTTP request → enqueue message to PIPELINE_QUEUE
 
 ```typescript
 interface PipelineMessage {
-  type: "scan" | "ingest" | "embed" | "cluster" | "verify" | "rank";
+  type: "scan" | "ingest" | "detect";  // matches JobType in shared/types.ts
   payload: Record<string, unknown>;
   scanId: number;
   accountId: number;
@@ -297,12 +321,21 @@ async queue(batch: MessageBatch<PipelineMessage>, env: Env): Promise<void> {
 
 ### Enqueuing the next phase
 
-Processors currently call `this.queue.enqueue(...)` to chain to the next phase. In the Workers version, this becomes:
+Processors currently call `this.queue.enqueue(...)` to chain to the next phase. The pipeline is: `scan → ingest → detect`. In the Workers version, this becomes:
 
 ```typescript
+// ScanOrchestrator enqueues ingest:
 await env.PIPELINE_QUEUE.send({
-  type: "embed",
+  type: "ingest",
   payload: { scanId, repoId, accountId },
+  scanId,
+  accountId,
+});
+
+// IngestProcessor enqueues detect:
+await env.PIPELINE_QUEUE.send({
+  type: "detect",
+  payload: { scanId, repoId, accountId, prNumbers },
   scanId,
   accountId,
 });
@@ -397,44 +430,54 @@ export class BatchPoller implements DurableObject {
 
 ### How processors use it
 
-When `EmbedProcessor` or `VerifyProcessor` detects batch mode, instead of polling inline, it creates a Durable Object:
+Batch polling applies to the `detect` phase when accounts are configured with `batch: true` for LLM or embedding providers. The `DetectProcessor` delegates to `pairwise-llm` strategy, which uses `AnthropicBatchProvider`, `OpenAIBatchChatProvider`, or `OpenAIBatchEmbeddingProvider`. These batch providers currently poll inline with `sleep` loops.
+
+In the Workers version, when a batch provider detects it's running on Workers (or when the strategy creates a batch request), it delegates to a Durable Object instead of polling inline:
 
 ```typescript
-const id = env.BATCH_POLLER.idFromName(`scan-${scanId}-${phase}`);
+const id = env.BATCH_POLLER.idFromName(`scan-${scanId}-detect-${batchId}`);
 const stub = env.BATCH_POLLER.get(id);
 await stub.fetch("https://internal/poll", {
   method: "POST",
-  body: JSON.stringify({ batchId, provider: "openai", scanId, accountId, phase }),
+  body: JSON.stringify({ batchId, provider: "openai", scanId, accountId, phase: "detect" }),
 });
 ```
 
-The Durable Object then handles the long-running poll and enqueues the next phase when done.
+The Durable Object then handles the long-running poll and re-enqueues the `detect` job with batch results when done.
 
 ## Phase 7: Shared code extraction
 
-To avoid duplicating business logic between `packages/api` (Bun) and `packages/worker` (Cloudflare), extract shared code into interfaces.
+To avoid duplicating business logic between `packages/api` (Bun) and `packages/worker` (Cloudflare), extract shared code into `@ossgard/shared` (which already exists at `packages/shared/` but currently only contains types and Zod schemas).
 
-### What moves to shared/core
+### Current state of `@ossgard/shared`
 
-- Route handlers (Hono routes) — these are runtime-agnostic already
-- Pipeline processor logic (the actual algorithms, not the wiring)
-- Service interfaces (`ChatProvider`, `EmbeddingProvider`, `VectorStore`)
-- Prompts (verify/rank system prompts)
+- `types.ts`: `Repo`, `PR`, `Scan`, `Job`, `Account`, `AccountConfig`, `DupeGroup`, `DupeGroupMember`, `ScanProgress`, type unions (`JobType`, `JobStatus`, `ScanStatus`, `DuplicateStrategyName`)
+- `schemas.ts`: Zod schemas for `AccountConfig`, request/response types
+
+### What moves to `@ossgard/shared`
+
+- **Service interfaces**: `ChatProvider`, `EmbeddingProvider` (from `api/src/services/llm-provider.ts`), `VectorStore` (from `api/src/services/vector-store.ts`), `JobQueue` (from `api/src/queue/types.ts`)
+- **`IDatabase` interface**: New async database interface (see below)
+- **Route handlers**: Hono routes (`health`, `accounts`, `repos`, `scans`, `dupes`, `reset`) — these are already runtime-agnostic
+- **Pipeline processor logic**: `ScanOrchestrator`, `IngestProcessor`, `DetectProcessor`, and the `pairwise-llm` strategy — the algorithms, not the wiring
+- **Prompts**: LLM system prompts used by the detection strategy
 
 ### What stays platform-specific
 
 | Concern | `packages/api` (Bun) | `packages/worker` (Cloudflare) |
 |---------|----------------------|-------------------------------|
-| Database | `bun:sqlite` sync | D1 async |
-| Job queue | `LocalJobQueue` (SQLite) | Queues API |
-| Worker loop | `setInterval` | Queue consumer |
-| Vector store | Qdrant HTTP client | Vectorize binding |
-| Batch polling | Inline `sleep` loop | Durable Object alarm |
+| Database | `bun:sqlite` sync (wraps in Promise) | D1 async |
+| Job queue | `LocalJobQueue` (SQLite `jobs` table) | Queues API |
+| Worker loop | `setInterval` (1s poll) | Queue consumer |
+| Vector store | `QdrantStore` (HTTP client) | `VectorizeStore` (binding) |
+| Batch polling | Inline `sleep` loop in batch providers | Durable Object alarm |
 | Entry point | `Bun.serve()` | `export default { fetch, queue }` |
 
 ### Database interface
 
-The biggest refactor is making the `Database` interface async so it works with both `bun:sqlite` (sync wrapped in Promise) and D1 (natively async):
+The biggest refactor. The current `Database` class (`api/src/db/database.ts`) is synchronous and concrete — every route and processor depends on it directly. The `AppEnv.Variables` in `app.ts` types `db: Database` (concrete). `LocalJobQueue` directly accesses `database.raw` (the underlying `BunDatabase` instance).
+
+Create an `IDatabase` async interface:
 
 ```typescript
 interface IDatabase {
@@ -442,18 +485,32 @@ interface IDatabase {
   getAccountByApiKey(apiKey: string): Promise<Account | null>;
   createScan(repoId: number, accountId: number): Promise<Scan>;
   listOpenPRs(repoId: number): Promise<PR[]>;
-  // ... all methods become async
+  getScan(scanId: number): Promise<Scan | null>;
+  updateScanStatus(scanId: number, status: ScanStatus, extra?: Record<string, unknown>): Promise<void>;
+  upsertPR(...): Promise<PR>;
+  getPRsByNumbers(repoId: number, numbers: number[]): Promise<PR[]>;
+  insertDupeGroup(...): Promise<DupeGroup>;
+  insertDupeGroupMember(...): Promise<DupeGroupMember>;
+  deleteDupeGroupsByScan(scanId: number): Promise<void>;
+  addScanTokens(scanId: number, input: number, output: number): Promise<void>;
+  updateRepoLastScanAt(repoId: number, timestamp: string): Promise<void>;
+  // ... all methods from the current Database class, made async
 }
 ```
 
-The existing Bun `Database` class wraps its sync calls in `Promise.resolve()`. The D1 version is natively async. All consumers use `await`.
+The existing Bun `Database` class wraps its sync calls in `Promise.resolve()`. The D1 version is natively async. All consumers (routes, processors, strategies) must use `await`.
+
+**Cascade impact**: This change touches every route handler, every processor, and the `pairwise-llm` strategy (which calls `db.getScan`, `db.getPRsByNumbers`, `db.listOpenPRs`, `db.deleteDupeGroupsByScan`, `db.insertDupeGroup`, `db.insertDupeGroupMember`, etc. synchronously). The `AppEnv.Variables` type must change from `{ db: Database }` to `{ db: IDatabase }`.
 
 ## Phase 8: CLI changes
 
-The CLI itself needs zero changes to its command logic. It already talks to the API over HTTP. The only addition:
+The CLI itself needs zero changes to its command logic. It already talks to the API over HTTP (`packages/cli/src/commands/setup.ts` prompts for API URL and validates via health check). Changes:
 
-- During `ossgard setup`, offer a "Cloud" option that pre-fills the API URL to the Cloudflare Workers deployment (e.g., `https://ossgard-api.<account>.workers.dev`).
-- Skip local API server setup instructions when cloud mode is detected.
+- During `ossgard setup`, offer a "Cloud" deployment option that pre-fills the API URL to the Cloudflare Workers deployment (e.g., `https://ossgard-api.<account>.workers.dev`).
+- When cloud mode is selected, skip the Qdrant URL prompt (not needed — Vectorize is configured server-side).
+- When cloud mode is selected, hide the `ollama` option for LLM and embedding providers (Ollama requires local server access, incompatible with cloud).
+- The current setup offers `ollama|anthropic` for LLM and `ollama|openai` for embedding — cloud mode should offer `anthropic|openai` for LLM and `openai` for embedding.
+- Config file (`~/.ossgard/config.toml`) stays the same structure: `{ api: { url, key } }` — all provider config lives server-side.
 
 ## Deployment
 
@@ -467,9 +524,9 @@ wrangler d1 create ossgard
 # Run schema migration
 wrangler d1 execute ossgard --file=migrations/0001_initial.sql
 
-# Create Vectorize indexes
-wrangler vectorize create ossgard-code --dimensions=768 --metric=cosine
-wrangler vectorize create ossgard-intent --dimensions=768 --metric=cosine
+# Create Vectorize indexes (names match collection constants in pairwise-llm strategy)
+wrangler vectorize create ossgard-code-v2 --dimensions=768 --metric=cosine
+wrangler vectorize create ossgard-intent-v2 --dimensions=768 --metric=cosine
 
 # Create queues
 wrangler queues create ossgard-pipeline
