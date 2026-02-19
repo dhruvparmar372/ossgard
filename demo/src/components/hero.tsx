@@ -88,7 +88,7 @@ export function Hero() {
         {/* CTA */}
         <a
           href="#repos"
-          className="group inline-flex items-center gap-2 rounded-sm border border-primary/30 bg-primary/10 px-6 py-2.5 font-mono text-sm text-primary transition-colors hover:border-primary/60 hover:bg-primary/20"
+          className="group inline-flex items-center gap-2 rounded-sm border border-primary/30 bg-primary/10 px-6 py-2.5 font-mono text-sm text-primary transition-colors hover:border-primary/60 hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           See it in action
           <ChevronDown className="size-4 transition-transform group-hover:translate-y-0.5" />

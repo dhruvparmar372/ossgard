@@ -44,7 +44,7 @@ export function PrCard({ member, variant }: PrCardProps) {
         href={member.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors hover:text-primary"
+        className="mt-2 inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span className="line-clamp-2">{member.title}</span>
         <ExternalLink className="size-3 shrink-0 text-muted-foreground" />

@@ -63,7 +63,7 @@ export function GitHubTokenModal({
             href="https://github.com/settings/tokens/new"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm text-primary transition-colors hover:text-primary/80"
+            className="inline-flex items-center gap-1.5 rounded-sm text-sm text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Create a token on GitHub
             <ExternalLink className="size-3" />
@@ -71,13 +71,14 @@ export function GitHubTokenModal({
 
           <input
             type="password"
+            aria-label="GitHub personal access token"
             placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") handleSave();
             }}
-            className="w-full rounded-sm border border-border bg-card px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-sm border border-border bg-card px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
 
           <p className="text-xs leading-relaxed text-muted-foreground">

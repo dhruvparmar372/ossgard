@@ -24,7 +24,7 @@ export function RepoCard({ data }: { data: RepoScanData }) {
       {/* Full-card link (sits behind content) */}
       <Link
         href={`/${owner}/${name}`}
-        className="absolute inset-0 z-0 rounded-sm"
+        className="absolute inset-0 z-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={`View scan results for ${owner}/${name}`}
       />
 
@@ -37,7 +37,7 @@ export function RepoCard({ data }: { data: RepoScanData }) {
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+          className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={`View ${owner}/${name} on GitHub`}
         >
           <Github className="size-4" />
