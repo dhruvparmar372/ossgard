@@ -178,26 +178,7 @@ Also ask if they'd like to cap the number of PRs to ingest. This is optional —
 the default is uncapped (all open PRs). A cap like 50-100 is useful for a quick
 first demo, especially with Ollama.
 
-### 6.1 — Choose a deduplication strategy
-
-Ask the maintainer which duplicate detection strategy to use:
-
-**Option A: pairwise-llm (Recommended)** — higher accuracy, slower
-Uses an LLM to summarize each PR's intent, embeds the actual code diff (not just
-file paths), then compares every candidate pair with a dedicated LLM call. Groups
-are formed via complete-linkage (cliques) so every PR in a group is confirmed as
-a duplicate of every other PR. This eliminates the false-positive "mega-groups"
-that plagued the legacy approach.
-
-**Option B: legacy** — faster, lower accuracy
-Embeds PR titles and file paths, clusters via vector similarity + Union-Find,
-then does a single group-level LLM verification pass. Faster but assumes
-transitivity (if A≈B and B≈C then A≈C), which can produce large false-positive
-groups.
-
-Default to **pairwise-llm** if the maintainer has no preference.
-
-### 6.2 — Dispatch the scan
+### 6.1 — Dispatch the scan
 
 > **CRITICAL — Non-blocking scan monitoring**
 >
@@ -209,10 +190,10 @@ Dispatch the scan in fire-and-forget mode:
 
 ```bash
 # Without cap:
-$HOME/.local/bin/ossgard scan <owner/repo> --strategy <strategy> --no-wait
+$HOME/.local/bin/ossgard scan <owner/repo> --no-wait
 
 # With cap:
-$HOME/.local/bin/ossgard scan <owner/repo> --limit <N> --strategy <strategy> --no-wait
+$HOME/.local/bin/ossgard scan <owner/repo> --limit <N> --no-wait
 ```
 
 Then start a background watcher using the Bash tool with `run_in_background`:
