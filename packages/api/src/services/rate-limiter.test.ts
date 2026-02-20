@@ -159,6 +159,85 @@ describe("RateLimitedClient", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+  it("uses getRetryAfterMs callback when provided", async () => {
+    const getRetryAfterMs = vi.fn().mockReturnValue(0); // return 0ms so test is fast
+    const onRateLimited = vi.fn();
+
+    const resetEpoch = Math.floor(Date.now() / 1000) + 60;
+    const headers = new Headers();
+    headers.set("x-ratelimit-reset", String(resetEpoch));
+    const rateLimitResp = new Response("forbidden", { status: 403, headers });
+
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(rateLimitResp)
+      .mockResolvedValueOnce(okResponse());
+
+    const client = new RateLimitedClient({
+      maxConcurrent: 5,
+      maxRetries: 3,
+      baseBackoffMs: 1,
+      fetchFn: mockFetch,
+      getRetryAfterMs,
+      onRateLimited,
+    });
+
+    const response = await client.fetch("https://api.github.com/test");
+
+    expect(response.status).toBe(200);
+    expect(getRetryAfterMs).toHaveBeenCalledTimes(1);
+    expect(onRateLimited).toHaveBeenCalledWith(0, 0);
+  });
+
+  it("falls back to retry-after header when getRetryAfterMs returns null", async () => {
+    const getRetryAfterMs = vi.fn().mockReturnValue(null);
+
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(rateLimitResponse(0))
+      .mockResolvedValueOnce(okResponse());
+
+    const client = new RateLimitedClient({
+      maxConcurrent: 5,
+      maxRetries: 3,
+      baseBackoffMs: 1,
+      fetchFn: mockFetch,
+      getRetryAfterMs,
+    });
+
+    const response = await client.fetch("https://api.github.com/test");
+
+    expect(response.status).toBe(200);
+    expect(getRetryAfterMs).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("caps backoff at maxBackoffMs", async () => {
+    const onRateLimited = vi.fn();
+    // Return a huge wait time
+    const getRetryAfterMs = vi.fn().mockReturnValue(999_999_999);
+
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(forbiddenResponse())
+      .mockResolvedValueOnce(okResponse());
+
+    const client = new RateLimitedClient({
+      maxConcurrent: 5,
+      maxRetries: 3,
+      baseBackoffMs: 1,
+      maxBackoffMs: 100, // cap at 100ms for test speed
+      fetchFn: mockFetch,
+      getRetryAfterMs,
+      onRateLimited,
+    });
+
+    const response = await client.fetch("https://api.github.com/test");
+
+    expect(response.status).toBe(200);
+    expect(onRateLimited).toHaveBeenCalledWith(100, 0); // capped at maxBackoffMs
+  });
+
   it("passes RequestInit options through", async () => {
     const mockFetch = vi.fn().mockResolvedValue(okResponse());
     const client = new RateLimitedClient({

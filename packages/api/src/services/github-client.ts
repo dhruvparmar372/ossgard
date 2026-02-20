@@ -1,4 +1,5 @@
 import { RateLimitedClient } from "./rate-limiter.js";
+import { log } from "../logger.js";
 
 export class DiffTooLargeError extends Error {
   constructor(
@@ -30,6 +31,8 @@ export interface GitHubClientOptions {
   fetchFn?: typeof fetch;
 }
 
+const githubLog = log.child("github");
+
 export class GitHubClient {
   private static DEFAULT_RATE_LIMIT_BUFFER = 100;
 
@@ -45,11 +48,27 @@ export class GitHubClient {
     this.rateLimitBuffer = options.rateLimitBuffer ?? GitHubClient.DEFAULT_RATE_LIMIT_BUFFER;
     this.client = new RateLimitedClient({
       maxConcurrent: options.maxConcurrent ?? 10,
-      maxRetries: options.maxRetries ?? 3,
+      maxRetries: options.maxRetries ?? 5,
       baseBackoffMs: options.baseBackoffMs ?? 1000,
       fetchFn: options.fetchFn,
-      onRateLimited: () => {
-        // Rate limit tracking is handled via response headers
+      getRetryAfterMs: (response) => {
+        const resetHeader = response.headers.get("x-ratelimit-reset");
+        if (resetHeader) {
+          const resetEpoch = Number(resetHeader);
+          if (!Number.isNaN(resetEpoch)) {
+            const waitMs = resetEpoch * 1000 - Date.now();
+            return waitMs > 0 ? waitMs : null;
+          }
+        }
+        return null;
+      },
+      onRateLimited: (backoffMs, attempt) => {
+        const retryAt = new Date(Date.now() + backoffMs).toISOString();
+        githubLog.warn("Rate limited by GitHub API, waiting to retry", {
+          attempt: attempt + 1,
+          backoffMs,
+          retryAt,
+        });
       },
     });
   }
