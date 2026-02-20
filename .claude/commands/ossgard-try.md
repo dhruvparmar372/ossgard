@@ -239,37 +239,48 @@ to the maintainer as they happen:
 
 ## Phase 7 — Show Results
 
-### 7.1 — Duplicate groups overview
+### 7.1 — Pull scan data into the demo app
 
-Run the interactive dupes viewer:
+The demo app is a Next.js site that visualizes duplicate groups with a much
+richer UI than the CLI. Pull the scan results from the running API server:
 
 ```bash
-$HOME/.local/bin/ossgard dupes <owner/repo>
+cd <project-root>/demo
+npm install
+npm run pull-data
 ```
 
-This shows a stats summary and walks through each group interactively.
-Let the maintainer drive the Y/n prompts.
+This fetches data for all tracked repos from the API, writes JSON files into
+`demo/src/data/`, and auto-updates the barrel file.
+
+If it fails with an API connection error, make sure the ossgard-api server is
+still running (Phase 4).
+
+### 7.2 — Start the demo app
+
+```bash
+cd <project-root>/demo
+npm run dev
+```
+
+Wait for Next.js to report the dev server is ready (usually a few seconds).
+
+Then tell the maintainer:
+
+```
+The results are ready! Open your browser and visit:
+
+  http://localhost:3000/<owner>/<repo>
+
+You'll see a visual overview of all duplicate groups with stats, rankings,
+and rationale for each PR. Click through the groups to explore.
+```
+
+Let them browse the results at their own pace. Answer any questions about
+what they're seeing.
 
 If no duplicates were found, explain that this is a valid result — it means
 the repo's open PRs are well-differentiated.
-
-### 7.2 — Per-PR review (optional)
-
-After showing the groups, offer to review a specific PR:
-
-```
-Would you like to check a specific PR for duplicates?
-You can provide a PR number or GitHub URL.
-```
-
-If yes, run:
-
-```bash
-$HOME/.local/bin/ossgard check-duplicates <owner/repo> --pr <pr-number>
-```
-
-This shows any existing dupe groups containing that PR, plus similar PRs
-found via vector similarity.
 
 ---
 
@@ -282,18 +293,20 @@ Print a summary and hand control to the maintainer:
 
 Your setup:
   API server:  http://localhost:3400 (PID: <pid>, logs: /tmp/ossgard-api.log)
+  Demo app:    http://localhost:3000 (Next.js dev server)
   Vector store: http://localhost:6333 (Qdrant via Docker)
   Database:    ~/.ossgard/ossgard.db
 
 Commands you can try:
-  ossgard scan <owner/repo>                     Scan another repository
-  ossgard check-duplicates <owner/repo>        View duplicate groups
-  ossgard check-duplicates <owner/repo> --pr <N>  Check a specific PR
-  ossgard status                               List tracked repos and scans
-  ossgard check-duplicates <owner/repo> --json Machine-readable output
+  ossgard scan <owner/repo>                        Scan another repository
+  ossgard check-duplicates <owner/repo>            View duplicate groups (CLI)
+  ossgard check-duplicates <owner/repo> --pr <N>   Check a specific PR
+  ossgard status                                   List tracked repos and scans
+  npm run pull-data  (in demo/)                    Refresh demo app data after a new scan
 
 To stop services when done:
   pkill -f ossgard-api
+  # Stop the Next.js dev server (Ctrl+C in its terminal, or kill the process)
   docker compose -f local-ai/vector-store.yml down
 ```
 
