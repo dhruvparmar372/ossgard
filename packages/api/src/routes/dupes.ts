@@ -3,8 +3,8 @@ import type { AppEnv } from "../app.js";
 import { ServiceResolver } from "../services/service-resolver.js";
 import { DiffTooLargeError } from "../services/github-client.js";
 import { hashDiff } from "../pipeline/normalize-diff.js";
-import { buildCodeInput, buildIntentInput, computeEmbedHash, CODE_COLLECTION, INTENT_COLLECTION } from "../pipeline/embed-utils.js";
-import { TOKEN_BUDGET_FACTOR } from "../services/token-counting.js";
+import { computeEmbedHash, CODE_COLLECTION, INTENT_COLLECTION } from "../pipeline/embed-utils.js";
+import { IntentExtractor } from "../pipeline/strategies/pairwise-llm/intent-extractor.js";
 
 const dupes = new Hono<AppEnv>();
 
@@ -187,57 +187,65 @@ dupes.get("/repos/:owner/:name/review/:prNumber", async (c) => {
     intentScore: number;
   }> = [];
 
-  const hasEmbeddings = pr.embedHash !== null;
-  const needsEmbedding = !hasEmbeddings || hadToFetch;
+  const fullyCached = pr.embedHash !== null && pr.intentSummary !== null && !hadToFetch;
 
   let codeVector: number[] | null = null;
   let intentVector: number[] | null = null;
 
-  if (!needsEmbedding) {
+  if (fullyCached) {
     // PR already has embeddings in vector store — retrieve them
     codeVector = await services.vectorStore.getVector(
       CODE_COLLECTION,
-      `${repo.id}-${pr.number}-code`
+      `${repo.id}-${pr.number}-code-v2`
     );
     intentVector = await services.vectorStore.getVector(
       INTENT_COLLECTION,
-      `${repo.id}-${pr.number}-intent`
+      `${repo.id}-${pr.number}-intent-v2`
     );
   }
 
   if (!codeVector || !intentVector) {
-    // Embed the PR
+    // Extract intent via LLM (matching scan pipeline Phase 1)
+    let intentSummary = pr.intentSummary;
+    if (!intentSummary) {
+      const extractor = new IntentExtractor(services.llm);
+      const intents = await extractor.extract([pr]);
+      intentSummary = intents.get(pr.number) ?? pr.title;
+    }
+
+    // Embed using the same logic as the scan pipeline
     const dimensions = services.embedding.dimensions;
     await services.vectorStore.ensureCollection(CODE_COLLECTION, dimensions);
     await services.vectorStore.ensureCollection(INTENT_COLLECTION, dimensions);
 
-    const tokenBudget = Math.floor(services.embedding.maxInputTokens * TOKEN_BUDGET_FACTOR);
-    const countTokens = services.embedding.countTokens.bind(services.embedding);
+    // Intent embedding: use LLM-extracted summary (matching scan pipeline)
+    const intentInput = intentSummary;
+    // Code embedding: title + filePaths (matching scan pipeline)
+    const paths = pr.filePaths.join("\n");
+    const codeInput = paths.length > 0 ? `${pr.title}\n${paths}` : pr.title;
 
-    const codeInput = buildCodeInput(pr.filePaths, tokenBudget, countTokens, pr.title);
-    const intentInput = buildIntentInput(pr.title, pr.body, pr.filePaths, tokenBudget, countTokens);
-
-    const [codeEmbeddings, intentEmbeddings] = await Promise.all([
-      services.embedding.embed([codeInput]),
+    const [intentEmbeddings, codeEmbeddings] = await Promise.all([
       services.embedding.embed([intentInput]),
+      services.embedding.embed([codeInput]),
     ]);
 
-    codeVector = codeEmbeddings[0];
     intentVector = intentEmbeddings[0];
+    codeVector = codeEmbeddings[0];
 
-    // Upsert into vector store
-    await services.vectorStore.upsert(CODE_COLLECTION, [{
-      id: `${repo.id}-${pr.number}-code`,
-      vector: codeVector,
-      payload: { repoId: repo.id, prNumber: pr.number, prId: pr.id },
-    }]);
+    // Upsert into vector store with -v2 IDs (matching scan pipeline)
     await services.vectorStore.upsert(INTENT_COLLECTION, [{
-      id: `${repo.id}-${pr.number}-intent`,
+      id: `${repo.id}-${pr.number}-intent-v2`,
       vector: intentVector,
       payload: { repoId: repo.id, prNumber: pr.number, prId: pr.id },
     }]);
+    await services.vectorStore.upsert(CODE_COLLECTION, [{
+      id: `${repo.id}-${pr.number}-code-v2`,
+      vector: codeVector,
+      payload: { repoId: repo.id, prNumber: pr.number, prId: pr.id },
+    }]);
 
-    db.updatePREmbedHash(pr.id, computeEmbedHash(pr));
+    // Store both cache fields so future scans see this PR as fully cached
+    db.updatePRCacheFields(pr.id, computeEmbedHash(pr), intentSummary);
   }
 
   // Search for similar PRs (excluding self)
