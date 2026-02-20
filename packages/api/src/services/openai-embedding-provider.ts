@@ -17,6 +17,9 @@ export interface OpenAIEmbeddingProviderOptions {
 /** OpenAI max is 300k tokens per embedding request; use 250k for safety */
 const EMBEDDING_TOKEN_BUDGET = 250_000;
 
+/** Per-input overhead tokens OpenAI charges beyond the text itself (BOS/EOS/separators) */
+const PER_TEXT_OVERHEAD_TOKENS = 20;
+
 export class OpenAIEmbeddingProvider implements EmbeddingProvider {
   readonly dimensions: number;
   readonly maxInputTokens = 8191;
@@ -40,7 +43,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
   async embed(texts: string[]): Promise<number[][]> {
     const chunks = chunkEmbeddingTexts(
       texts,
-      (t) => this.countTokens(t),
+      (t) => this.countTokens(t) + PER_TEXT_OVERHEAD_TOKENS,
       EMBEDDING_TOKEN_BUDGET
     );
 
