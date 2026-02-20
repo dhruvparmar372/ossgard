@@ -9,6 +9,7 @@ import type {
 } from "./llm-provider.js";
 import type { Logger } from "../logger.js";
 import { createTiktokenEncoder, countTokensTiktoken, type Tiktoken } from "./token-counting.js";
+import { chunkBatchRequests } from "./batch-chunker.js";
 
 /** Strip markdown code-block wrapping that LLMs sometimes add around JSON. */
 function stripCodeBlock(raw: string): string {
@@ -37,6 +38,7 @@ export interface OpenAIBatchChatProviderOptions {
 export class OpenAIBatchChatProvider implements BatchChatProvider {
   readonly batch = true as const;
   readonly maxContextTokens = 128_000;
+  static readonly INPUT_TOKEN_BUDGET = 1_000_000; // 50% of OpenAI's 2M enqueued limit
 
   private apiKey: string;
   private model: string;
@@ -125,10 +127,8 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
       return [{ id: requests[0].id, response: result.response, usage: result.usage }];
     }
 
-    let outputFileId: string;
-
+    // Resume path: unchanged (single batch only)
     if (options?.existingBatchId) {
-      // Resume: skip file upload + batch creation, just poll
       this.logger?.info("Resuming existing batch", { batchId: options.existingBatchId });
       const result = await this.pollBatchToCompletion(options.existingBatchId, Date.now() + this.timeoutMs);
       if (result.status !== "completed" || !result.outputFileId) {
@@ -136,61 +136,101 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
           ? "OpenAI batch completed but no output_file_id — all requests may have failed."
           : `OpenAI batch ${result.error ?? "failed"}`);
       }
-      outputFileId = result.outputFileId;
-    } else {
-      // 1. Build JSONL content
-      const jsonlLines = requests.map((req) =>
-        JSON.stringify({
-          custom_id: req.id,
-          method: "POST",
-          url: "/v1/chat/completions",
-          body: {
-            model: this.model,
-            ...(isReasoningModel(this.model) ? {} : { temperature: 0 }),
-            max_completion_tokens: 8192,
-            response_format: { type: "json_object" },
-            messages: req.messages.map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-          },
-        })
-      );
-      const jsonlContent = jsonlLines.join("\n");
-
-      // 2. Upload file
-      const formData = new FormData();
-      formData.append("purpose", "batch");
-      formData.append(
-        "file",
-        new Blob([jsonlContent], { type: "application/jsonl" }),
-        "batch-input.jsonl"
-      );
-
-      const uploadRes = await this.fetchFn("https://api.openai.com/v1/files", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-        body: formData,
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error(
-          `OpenAI file upload error: ${uploadRes.status} ${uploadRes.statusText}`
-        );
-      }
-
-      const uploadData = (await uploadRes.json()) as { id: string };
-      const inputFileId = uploadData.id;
-
-      // 3. Create batch + poll (with token limit retry)
-      const batchResult = await this.createAndPollBatch(inputFileId, options);
-      outputFileId = batchResult.outputFileId;
+      return this.downloadAndParseResults(result.outputFileId, requests);
     }
 
+    // Chunk requests to stay under token budget
+    const chunks = chunkBatchRequests(
+      requests,
+      (text) => this.countTokens(text),
+      OpenAIBatchChatProvider.INPUT_TOKEN_BUDGET
+    );
+
+    if (chunks.length === 1) {
+      return this.processChunk(chunks[0], options);
+    }
+
+    this.logger?.info("Splitting batch into chunks", {
+      totalRequests: requests.length,
+      chunks: chunks.length,
+      budgetPerChunk: OpenAIBatchChatProvider.INPUT_TOKEN_BUDGET,
+    });
+
+    const allResults = new Map<string, BatchChatResult>();
+    for (let i = 0; i < chunks.length; i++) {
+      this.logger?.info("Processing chunk", {
+        chunk: i + 1,
+        of: chunks.length,
+        requests: chunks[i].length,
+      });
+      const chunkResults = await this.processChunk(chunks[i], options);
+      for (const r of chunkResults) allResults.set(r.id, r);
+    }
+
+    return requests.map((req) => allResults.get(req.id) ?? {
+      id: req.id,
+      response: {},
+      usage: { inputTokens: 0, outputTokens: 0 },
+      error: "No result returned from batch",
+    });
+  }
+
+  /** Processes a single chunk: build JSONL, upload, create batch, poll, download results. */
+  private async processChunk(
+    requests: BatchChatRequest[],
+    options?: BatchChatOptions
+  ): Promise<BatchChatResult[]> {
+    // 1. Build JSONL content
+    const jsonlLines = requests.map((req) =>
+      JSON.stringify({
+        custom_id: req.id,
+        method: "POST",
+        url: "/v1/chat/completions",
+        body: {
+          model: this.model,
+          ...(isReasoningModel(this.model) ? {} : { temperature: 0 }),
+          max_completion_tokens: 8192,
+          response_format: { type: "json_object" },
+          messages: req.messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        },
+      })
+    );
+    const jsonlContent = jsonlLines.join("\n");
+
+    // 2. Upload file
+    const formData = new FormData();
+    formData.append("purpose", "batch");
+    formData.append(
+      "file",
+      new Blob([jsonlContent], { type: "application/jsonl" }),
+      "batch-input.jsonl"
+    );
+
+    const uploadRes = await this.fetchFn("https://api.openai.com/v1/files", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: formData,
+    });
+
+    if (!uploadRes.ok) {
+      throw new Error(
+        `OpenAI file upload error: ${uploadRes.status} ${uploadRes.statusText}`
+      );
+    }
+
+    const uploadData = (await uploadRes.json()) as { id: string };
+    const inputFileId = uploadData.id;
+
+    // 3. Create batch + poll (with token limit retry)
+    const batchResult = await this.createAndPollBatch(inputFileId, options);
+
     // 4. Download and parse results
-    return this.downloadAndParseResults(outputFileId, requests);
+    return this.downloadAndParseResults(batchResult.outputFileId, requests);
   }
 
   /**

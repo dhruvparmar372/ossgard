@@ -389,6 +389,133 @@ describe("OpenAIBatchChatProvider", () => {
       );
     });
 
+    describe("chunking", () => {
+      const originalBudget = OpenAIBatchChatProvider.INPUT_TOKEN_BUDGET;
+
+      afterEach(() => {
+        // Restore original budget
+        (OpenAIBatchChatProvider as any).INPUT_TOKEN_BUDGET = originalBudget;
+      });
+
+      function makeOpenAIBatchResult(customId: string, response: Record<string, unknown>) {
+        return JSON.stringify({
+          custom_id: customId,
+          response: {
+            status_code: 200,
+            body: {
+              choices: [{ message: { content: JSON.stringify(response) } }],
+              usage: { prompt_tokens: 50, completion_tokens: 10 },
+            },
+          },
+        });
+      }
+
+      /** Builds mock fetch that handles N full batch cycles (upload→create→poll→download). */
+      function mockMultiChunkFetch(chunkResults: Array<{ batchId: string; fileId: string; results: string }>) {
+        const calls: Array<{ ok: true; json?: () => Promise<unknown>; text?: () => Promise<string> }> = [];
+        for (const chunk of chunkResults) {
+          // Upload file
+          calls.push({ ok: true, json: () => Promise.resolve({ id: `file-${chunk.batchId}` }) });
+          // Create batch
+          calls.push({ ok: true, json: () => Promise.resolve({ id: chunk.batchId }) });
+          // Poll -> completed
+          calls.push({ ok: true, json: () => Promise.resolve({ status: "completed", output_file_id: chunk.fileId }) });
+          // Download results
+          calls.push({ ok: true, text: () => Promise.resolve(chunk.results) });
+        }
+        const fn = vi.fn();
+        for (const call of calls) {
+          fn.mockResolvedValueOnce(call);
+        }
+        return fn as unknown as typeof fetch;
+      }
+
+      it("splits large batches into multiple chunks", async () => {
+        // Set a very low budget so each request gets its own chunk
+        (OpenAIBatchChatProvider as any).INPUT_TOKEN_BUDGET = 1;
+
+        const fetchFn = mockMultiChunkFetch([
+          { batchId: "batch-c1", fileId: "file-out-c1", results: makeOpenAIBatchResult("req-1", { chunk: 1 }) },
+          { batchId: "batch-c2", fileId: "file-out-c2", results: makeOpenAIBatchResult("req-2", { chunk: 2 }) },
+        ]);
+
+        const logger = { info: vi.fn(), warn: vi.fn() } as any;
+        const provider = new OpenAIBatchChatProvider({
+          apiKey: "sk-test", model: "gpt-4o-mini", fetchFn, pollIntervalMs: 0, logger,
+        });
+
+        const results = await provider.chatBatch([
+          { id: "req-1", messages: [{ role: "user", content: "first" }] },
+          { id: "req-2", messages: [{ role: "user", content: "second" }] },
+        ]);
+
+        // Results are in input order
+        expect(results).toEqual([
+          { id: "req-1", response: { chunk: 1 }, usage: { inputTokens: 50, outputTokens: 10 } },
+          { id: "req-2", response: { chunk: 2 }, usage: { inputTokens: 50, outputTokens: 10 } },
+        ]);
+
+        // 2 chunks × 4 calls each = 8 fetch calls
+        expect(fetchFn).toHaveBeenCalledTimes(8);
+
+        // Logged chunking info
+        expect(logger.info).toHaveBeenCalledWith("Splitting batch into chunks", expect.objectContaining({
+          totalRequests: 2, chunks: 2,
+        }));
+      });
+
+      it("uses single-chunk fast path when all requests fit in budget", async () => {
+        // Default budget (1M tokens) — two small requests easily fit
+        const fetchFn = vi.fn()
+          .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: "file-abc" }) })
+          .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: "batch-single" }) })
+          .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ status: "completed", output_file_id: "file-out" }) })
+          .mockResolvedValueOnce({
+            ok: true,
+            text: () => Promise.resolve(
+              [makeOpenAIBatchResult("req-1", { ok: true }), makeOpenAIBatchResult("req-2", { ok: true })].join("\n")
+            ),
+          }) as unknown as typeof fetch;
+
+        const provider = new OpenAIBatchChatProvider({ apiKey: "sk-test", model: "gpt-4o-mini", fetchFn, pollIntervalMs: 0 });
+
+        const results = await provider.chatBatch([
+          { id: "req-1", messages: [{ role: "user", content: "test" }] },
+          { id: "req-2", messages: [{ role: "user", content: "test" }] },
+        ]);
+
+        expect(results).toHaveLength(2);
+        // Only 4 calls (single chunk path)
+        expect(fetchFn).toHaveBeenCalledTimes(4);
+      });
+
+      it("calls onBatchCreated for each chunk", async () => {
+        (OpenAIBatchChatProvider as any).INPUT_TOKEN_BUDGET = 1;
+
+        const onBatchCreated = vi.fn();
+        const fetchFn = mockMultiChunkFetch([
+          { batchId: "batch-c1", fileId: "file-out-c1", results: makeOpenAIBatchResult("req-1", { ok: true }) },
+          { batchId: "batch-c2", fileId: "file-out-c2", results: makeOpenAIBatchResult("req-2", { ok: true }) },
+        ]);
+
+        const provider = new OpenAIBatchChatProvider({
+          apiKey: "sk-test", model: "gpt-4o-mini", fetchFn, pollIntervalMs: 0,
+        });
+
+        await provider.chatBatch(
+          [
+            { id: "req-1", messages: [{ role: "user", content: "test" }] },
+            { id: "req-2", messages: [{ role: "user", content: "test" }] },
+          ],
+          { onBatchCreated }
+        );
+
+        expect(onBatchCreated).toHaveBeenCalledTimes(2);
+        expect(onBatchCreated).toHaveBeenCalledWith("batch-c1");
+        expect(onBatchCreated).toHaveBeenCalledWith("batch-c2");
+      });
+    });
+
     it("throws on batch failure status", async () => {
       const fetchFn = vi
         .fn()

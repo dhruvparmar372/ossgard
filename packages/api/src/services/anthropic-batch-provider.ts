@@ -9,6 +9,7 @@ import type {
 } from "./llm-provider.js";
 import type { Logger } from "../logger.js";
 import { countTokensHeuristic } from "./token-counting.js";
+import { chunkBatchRequests } from "./batch-chunker.js";
 
 export interface AnthropicBatchProviderOptions {
   apiKey: string;
@@ -28,6 +29,7 @@ function stripCodeBlock(raw: string): string {
 export class AnthropicBatchProvider implements BatchChatProvider {
   readonly batch = true as const;
   readonly maxContextTokens = 200_000;
+  static readonly INPUT_TOKEN_BUDGET = 1_000_000; // conservative budget
 
   private apiKey: string;
   private model: string;
@@ -123,12 +125,57 @@ export class AnthropicBatchProvider implements BatchChatProvider {
       return [{ id: requests[0].id, response: result.response, usage: result.usage }];
     }
 
+    // Resume path: unchanged (single batch only)
+    if (options?.existingBatchId) {
+      this.logger?.info("Resuming existing batch", { batchId: options.existingBatchId });
+      return this.processChunk(requests, options);
+    }
+
+    // Chunk requests to stay under token budget
+    const chunks = chunkBatchRequests(
+      requests,
+      (text) => this.countTokens(text),
+      AnthropicBatchProvider.INPUT_TOKEN_BUDGET
+    );
+
+    if (chunks.length === 1) {
+      return this.processChunk(chunks[0], options);
+    }
+
+    this.logger?.info("Splitting batch into chunks", {
+      totalRequests: requests.length,
+      chunks: chunks.length,
+      budgetPerChunk: AnthropicBatchProvider.INPUT_TOKEN_BUDGET,
+    });
+
+    const allResults = new Map<string, BatchChatResult>();
+    for (let i = 0; i < chunks.length; i++) {
+      this.logger?.info("Processing chunk", {
+        chunk: i + 1,
+        of: chunks.length,
+        requests: chunks[i].length,
+      });
+      const chunkResults = await this.processChunk(chunks[i], options);
+      for (const r of chunkResults) allResults.set(r.id, r);
+    }
+
+    return requests.map((req) => allResults.get(req.id) ?? {
+      id: req.id,
+      response: {},
+      usage: { inputTokens: 0, outputTokens: 0 },
+      error: "No result returned from batch",
+    });
+  }
+
+  /** Processes a single chunk: create batch, poll, retrieve results. */
+  private async processChunk(
+    requests: BatchChatRequest[],
+    options?: BatchChatOptions
+  ): Promise<BatchChatResult[]> {
     let batchId: string;
 
     if (options?.existingBatchId) {
-      // Resume: skip batch creation
       batchId = options.existingBatchId;
-      this.logger?.info("Resuming existing batch", { batchId });
     } else {
       // Build batch requests
       const batchRequests = requests.map((req) => {

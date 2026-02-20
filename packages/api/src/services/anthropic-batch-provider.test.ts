@@ -613,6 +613,127 @@ describe("AnthropicBatchProvider", () => {
       expect((provider as any).timeoutMs).toBe(4 * 60 * 60 * 1000);
     });
 
+    describe("chunking", () => {
+      const originalBudget = AnthropicBatchProvider.INPUT_TOKEN_BUDGET;
+
+      afterEach(() => {
+        (AnthropicBatchProvider as any).INPUT_TOKEN_BUDGET = originalBudget;
+      });
+
+      function makeAnthropicBatchResult(customId: string, response: Record<string, unknown>) {
+        return JSON.stringify({
+          custom_id: customId,
+          result: {
+            type: "succeeded",
+            message: {
+              content: [{ type: "text", text: JSON.stringify(response) }],
+              usage: { input_tokens: 50, output_tokens: 10 },
+            },
+          },
+        });
+      }
+
+      /** Builds mock fetch that handles N full batch cycles (create→poll→results). */
+      function mockMultiChunkFetch(chunkResults: Array<{ batchId: string; results: string }>) {
+        const calls: Array<{ ok: true; json?: () => Promise<unknown>; text?: () => Promise<string> }> = [];
+        for (const chunk of chunkResults) {
+          // Create batch
+          calls.push({ ok: true, json: () => Promise.resolve({ id: chunk.batchId }) });
+          // Poll -> ended
+          calls.push({ ok: true, json: () => Promise.resolve({ processing_status: "ended" }) });
+          // Retrieve results
+          calls.push({ ok: true, text: () => Promise.resolve(chunk.results) });
+        }
+        const fn = vi.fn();
+        for (const call of calls) {
+          fn.mockResolvedValueOnce(call);
+        }
+        return fn as unknown as typeof fetch;
+      }
+
+      it("splits large batches into multiple chunks", async () => {
+        (AnthropicBatchProvider as any).INPUT_TOKEN_BUDGET = 1;
+
+        const fetchFn = mockMultiChunkFetch([
+          { batchId: "batch-c1", results: makeAnthropicBatchResult("req-1", { chunk: 1 }) },
+          { batchId: "batch-c2", results: makeAnthropicBatchResult("req-2", { chunk: 2 }) },
+        ]);
+
+        const logger = { info: vi.fn(), warn: vi.fn() } as any;
+        const provider = new AnthropicBatchProvider({
+          apiKey: "sk-test", model: "claude-sonnet-4-20250514", fetchFn, pollIntervalMs: 0, logger,
+        });
+
+        const results = await provider.chatBatch([
+          { id: "req-1", messages: [{ role: "user", content: "first" }] },
+          { id: "req-2", messages: [{ role: "user", content: "second" }] },
+        ]);
+
+        expect(results).toEqual([
+          { id: "req-1", response: { chunk: 1 }, usage: { inputTokens: 50, outputTokens: 10 } },
+          { id: "req-2", response: { chunk: 2 }, usage: { inputTokens: 50, outputTokens: 10 } },
+        ]);
+
+        // 2 chunks × 3 calls each = 6 fetch calls
+        expect(fetchFn).toHaveBeenCalledTimes(6);
+
+        expect(logger.info).toHaveBeenCalledWith("Splitting batch into chunks", expect.objectContaining({
+          totalRequests: 2, chunks: 2,
+        }));
+      });
+
+      it("uses single-chunk fast path when all requests fit in budget", async () => {
+        const fetchFn = vi.fn()
+          .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: "batch-single" }) })
+          .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ processing_status: "ended" }) })
+          .mockResolvedValueOnce({
+            ok: true,
+            text: () => Promise.resolve(
+              [makeAnthropicBatchResult("req-1", { ok: true }), makeAnthropicBatchResult("req-2", { ok: true })].join("\n")
+            ),
+          }) as unknown as typeof fetch;
+
+        const provider = new AnthropicBatchProvider({
+          apiKey: "sk-test", model: "claude-sonnet-4-20250514", fetchFn, pollIntervalMs: 0,
+        });
+
+        const results = await provider.chatBatch([
+          { id: "req-1", messages: [{ role: "user", content: "test" }] },
+          { id: "req-2", messages: [{ role: "user", content: "test" }] },
+        ]);
+
+        expect(results).toHaveLength(2);
+        // Only 3 calls (single chunk path)
+        expect(fetchFn).toHaveBeenCalledTimes(3);
+      });
+
+      it("calls onBatchCreated for each chunk", async () => {
+        (AnthropicBatchProvider as any).INPUT_TOKEN_BUDGET = 1;
+
+        const onBatchCreated = vi.fn();
+        const fetchFn = mockMultiChunkFetch([
+          { batchId: "batch-c1", results: makeAnthropicBatchResult("req-1", { ok: true }) },
+          { batchId: "batch-c2", results: makeAnthropicBatchResult("req-2", { ok: true }) },
+        ]);
+
+        const provider = new AnthropicBatchProvider({
+          apiKey: "sk-test", model: "claude-sonnet-4-20250514", fetchFn, pollIntervalMs: 0,
+        });
+
+        await provider.chatBatch(
+          [
+            { id: "req-1", messages: [{ role: "user", content: "test" }] },
+            { id: "req-2", messages: [{ role: "user", content: "test" }] },
+          ],
+          { onBatchCreated }
+        );
+
+        expect(onBatchCreated).toHaveBeenCalledTimes(2);
+        expect(onBatchCreated).toHaveBeenCalledWith("batch-c1");
+        expect(onBatchCreated).toHaveBeenCalledWith("batch-c2");
+      });
+    });
+
     it("includes prompt caching in batch create request", async () => {
       const fetchFn = vi
         .fn()
