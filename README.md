@@ -240,6 +240,7 @@ packages/
   cli/       Commander-based CLI
                - commands/     Command implementations (setup, doctor, scan, duplicates, review, status, config, clean)
   shared/    Types and Zod schemas shared across packages
+demo/        Next.js app for visualizing duplicate-detection results
 local-ai/
   vector-store.yml    Local Qdrant via Docker (optional)
   llm-provider.yml    Local Ollama via Docker (optional)

@@ -245,9 +245,8 @@ The demo app is a Next.js site that visualizes duplicate groups with a much
 richer UI than the CLI. Pull the scan results from the running API server:
 
 ```bash
-cd <project-root>/demo
-npm install
-npm run pull-data
+cd <project-root>
+bun run --cwd demo pull-data
 ```
 
 This fetches data for all tracked repos from the API, writes JSON files into
@@ -259,8 +258,8 @@ still running (Phase 4).
 ### 7.2 — Start the demo app
 
 ```bash
-cd <project-root>/demo
-npm run dev
+cd <project-root>
+bun run --cwd demo dev
 ```
 
 Wait for Next.js to report the dev server is ready (usually a few seconds).
@@ -302,7 +301,7 @@ Commands you can try:
   ossgard check-duplicates <owner/repo>            View duplicate groups (CLI)
   ossgard check-duplicates <owner/repo> --pr <N>   Check a specific PR
   ossgard status                                   List tracked repos and scans
-  npm run pull-data  (in demo/)                    Refresh demo app data after a new scan
+  bun run --cwd demo pull-data                      Refresh demo app data after a new scan
 
 To stop services when done:
   pkill -f ossgard-api
