@@ -1,4 +1,4 @@
-import { estimateRequestTokens, chunkBatchRequests } from "./batch-chunker.js";
+import { estimateRequestTokens, chunkBatchRequests, chunkEmbeddingTexts } from "./batch-chunker.js";
 import type { BatchChatRequest } from "./llm-provider.js";
 
 /** Simple token counter: 1 token per character (for predictable test math). */
@@ -114,5 +114,51 @@ describe("chunkBatchRequests", () => {
     expect(chunks[0].map((r) => r.id)).toEqual(["r1"]);
     expect(chunks[1].map((r) => r.id)).toEqual(["r2"]);
     expect(chunks[2].map((r) => r.id)).toEqual(["r3"]);
+  });
+});
+
+describe("chunkEmbeddingTexts", () => {
+  it("returns empty array for empty input", () => {
+    expect(chunkEmbeddingTexts([], charCounter, 1000)).toEqual([]);
+  });
+
+  it("returns single chunk when total tokens < budget", () => {
+    const chunks = chunkEmbeddingTexts(["hello", "world"], charCounter, 100);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toEqual(["hello", "world"]);
+  });
+
+  it("splits into multiple chunks when total tokens > budget", () => {
+    const texts = ["aaaa", "bbbb", "cccc"]; // 4 tokens each
+    // Budget = 8: aaaa+bbbb fit (8), cccc starts new chunk
+    const chunks = chunkEmbeddingTexts(texts, charCounter, 8);
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0]).toEqual(["aaaa", "bbbb"]);
+    expect(chunks[1]).toEqual(["cccc"]);
+  });
+
+  it("always includes at least 1 text per chunk even if it exceeds budget", () => {
+    const chunks = chunkEmbeddingTexts(["x".repeat(500)], charCounter, 10);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toHaveLength(1);
+  });
+
+  it("preserves original order", () => {
+    const texts = ["aa", "bb", "cc", "dd"]; // 2 tokens each
+    // Budget = 4: aa+bb fit (4), cc+dd fit (4)
+    const chunks = chunkEmbeddingTexts(texts, charCounter, 4);
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0]).toEqual(["aa", "bb"]);
+    expect(chunks[1]).toEqual(["cc", "dd"]);
+  });
+
+  it("handles oversized texts between normal ones", () => {
+    const texts = ["ab", "x".repeat(100), "cd"]; // 2, 100, 2 tokens
+    // Budget = 10: "ab" fits (2), oversized alone (100), "cd" alone (2)
+    const chunks = chunkEmbeddingTexts(texts, charCounter, 10);
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]).toEqual(["ab"]);
+    expect(chunks[1]).toEqual(["x".repeat(100)]);
+    expect(chunks[2]).toEqual(["cd"]);
   });
 });

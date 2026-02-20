@@ -46,3 +46,37 @@ export function chunkBatchRequests(
 
   return chunks;
 }
+
+/**
+ * Splits embedding texts into chunks where each chunk's total tokens
+ * stays under the given budget.
+ * Always puts at least 1 text per chunk (even if it exceeds budget).
+ */
+export function chunkEmbeddingTexts(
+  texts: string[],
+  countTokens: (text: string) => number,
+  tokenBudget: number
+): string[][] {
+  const chunks: string[][] = [];
+  let currentChunk: string[] = [];
+  let currentTokens = 0;
+
+  for (const text of texts) {
+    const tokens = countTokens(text);
+
+    if (currentChunk.length > 0 && currentTokens + tokens > tokenBudget) {
+      chunks.push(currentChunk);
+      currentChunk = [];
+      currentTokens = 0;
+    }
+
+    currentChunk.push(text);
+    currentTokens += tokens;
+  }
+
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks;
+}

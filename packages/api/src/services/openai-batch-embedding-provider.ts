@@ -6,6 +6,7 @@ import type {
 } from "./llm-provider.js";
 import type { Logger } from "../logger.js";
 import { createTiktokenEncoder, countTokensTiktoken, type Tiktoken } from "./token-counting.js";
+import { chunkEmbeddingTexts } from "./batch-chunker.js";
 
 const DIMENSION_MAP: Record<string, number> = {
   "text-embedding-3-large": 3072,
@@ -22,6 +23,9 @@ export interface OpenAIBatchEmbeddingProviderOptions {
   fetchFn?: typeof fetch;
   logger?: Logger;
 }
+
+/** OpenAI max is 300k tokens per embedding request; use 250k for safety */
+const EMBEDDING_TOKEN_BUDGET = 250_000;
 
 export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
   readonly batch = true as const;
@@ -54,6 +58,21 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
   }
 
   async embed(texts: string[]): Promise<number[][]> {
+    const chunks = chunkEmbeddingTexts(
+      texts,
+      (t) => this.countTokens(t),
+      EMBEDDING_TOKEN_BUDGET
+    );
+
+    const allEmbeddings: number[][] = [];
+    for (const chunk of chunks) {
+      const embeddings = await this.embedChunk(chunk);
+      allEmbeddings.push(...embeddings);
+    }
+    return allEmbeddings;
+  }
+
+  private async embedChunk(texts: string[]): Promise<number[][]> {
     const response = await this.fetchFn(
       "https://api.openai.com/v1/embeddings",
       {
