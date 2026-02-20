@@ -196,11 +196,11 @@ dupes.get("/repos/:owner/:name/review/:prNumber", async (c) => {
     // PR already has embeddings in vector store — retrieve them
     codeVector = await services.vectorStore.getVector(
       CODE_COLLECTION,
-      `${repo.id}-${pr.number}-code-v2`
+      `${repo.id}-${pr.number}-code`
     );
     intentVector = await services.vectorStore.getVector(
       INTENT_COLLECTION,
-      `${repo.id}-${pr.number}-intent-v2`
+      `${repo.id}-${pr.number}-intent`
     );
   }
 
@@ -232,14 +232,14 @@ dupes.get("/repos/:owner/:name/review/:prNumber", async (c) => {
     intentVector = intentEmbeddings[0];
     codeVector = codeEmbeddings[0];
 
-    // Upsert into vector store with -v2 IDs (matching scan pipeline)
+    // Upsert into vector store (matching scan pipeline)
     await services.vectorStore.upsert(INTENT_COLLECTION, [{
-      id: `${repo.id}-${pr.number}-intent-v2`,
+      id: `${repo.id}-${pr.number}-intent`,
       vector: intentVector,
       payload: { repoId: repo.id, prNumber: pr.number, prId: pr.id },
     }]);
     await services.vectorStore.upsert(CODE_COLLECTION, [{
-      id: `${repo.id}-${pr.number}-code-v2`,
+      id: `${repo.id}-${pr.number}-code`,
       vector: codeVector,
       payload: { repoId: repo.id, prNumber: pr.number, prId: pr.id },
     }]);

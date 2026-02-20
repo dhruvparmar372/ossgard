@@ -8,8 +8,8 @@ import { buildRankPrompt } from "../../prompts.js";
 import { computeEmbedHash } from "../../embed-utils.js";
 import { log } from "../../../logger.js";
 
-const CODE_V2_COLLECTION = "ossgard-code-v2";
-const INTENT_V2_COLLECTION = "ossgard-intent-v2";
+const CODE_COLLECTION = "ossgard-code";
+const INTENT_COLLECTION = "ossgard-intent";
 const DEFAULT_CANDIDATE_THRESHOLD = 0.65;
 const DEFAULT_MAX_CANDIDATES = 5;
 
@@ -107,8 +107,8 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
     // --- Phase 2: Embed (intent summaries + diff content) ---
     strategyLog.info("Phase 2: Embedding", { scanId });
 
-    await vectorStore.ensureCollection(INTENT_V2_COLLECTION, embedding.dimensions);
-    await vectorStore.ensureCollection(CODE_V2_COLLECTION, embedding.dimensions);
+    await vectorStore.ensureCollection(INTENT_COLLECTION, embedding.dimensions);
+    await vectorStore.ensureCollection(CODE_COLLECTION, embedding.dimensions);
 
     // We need vectors for ALL PRs for k-NN search, but only embed changed PRs.
     // For changed PRs: compute and upsert new embeddings.
@@ -125,9 +125,9 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
       const intentTexts = changedPRs.map((pr) => intents.get(pr.number) ?? pr.title);
       const intentVectors = await embedding.embed(intentTexts);
       await vectorStore.upsert(
-        INTENT_V2_COLLECTION,
+        INTENT_COLLECTION,
         changedPRs.map((pr, i) => ({
-          id: `${repoId}-${pr.number}-intent-v2`,
+          id: `${repoId}-${pr.number}-intent`,
           vector: intentVectors[i],
           payload: { repoId, prNumber: pr.number, prId: pr.id },
         }))
@@ -143,9 +143,9 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
       });
       const codeVectors = await embedding.embed(codeTexts);
       await vectorStore.upsert(
-        CODE_V2_COLLECTION,
+        CODE_COLLECTION,
         changedPRs.map((pr, i) => ({
-          id: `${repoId}-${pr.number}-code-v2`,
+          id: `${repoId}-${pr.number}-code`,
           vector: codeVectors[i],
           payload: { repoId, prNumber: pr.number, prId: pr.id },
         }))
@@ -167,14 +167,14 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
       if (intents.has(pr.number)) {
         // PR was already handled (has cached intent)
         const intentPoint = await vectorStore.getVector(
-          INTENT_V2_COLLECTION,
-          `${repoId}-${pr.number}-intent-v2`
+          INTENT_COLLECTION,
+          `${repoId}-${pr.number}-intent`
         );
         if (intentPoint) intentVectorMap.set(pr.number, intentPoint);
 
         const codePoint = await vectorStore.getVector(
-          CODE_V2_COLLECTION,
-          `${repoId}-${pr.number}-code-v2`
+          CODE_COLLECTION,
+          `${repoId}-${pr.number}-code`
         );
         if (codePoint) codeVectorMap.set(pr.number, codePoint);
       }
@@ -195,8 +195,8 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
       const codeVector = codeVectorMap.get(pr.number);
 
       const searches: Array<[string, number[]]> = [];
-      if (intentVector) searches.push([INTENT_V2_COLLECTION, intentVector]);
-      if (codeVector) searches.push([CODE_V2_COLLECTION, codeVector]);
+      if (intentVector) searches.push([INTENT_COLLECTION, intentVector]);
+      if (codeVector) searches.push([CODE_COLLECTION, codeVector]);
 
       for (const [collection, vector] of searches) {
         const neighbors = await vectorStore.search(collection, vector, {

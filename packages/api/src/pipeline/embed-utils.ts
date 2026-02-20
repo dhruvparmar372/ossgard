@@ -1,8 +1,8 @@
 import type { PR } from "@ossgard/shared";
 import { createHash } from "crypto";
 
-export const CODE_COLLECTION = "ossgard-code-v2";
-export const INTENT_COLLECTION = "ossgard-intent-v2";
+export const CODE_COLLECTION = "ossgard-code";
+export const INTENT_COLLECTION = "ossgard-intent";
 
 /** Compute a stable hash for a PR's embedding-relevant fields. */
 export function computeEmbedHash(pr: Pick<PR, "diffHash" | "title" | "body" | "filePaths">): string {

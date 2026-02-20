@@ -133,10 +133,10 @@ describe("PairwiseLLMStrategy", () => {
       // Since embed returns [i*0.1, i*0.2, i*0.3], PR1 (index 0) gets [0,0,0] and PR2 (index 1) gets [0.1,0.2,0.3]
       if (_vector[0] === 0 && _vector[1] === 0) {
         // PR1 searching - return PR2 as neighbor
-        return [{ id: "1-2-intent-v2", score: 0.85, payload: { repoId: 1, prNumber: 2, prId: 2 } }];
+        return [{ id: "1-2-intent", score: 0.85, payload: { repoId: 1, prNumber: 2, prId: 2 } }];
       }
       // PR2 searching - return PR1 as neighbor
-      return [{ id: "1-1-intent-v2", score: 0.85, payload: { repoId: 1, prNumber: 1, prId: 1 } }];
+      return [{ id: "1-1-intent", score: 0.85, payload: { repoId: 1, prNumber: 1, prId: 1 } }];
     });
 
     const db = createMockDb();
@@ -182,9 +182,9 @@ describe("PairwiseLLMStrategy", () => {
     const vectorStore = createMockVectorStore((_collection, _vector, _opts) => {
       // Return neighbors above threshold so pairs are formed (but verifier rejects)
       if (_vector[0] === 0 && _vector[1] === 0) {
-        return [{ id: "1-2-intent-v2", score: 0.8, payload: { repoId: 1, prNumber: 2, prId: 2 } }];
+        return [{ id: "1-2-intent", score: 0.8, payload: { repoId: 1, prNumber: 2, prId: 2 } }];
       }
-      return [{ id: "1-1-intent-v2", score: 0.8, payload: { repoId: 1, prNumber: 1, prId: 1 } }];
+      return [{ id: "1-1-intent", score: 0.8, payload: { repoId: 1, prNumber: 1, prId: 1 } }];
     });
 
     const db = createMockDb();
@@ -348,14 +348,14 @@ describe("PairwiseLLMStrategy", () => {
     await strategy.execute(makeContext({ prs: [pr1], resolver, db }));
 
     // Should ensure both collections
-    expect(vectorStore.ensureCollection).toHaveBeenCalledWith("ossgard-intent-v2", 3);
-    expect(vectorStore.ensureCollection).toHaveBeenCalledWith("ossgard-code-v2", 3);
+    expect(vectorStore.ensureCollection).toHaveBeenCalledWith("ossgard-intent", 3);
+    expect(vectorStore.ensureCollection).toHaveBeenCalledWith("ossgard-code", 3);
 
     // Should upsert into both collections
     expect(vectorStore.upsert).toHaveBeenCalledTimes(2);
     const upsertCalls = (vectorStore.upsert as any).mock.calls;
-    expect(upsertCalls[0][0]).toBe("ossgard-intent-v2");
-    expect(upsertCalls[1][0]).toBe("ossgard-code-v2");
+    expect(upsertCalls[0][0]).toBe("ossgard-intent");
+    expect(upsertCalls[1][0]).toBe("ossgard-code");
 
     // Embedding should be called twice (intent texts + code texts)
     expect(embedding.embed).toHaveBeenCalledTimes(2);
