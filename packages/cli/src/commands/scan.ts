@@ -106,7 +106,7 @@ Examples:
               );
               if (scan.dupeGroupCount > 0) {
                 console.log(
-                  `Run \`ossgard duplicates ${owner}/${name}\` to view results.`
+                  `Run \`ossgard check-duplicates ${owner}/${name}\` to view results.`
                 );
               }
             }

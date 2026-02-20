@@ -265,7 +265,7 @@ You can provide a PR number or GitHub URL.
 If yes, run:
 
 ```bash
-$HOME/.local/bin/ossgard review <owner/repo> <pr-number>
+$HOME/.local/bin/ossgard check-duplicates <owner/repo> --pr <pr-number>
 ```
 
 This shows any existing dupe groups containing that PR, plus similar PRs
@@ -286,11 +286,11 @@ Your setup:
   Database:    ~/.ossgard/ossgard.db
 
 Commands you can try:
-  ossgard scan <owner/repo>          Scan another repository
-  ossgard dupes <owner/repo>         View duplicate groups
-  ossgard review <owner/repo> <pr>   Check a specific PR for duplicates
-  ossgard status                     List tracked repos and scans
-  ossgard dupes <owner/repo> --json  Machine-readable output
+  ossgard scan <owner/repo>                     Scan another repository
+  ossgard check-duplicates <owner/repo>        View duplicate groups
+  ossgard check-duplicates <owner/repo> --pr <N>  Check a specific PR
+  ossgard status                               List tracked repos and scans
+  ossgard check-duplicates <owner/repo> --json Machine-readable output
 
 To stop services when done:
   pkill -f ossgard-api

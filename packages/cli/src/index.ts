@@ -6,8 +6,7 @@ import { statusCommand } from "./commands/status.js";
 import { registerSetupCommand } from "./commands/setup.js";
 import { registerConfigCommand } from "./commands/config.js";
 import { scanCommand } from "./commands/scan.js";
-import { duplicatesCommand } from "./commands/duplicates.js";
-import { reviewCommand } from "./commands/review.js";
+import { checkDuplicatesCommand } from "./commands/duplicates.js";
 import { cleanCommand } from "./commands/clean.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { setJsonMode } from "./json-mode.js";
@@ -39,8 +38,7 @@ program.addCommand(doctorCommand(client));
 
 // Primary workflow
 program.addCommand(scanCommand(client));
-program.addCommand(duplicatesCommand(client));
-program.addCommand(reviewCommand(client));
+program.addCommand(checkDuplicatesCommand(client));
 
 // Informational
 program.addCommand(statusCommand(client));

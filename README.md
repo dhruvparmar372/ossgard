@@ -86,7 +86,7 @@ $ ossgard-api                    $ ossgard setup
 
                                  $ ossgard scan facebook/react
                                    → Auto-tracks the repo if not already tracked
-                                 $ ossgard duplicates facebook/react
+                                 $ ossgard check-duplicates facebook/react
 ```
 
 ### Local AI stack (optional)
@@ -125,9 +125,9 @@ ossgard doctor                     # check prerequisites and service health
 ossgard scan facebook/react        # run a duplicate scan (auto-tracks repo)
 ossgard scan facebook/react --full # full re-scan (ignore incremental optimizations)
 ossgard scan facebook/react --no-wait  # start scan without waiting for completion
-ossgard duplicates facebook/react  # view duplicate groups
-ossgard duplicates facebook/react --min-score 70  # filter by minimum score
-ossgard review facebook/react 1234 # find duplicates for a specific PR
+ossgard check-duplicates facebook/react  # view duplicate groups
+ossgard check-duplicates facebook/react --min-score 70  # filter by minimum score
+ossgard check-duplicates facebook/react --pr 1234  # find duplicates for a specific PR
 ossgard status                     # list tracked repos and active scans
 ossgard config show                # view local CLI configuration
 ossgard config get api.url         # get a specific config value
