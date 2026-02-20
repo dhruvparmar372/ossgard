@@ -50,7 +50,7 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
     this.fetchFn = options.fetchFn ?? fetch;
     this.dimensions = DIMENSION_MAP[options.model] ?? 3072;
     this.basePollIntervalMs = options.pollIntervalMs ?? 10_000;
-    this.maxPollIntervalMs = options.maxPollIntervalMs ?? 120_000;
+    this.maxPollIntervalMs = options.maxPollIntervalMs ?? 600_000;
     this.timeoutMs = options.timeoutMs ?? 24 * 60 * 60 * 1000;
     this.encoder = createTiktokenEncoder(options.model);
     this.logger = options.logger;

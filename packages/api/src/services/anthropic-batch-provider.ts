@@ -43,7 +43,7 @@ export class AnthropicBatchProvider implements BatchChatProvider {
     this.apiKey = options.apiKey;
     this.model = options.model;
     this.basePollIntervalMs = options.pollIntervalMs ?? 10_000;
-    this.maxPollIntervalMs = options.maxPollIntervalMs ?? 120_000;
+    this.maxPollIntervalMs = options.maxPollIntervalMs ?? 600_000;
     this.timeoutMs = options.timeoutMs ?? 4 * 60 * 60 * 1000;
     this.fetchFn = options.fetchFn ?? fetch;
     this.logger = options.logger;

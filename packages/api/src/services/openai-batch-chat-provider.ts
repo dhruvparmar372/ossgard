@@ -55,7 +55,7 @@ export class OpenAIBatchChatProvider implements BatchChatProvider {
     this.model = options.model;
     this.fetchFn = options.fetchFn ?? fetch;
     this.basePollIntervalMs = options.pollIntervalMs ?? 10_000;
-    this.maxPollIntervalMs = options.maxPollIntervalMs ?? 120_000;
+    this.maxPollIntervalMs = options.maxPollIntervalMs ?? 600_000;
     this.timeoutMs = options.timeoutMs ?? 24 * 60 * 60 * 1000;
     this.tokenLimitRetryBaseMs = options.tokenLimitRetryBaseMs ?? TOKEN_LIMIT_BASE_DELAY_MS;
     this.encoder = createTiktokenEncoder(options.model);
