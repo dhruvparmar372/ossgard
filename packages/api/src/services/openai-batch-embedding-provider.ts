@@ -5,7 +5,7 @@ import type {
   BatchEmbedResult,
 } from "./llm-provider.js";
 import type { Logger } from "../logger.js";
-import { createTiktokenEncoder, countTokensTiktoken, type Tiktoken } from "./token-counting.js";
+import { createTiktokenEncoder, countTokensTiktoken, truncateToTokenLimit, type Tiktoken } from "./token-counting.js";
 import { chunkEmbeddingTexts } from "./batch-chunker.js";
 
 const DIMENSION_MAP: Record<string, number> = {
@@ -64,8 +64,13 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
     // OpenAI rejects empty strings — replace with a single space
     const sanitized = texts.map((t) => (t.length === 0 ? " " : t));
 
+    // Truncate individual texts that exceed the per-input token limit
+    const truncated = sanitized.map((t) =>
+      truncateToTokenLimit(this.encoder, t, this.maxInputTokens)
+    );
+
     const chunks = chunkEmbeddingTexts(
-      sanitized,
+      truncated,
       (t) => this.countTokens(t) + PER_TEXT_OVERHEAD_TOKENS,
       EMBEDDING_TOKEN_BUDGET
     );
@@ -126,15 +131,19 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
       batchId = options.existingBatchId;
       this.logger?.info("Resuming existing batch", { batchId });
     } else {
-      // 1. Build JSONL content
-      const jsonlLines = requests.map((req) =>
-        JSON.stringify({
+      // 1. Build JSONL content (sanitize + truncate texts)
+      const jsonlLines = requests.map((req) => {
+        const input = req.texts.map((t) => {
+          const s = t.length === 0 ? " " : t;
+          return truncateToTokenLimit(this.encoder, s, this.maxInputTokens);
+        });
+        return JSON.stringify({
           custom_id: req.id,
           method: "POST",
           url: "/v1/embeddings",
-          body: { model: this.model, input: req.texts },
-        })
-      );
+          body: { model: this.model, input },
+        });
+      });
       const jsonlContent = jsonlLines.join("\n");
 
       // 2. Upload file

@@ -1,5 +1,5 @@
 import type { EmbeddingProvider } from "./llm-provider.js";
-import { createTiktokenEncoder, countTokensTiktoken, type Tiktoken } from "./token-counting.js";
+import { createTiktokenEncoder, countTokensTiktoken, truncateToTokenLimit, type Tiktoken } from "./token-counting.js";
 import { chunkEmbeddingTexts } from "./batch-chunker.js";
 
 const DIMENSION_MAP: Record<string, number> = {
@@ -44,8 +44,13 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
     // OpenAI rejects empty strings — replace with a single space
     const sanitized = texts.map((t) => (t.length === 0 ? " " : t));
 
+    // Truncate individual texts that exceed the per-input token limit
+    const truncated = sanitized.map((t) =>
+      truncateToTokenLimit(this.encoder, t, this.maxInputTokens)
+    );
+
     const chunks = chunkEmbeddingTexts(
-      sanitized,
+      truncated,
       (t) => this.countTokens(t) + PER_TEXT_OVERHEAD_TOKENS,
       EMBEDDING_TOKEN_BUDGET
     );
