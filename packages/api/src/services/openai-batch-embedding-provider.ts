@@ -61,8 +61,11 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
   }
 
   async embed(texts: string[]): Promise<number[][]> {
+    // OpenAI rejects empty strings — replace with a single space
+    const sanitized = texts.map((t) => (t.length === 0 ? " " : t));
+
     const chunks = chunkEmbeddingTexts(
-      texts,
+      sanitized,
       (t) => this.countTokens(t) + PER_TEXT_OVERHEAD_TOKENS,
       EMBEDDING_TOKEN_BUDGET
     );

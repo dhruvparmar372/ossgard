@@ -161,4 +161,23 @@ describe("chunkEmbeddingTexts", () => {
     expect(chunks[1]).toEqual(["x".repeat(100)]);
     expect(chunks[2]).toEqual(["cd"]);
   });
+
+  it("splits when item count exceeds maxItems even if tokens fit", () => {
+    const texts = Array.from({ length: 5 }, (_, i) => String(i)); // 1 token each
+    // Budget = 1000 (plenty), but maxItems = 2
+    const chunks = chunkEmbeddingTexts(texts, charCounter, 1000, 2);
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]).toEqual(["0", "1"]);
+    expect(chunks[1]).toEqual(["2", "3"]);
+    expect(chunks[2]).toEqual(["4"]);
+  });
+
+  it("splits on whichever limit is hit first (items before tokens)", () => {
+    const texts = ["aaa", "bbb", "ccc", "ddd"]; // 3 tokens each
+    // Budget = 100 (plenty), maxItems = 2
+    const chunks = chunkEmbeddingTexts(texts, charCounter, 100, 2);
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0]).toEqual(["aaa", "bbb"]);
+    expect(chunks[1]).toEqual(["ccc", "ddd"]);
+  });
 });

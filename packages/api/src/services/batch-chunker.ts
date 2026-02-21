@@ -47,15 +47,19 @@ export function chunkBatchRequests(
   return chunks;
 }
 
+/** OpenAI /v1/embeddings has an undocumented per-request item limit */
+const MAX_EMBEDDING_ITEMS_PER_CHUNK = 2048;
+
 /**
  * Splits embedding texts into chunks where each chunk's total tokens
- * stays under the given budget.
+ * stays under the given budget AND item count stays under the max.
  * Always puts at least 1 text per chunk (even if it exceeds budget).
  */
 export function chunkEmbeddingTexts(
   texts: string[],
   countTokens: (text: string) => number,
-  tokenBudget: number
+  tokenBudget: number,
+  maxItems: number = MAX_EMBEDDING_ITEMS_PER_CHUNK
 ): string[][] {
   const chunks: string[][] = [];
   let currentChunk: string[] = [];
@@ -64,7 +68,10 @@ export function chunkEmbeddingTexts(
   for (const text of texts) {
     const tokens = countTokens(text);
 
-    if (currentChunk.length > 0 && currentTokens + tokens > tokenBudget) {
+    if (
+      currentChunk.length > 0 &&
+      (currentTokens + tokens > tokenBudget || currentChunk.length >= maxItems)
+    ) {
       chunks.push(currentChunk);
       currentChunk = [];
       currentTokens = 0;
