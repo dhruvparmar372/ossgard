@@ -72,6 +72,8 @@ function createMockDb(): Database {
   return {
     updateScanStatus: vi.fn(),
     updatePRCacheFields: vi.fn(),
+    updatePRIntentSummary: vi.fn(),
+    updatePREmbedHash: vi.fn(),
     getPairwiseCache: vi.fn().mockReturnValue(new Map()),
     setPairwiseCache: vi.fn(),
   } as unknown as Database;
@@ -359,6 +361,64 @@ describe("PairwiseLLMStrategy", () => {
 
     // Embedding should be called twice (intent texts + code texts)
     expect(embedding.embed).toHaveBeenCalledTimes(2);
+  });
+
+  it("reuses cached intentSummary for changed PRs and persists intents before embedding", async () => {
+    // Simulate a PR where Phase 1 succeeded previously but Phase 2 failed:
+    // embedHash is null (vectors not in Qdrant) but intentSummary is cached
+    const pr1 = makePR({
+      id: 1,
+      number: 1,
+      title: "Fix auth bug",
+      filePaths: ["src/auth.ts"],
+      body: "Fixes the login issue",
+      embedHash: null,
+      intentSummary: "Cached: Fixes authentication bug in login flow",
+    });
+    const pr2 = makePR({
+      id: 2,
+      number: 2,
+      title: "Fix login bug",
+      filePaths: ["src/auth.ts"],
+      body: "Fixes authentication",
+      embedHash: null,
+      intentSummary: "Cached: Fixes authentication bug in login flow",
+    });
+
+    // LLM should NOT be called for intent extraction since both PRs have cached intents
+    // Only pairwise verification + ranking
+    const llm = createMockLLM([
+      // Pairwise verification
+      { response: { isDuplicate: true, confidence: 0.9, relationship: "near_duplicate", rationale: "Both fix auth" }, usage: { inputTokens: 200, outputTokens: 40 } },
+      // Ranking
+      { response: { rankings: [{ prNumber: 1, score: 85, rationale: "More complete fix" }, { prNumber: 2, score: 70, rationale: "Simpler approach" }] }, usage: { inputTokens: 150, outputTokens: 30 } },
+    ]);
+
+    const embedding = createMockEmbedding();
+    const vectorStore = createMockVectorStore((_collection, _vector, _opts) => {
+      if (_vector[0] === 0 && _vector[1] === 0) {
+        return [{ id: "1-2-intent", score: 0.85, payload: { repoId: 1, prNumber: 2, prId: 2 } }];
+      }
+      return [{ id: "1-1-intent", score: 0.85, payload: { repoId: 1, prNumber: 1, prId: 1 } }];
+    });
+
+    const db = createMockDb();
+    const resolver = createMockResolver({ llm, embedding, vectorStore });
+
+    const strategy = new PairwiseLLMStrategy();
+    const result = await strategy.execute(makeContext({ prs: [pr1, pr2], resolver, db }));
+
+    expect(result.groups).toHaveLength(1);
+
+    // LLM should only have been called for verification + ranking (2 calls), NOT intent extraction
+    expect(llm.chat).toHaveBeenCalledTimes(2);
+
+    // Intent summaries should be persisted immediately (before embedding)
+    expect(db.updatePRIntentSummary).toHaveBeenCalledWith(1, "Cached: Fixes authentication bug in login flow");
+    expect(db.updatePRIntentSummary).toHaveBeenCalledWith(2, "Cached: Fixes authentication bug in login flow");
+
+    // Embed hash should be persisted separately after successful embedding
+    expect(db.updatePREmbedHash).toHaveBeenCalledTimes(2);
   });
 
   it("skips neighbors below threshold", async () => {

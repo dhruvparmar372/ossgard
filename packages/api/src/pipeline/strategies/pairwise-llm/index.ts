@@ -95,12 +95,35 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
       }
     }
 
-    // Extract intents for changed PRs via LLM
-    if (changedPRs.length > 0) {
+    // For changed PRs, reuse cached intent summaries when available
+    // (e.g. from a previous run where Phase 1 succeeded but Phase 2 failed)
+    const needsExtraction: PR[] = [];
+    for (const pr of changedPRs) {
+      if (pr.intentSummary) {
+        intents.set(pr.number, pr.intentSummary);
+      } else {
+        needsExtraction.push(pr);
+      }
+    }
+
+    // Extract intents only for PRs without cached summaries
+    if (needsExtraction.length > 0) {
       const extractor = new IntentExtractor(llm);
-      const newIntents = await extractor.extract(changedPRs);
+      const newIntents = await extractor.extract(needsExtraction);
       for (const [prNum, summary] of newIntents) {
         intents.set(prNum, summary);
+      }
+    }
+
+    strategyLog.info("[detect] Intent cache", {
+      scanId, cached: changedPRs.length - needsExtraction.length, extracted: needsExtraction.length,
+    });
+
+    // Persist intent summaries immediately so they survive if Phase 2 fails
+    for (const pr of changedPRs) {
+      const summary = intents.get(pr.number);
+      if (summary) {
+        db.updatePRIntentSummary(pr.id, summary);
       }
     }
 
@@ -154,11 +177,10 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
         codeVectorMap.set(changedPRs[i].number, codeVectors[i]);
       }
 
-      // Persist cache fields for changed PRs
+      // Persist embed hash now that vectors are in Qdrant
       for (const pr of changedPRs) {
         const hash = hashMap.get(pr.number)!;
-        const summary = intents.get(pr.number) ?? "";
-        db.updatePRCacheFields(pr.id, hash, summary);
+        db.updatePREmbedHash(pr.id, hash);
       }
     }
 

@@ -402,6 +402,11 @@ export class Database {
     stmt.run(embedHash, intentSummary, prId);
   }
 
+  updatePRIntentSummary(prId: number, intentSummary: string): void {
+    const stmt = this.raw.prepare("UPDATE prs SET intent_summary = ? WHERE id = ?");
+    stmt.run(intentSummary, prId);
+  }
+
   // ── Pairwise Cache methods ──
 
   getPairwiseCache(
