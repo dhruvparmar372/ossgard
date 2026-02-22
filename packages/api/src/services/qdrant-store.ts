@@ -75,6 +75,9 @@ export interface QdrantClient {
 
 const qdrantLog = log.child("qdrant");
 
+/** Max points per Qdrant upsert call to stay under REST payload size limits. */
+const UPSERT_BATCH_SIZE = 256;
+
 export class QdrantStore implements VectorStore {
   private client: QdrantClient;
 
@@ -104,15 +107,21 @@ export class QdrantStore implements VectorStore {
   }
 
   async upsert(collection: string, points: VectorPoint[]): Promise<void> {
+    if (points.length === 0) return;
+
     qdrantLog.debug("Upsert", { collection, points: points.length });
-    await this.client.upsert(collection, {
-      wait: true,
-      points: points.map((p) => ({
-        id: toUUID(p.id),
-        vector: p.vector,
-        payload: p.payload,
-      })),
-    });
+
+    for (let i = 0; i < points.length; i += UPSERT_BATCH_SIZE) {
+      const batch = points.slice(i, i + UPSERT_BATCH_SIZE);
+      await this.client.upsert(collection, {
+        wait: true,
+        points: batch.map((p) => ({
+          id: toUUID(p.id),
+          vector: p.vector,
+          payload: p.payload,
+        })),
+      });
+    }
   }
 
   async search(

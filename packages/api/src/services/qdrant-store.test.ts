@@ -102,6 +102,50 @@ describe("QdrantStore", () => {
         ],
       });
     });
+
+    it("chunks large upserts into batches of UPSERT_BATCH_SIZE", async () => {
+      // Create 600 points (exceeds UPSERT_BATCH_SIZE of 256)
+      const points = Array.from({ length: 600 }, (_, i) => ({
+        id: `point-${i}`,
+        vector: [i * 0.1],
+        payload: { repoId: 1 },
+      }));
+
+      await store.upsert("my-collection", points);
+
+      // Should split into 3 batches: 256 + 256 + 88
+      expect(mockClient.upsert).toHaveBeenCalledTimes(3);
+
+      const calls = (mockClient.upsert as ReturnType<typeof vi.fn>).mock.calls;
+      expect(calls[0][1].points).toHaveLength(256);
+      expect(calls[1][1].points).toHaveLength(256);
+      expect(calls[2][1].points).toHaveLength(88);
+
+      // All calls should use the same collection and wait=true
+      for (const call of calls) {
+        expect(call[0]).toBe("my-collection");
+        expect(call[1].wait).toBe(true);
+      }
+    });
+
+    it("sends all points in a single call when under UPSERT_BATCH_SIZE", async () => {
+      const points = Array.from({ length: 100 }, (_, i) => ({
+        id: `point-${i}`,
+        vector: [i * 0.1],
+        payload: { repoId: 1 },
+      }));
+
+      await store.upsert("my-collection", points);
+
+      expect(mockClient.upsert).toHaveBeenCalledTimes(1);
+      expect((mockClient.upsert as ReturnType<typeof vi.fn>).mock.calls[0][1].points).toHaveLength(100);
+    });
+
+    it("handles empty points array without calling client", async () => {
+      await store.upsert("my-collection", []);
+
+      expect(mockClient.upsert).not.toHaveBeenCalled();
+    });
   });
 
   describe("search", () => {
