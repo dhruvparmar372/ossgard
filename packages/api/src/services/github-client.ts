@@ -123,13 +123,16 @@ export class GitHubClient {
     }
   }
 
-  async listOpenPRs(owner: string, repo: string, maxResults?: number): Promise<FetchedPR[]> {
+  async listOpenPRs(owner: string, repo: string, maxResults?: number, since?: string): Promise<FetchedPR[]> {
     const allPRs: FetchedPR[] = [];
     let page = 1;
     const perPage = maxResults ? Math.min(maxResults, 100) : 100;
 
+    // When doing incremental fetch, sort by recently updated so we can stop early
+    const sortParams = since ? "&sort=updated&direction=desc" : "";
+
     while (true) {
-      const url = `https://api.github.com/repos/${owner}/${repo}/pulls?state=open&per_page=${perPage}&page=${page}`;
+      const url = `https://api.github.com/repos/${owner}/${repo}/pulls?state=open&per_page=${perPage}&page=${page}${sortParams}`;
       const response = await this.githubFetch(url, this.defaultHeaders());
 
       if (!response.ok) {
@@ -148,7 +151,14 @@ export class GitHubClient {
         updated_at: string;
       }>;
 
+      let hitStale = false;
       for (const pr of data) {
+        // Stop collecting once we hit PRs not updated since last scan
+        if (since && pr.updated_at < since) {
+          hitStale = true;
+          break;
+        }
+
         allPRs.push({
           number: pr.number,
           title: pr.title,
@@ -164,8 +174,8 @@ export class GitHubClient {
         }
       }
 
-      // If we got fewer than perPage, we've reached the last page
-      if (data.length < perPage) {
+      // Stop paginating if we hit stale PRs or reached the last page
+      if (hitStale || data.length < perPage) {
         break;
       }
 

@@ -40,6 +40,7 @@ export class ScanOrchestrator implements JobProcessor {
         owner: repo.owner,
         repo: repo.name,
         ...(maxPrs !== undefined && { maxPrs }),
+        ...(repo.lastScanAt && { lastScanAt: repo.lastScanAt }),
       },
     });
 

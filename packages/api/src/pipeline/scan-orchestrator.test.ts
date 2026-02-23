@@ -139,6 +139,32 @@ describe("ScanOrchestrator", () => {
     expect(call.payload).not.toHaveProperty("maxPrs");
   });
 
+  it("includes lastScanAt in ingest payload when repo has been scanned before", async () => {
+    // Set a lastScanAt on the repo
+    db.updateRepoLastScanAt(repoId, "2025-06-01T12:00:00Z");
+
+    await orchestrator.process(makeJob());
+
+    expect(mockQueue.enqueue).toHaveBeenCalledWith({
+      type: "ingest",
+      payload: {
+        repoId,
+        scanId,
+        accountId,
+        owner: "facebook",
+        repo: "react",
+        lastScanAt: "2025-06-01T12:00:00Z",
+      },
+    });
+  });
+
+  it("omits lastScanAt when repo has never been scanned", async () => {
+    await orchestrator.process(makeJob());
+
+    const call = (mockQueue.enqueue as any).mock.calls[0][0];
+    expect(call.payload).not.toHaveProperty("lastScanAt");
+  });
+
   it("has type 'scan'", () => {
     expect(orchestrator.type).toBe("scan");
   });

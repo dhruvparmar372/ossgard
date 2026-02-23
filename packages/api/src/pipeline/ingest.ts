@@ -20,13 +20,14 @@ export class IngestProcessor implements JobProcessor {
   ) {}
 
   async process(job: Job): Promise<void> {
-    const { repoId, scanId, accountId, owner, repo, maxPrs } = job.payload as {
+    const { repoId, scanId, accountId, owner, repo, maxPrs, lastScanAt } = job.payload as {
       repoId: number;
       scanId: number;
       accountId: number;
       owner: string;
       repo: string;
       maxPrs?: number;
+      lastScanAt?: string;
     };
 
     // Update scan status to "ingesting"
@@ -37,8 +38,8 @@ export class IngestProcessor implements JobProcessor {
     // Resolve the GitHub client from the account config
     const { github } = await this.resolver.resolve(accountId);
 
-    // Fetch open PRs from GitHub (optionally limited)
-    const fetchedPRs = await github.listOpenPRs(owner, repo, maxPrs);
+    // Fetch open PRs from GitHub (optionally limited, incrementally if we have a previous scan timestamp)
+    const fetchedPRs = await github.listOpenPRs(owner, repo, maxPrs, lastScanAt ?? undefined);
 
     ingestLog.info("Fetched PR list", { scanId, total: fetchedPRs.length });
 
@@ -146,8 +147,10 @@ export class IngestProcessor implements JobProcessor {
       prCount: fetchedPRs.length,
     });
 
-    // Collect the PR numbers that were part of this scan (all fetched, including skipped-unchanged)
-    const prNumbers = fetchedPRs.map((pr) => pr.number);
+    // For detect, use ALL open PRs from DB (not just fetched ones) so duplicate
+    // comparison covers the full set, even on incremental scans
+    const allOpenPRs = this.db.listOpenPRs(repoId);
+    const prNumbers = allOpenPRs.map((pr) => pr.number);
 
     // Enqueue the strategy-based detection scoped to these PRs
     await this.queue.enqueue({

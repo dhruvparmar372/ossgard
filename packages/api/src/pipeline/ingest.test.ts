@@ -175,7 +175,7 @@ describe("IngestProcessor", () => {
 
     await processor.process(makeJob());
 
-    expect(mockGitHub.listOpenPRs).toHaveBeenCalledWith("facebook", "react", undefined);
+    expect(mockGitHub.listOpenPRs).toHaveBeenCalledWith("facebook", "react", undefined, undefined);
   });
 
   it("passes maxPrs to listOpenPRs when present", async () => {
@@ -190,7 +190,52 @@ describe("IngestProcessor", () => {
 
     await processor.process(job);
 
-    expect(mockGitHub.listOpenPRs).toHaveBeenCalledWith("facebook", "react", 5);
+    expect(mockGitHub.listOpenPRs).toHaveBeenCalledWith("facebook", "react", 5, undefined);
+  });
+
+  it("passes lastScanAt to listOpenPRs when present", async () => {
+    (mockGitHub.listOpenPRs as any).mockResolvedValue([]);
+
+    const job: Job = {
+      ...makeJob(),
+      payload: { repoId, scanId, accountId, owner: "facebook", repo: "react", lastScanAt: "2025-06-01T00:00:00Z" },
+    };
+
+    await processor.process(job);
+
+    expect(mockGitHub.listOpenPRs).toHaveBeenCalledWith("facebook", "react", undefined, "2025-06-01T00:00:00Z");
+  });
+
+  it("sends all DB open PRs to detect job on incremental ingest", async () => {
+    // First ingest: store PR 1 and PR 2 in DB
+    const prs = [makeFetchedPR(1), makeFetchedPR(2)];
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
+    (mockGitHub.getPRFiles as any).mockResolvedValue(["src/index.ts"]);
+    (mockGitHub.getPRDiff as any)
+      .mockResolvedValueOnce({ diff: makeDiff(1), etag: '"etag1"' })
+      .mockResolvedValueOnce({ diff: makeDiff(2), etag: '"etag2"' });
+
+    await processor.process(makeJob());
+
+    // Second (incremental) ingest: only PR 3 is fetched (new since last scan)
+    const newPR = makeFetchedPR(3);
+    (mockGitHub.listOpenPRs as any).mockResolvedValue([newPR]);
+    (mockGitHub.getPRFiles as any).mockClear().mockResolvedValue(["src/new.ts"]);
+    (mockGitHub.getPRDiff as any).mockClear().mockResolvedValue({ diff: makeDiff(3), etag: '"etag3"' });
+    (mockQueue.enqueue as any).mockClear();
+
+    const incrementalJob: Job = {
+      ...makeJob(),
+      payload: { repoId, scanId, accountId, owner: "facebook", repo: "react", lastScanAt: "2025-01-01T00:00:00Z" },
+    };
+
+    await processor.process(incrementalJob);
+
+    // Detect job should receive all 3 open PRs from DB, not just the 1 fetched
+    const detectCall = (mockQueue.enqueue as any).mock.calls[0][0];
+    expect(detectCall.type).toBe("detect");
+    expect(detectCall.payload.prNumbers).toEqual(expect.arrayContaining([1, 2, 3]));
+    expect(detectCall.payload.prNumbers).toHaveLength(3);
   });
 
   it("calls getPRFiles and getPRDiff for each PR", async () => {

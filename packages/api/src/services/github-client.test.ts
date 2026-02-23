@@ -389,6 +389,104 @@ describe("GitHubClient", () => {
     );
   });
 
+  it("adds sort=updated&direction=desc when since is provided", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(makeGitHubResponse([]));
+
+    const client = new GitHubClient({
+      token: "test-token",
+      fetchFn: mockFetch,
+      maxRetries: 0,
+    });
+
+    await client.listOpenPRs("owner", "repo", undefined, "2025-06-01T00:00:00Z");
+
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain("sort=updated");
+    expect(url).toContain("direction=desc");
+  });
+
+  it("does not add sort params when since is not provided", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(makeGitHubResponse([]));
+
+    const client = new GitHubClient({
+      token: "test-token",
+      fetchFn: mockFetch,
+      maxRetries: 0,
+    });
+
+    await client.listOpenPRs("owner", "repo");
+
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).not.toContain("sort=");
+    expect(url).not.toContain("direction=");
+  });
+
+  it("stops paginating when hitting PRs older than since", async () => {
+    const recentPRs = Array.from({ length: 3 }, (_, i) => ({
+      ...makeGitHubPR(i + 1),
+      updated_at: "2025-06-15T00:00:00Z",
+    }));
+    const stalePRs = Array.from({ length: 2 }, (_, i) => ({
+      ...makeGitHubPR(i + 100),
+      updated_at: "2025-05-01T00:00:00Z",
+    }));
+
+    // Page has a mix: 3 recent + 2 stale
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeGitHubResponse([...recentPRs, ...stalePRs], { remaining: 4999, reset: 1700000000 })
+      );
+
+    const client = new GitHubClient({
+      token: "test-token",
+      fetchFn: mockFetch,
+      maxRetries: 0,
+    });
+
+    const prs = await client.listOpenPRs("owner", "repo", undefined, "2025-06-01T00:00:00Z");
+
+    // Only the 3 recent PRs should be returned
+    expect(prs).toHaveLength(3);
+    // Should not fetch a second page
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("fetches all pages when since is provided but all PRs are recent", async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => ({
+      ...makeGitHubPR(i + 1),
+      updated_at: "2025-06-15T00:00:00Z",
+    }));
+    const page2 = Array.from({ length: 5 }, (_, i) => ({
+      ...makeGitHubPR(i + 101),
+      updated_at: "2025-06-10T00:00:00Z",
+    }));
+
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeGitHubResponse(page1, { remaining: 4999, reset: 1700000000 })
+      )
+      .mockResolvedValueOnce(
+        makeGitHubResponse(page2, { remaining: 4998, reset: 1700000000 })
+      );
+
+    const client = new GitHubClient({
+      token: "test-token",
+      fetchFn: mockFetch,
+      maxRetries: 0,
+    });
+
+    const prs = await client.listOpenPRs("owner", "repo", undefined, "2025-06-01T00:00:00Z");
+
+    expect(prs).toHaveLength(105);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   it("handles single-page PR response (fewer than 100)", async () => {
     const prs = Array.from({ length: 5 }, (_, i) => makeGitHubPR(i + 1));
     const mockFetch = vi
