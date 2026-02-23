@@ -4,6 +4,8 @@
  * Pulls scan data for all tracked repos from a running ossgard-api server
  * and writes JSON files into demo/src/data/ for the static demo site.
  *
+ * Each scan gets its own file: data/{owner}-{name}/scan-{id}.json
+ *
  * Usage:
  *   npm run pull-data
  *   npm run pull-data -- --api-url http://localhost:3400 --api-key <key>
@@ -11,11 +13,11 @@
  * By default reads API URL and key from ~/.ossgard/config.toml.
  */
 
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rmSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { homedir } from "os";
-import type { RepoScanData } from "../src/lib/types";
+import type { RepoScanData, RepoScanIndex, ScanSummary } from "../src/lib/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "src", "data");
@@ -48,18 +50,12 @@ interface ApiDupesResponse {
   groups: ApiDupesGroup[];
 }
 
-interface ApiScanResponse {
+interface ApiScanSummary {
   id: number;
-  repoId: number;
   status: string;
-  strategy: string;
   prCount: number;
   dupeGroupCount: number;
-  inputTokens: number;
-  outputTokens: number;
-  startedAt: string;
-  completedAt: string | null;
-  error: string | null;
+  completedAt: string;
 }
 
 interface ApiRepo {
@@ -87,6 +83,14 @@ function truncateLabel(label: string | null, maxLen = 80): string {
   const truncated = label.slice(0, maxLen);
   const lastSpace = truncated.lastIndexOf(" ");
   return (lastSpace > 40 ? truncated.slice(0, lastSpace) : truncated) + "...";
+}
+
+function repoDirName(owner: string, name: string): string {
+  return `${owner}-${name}`;
+}
+
+function scanFilename(scanId: number): string {
+  return `scan-${scanId}.json`;
 }
 
 // --- Parse args ---
@@ -135,107 +139,177 @@ async function main() {
 
   console.log(`Found ${repos.length} repo(s) with scan data.\n`);
 
-  // 2. Pull data for each repo
-  const pulled: string[] = [];
+  // 2. Pull scan data for each repo
+  const repoIndexes: RepoScanIndex[] = [];
 
   for (const repo of repos) {
     const { owner, name } = repo;
     console.log(`--- ${owner}/${name} ---`);
 
-    // Fetch dupes
-    const dupesRes = await fetch(
-      `${apiUrl}/repos/${owner}/${name}/dupes`,
-      { headers }
-    );
-    if (!dupesRes.ok) {
-      const err = await dupesRes.text();
-      console.error(`  Skipping — failed to fetch dupes: ${dupesRes.status} ${err}\n`);
+    // Fetch scan list
+    const scansRes = await fetch(`${apiUrl}/repos/${owner}/${name}/scans`, { headers });
+    if (!scansRes.ok) {
+      console.error(`  Skipping — failed to fetch scans: ${scansRes.status}`);
       continue;
     }
-    const dupesData: ApiDupesResponse = await dupesRes.json();
+    const { scans: apiScans }: { scans: ApiScanSummary[] } = await scansRes.json();
 
-    // Fetch scan metadata
-    const scanRes = await fetch(`${apiUrl}/scans/${dupesData.scanId}`, {
-      headers,
-    });
-    if (!scanRes.ok) {
-      console.error(`  Skipping — failed to fetch scan: ${scanRes.status}\n`);
+    if (apiScans.length === 0) {
+      console.log("  No completed scans.\n");
       continue;
     }
-    const scanData: ApiScanResponse = await scanRes.json();
 
-    // Transform
-    const repoScanData: RepoScanData = {
-      repo: {
-        owner,
-        name,
-        url: `https://github.com/${owner}/${name}`,
-      },
-      scan: {
-        id: dupesData.scanId,
-        completedAt: dupesData.completedAt,
-        prCount: scanData.prCount,
-        dupeGroupCount: dupesData.groupCount,
-      },
-      groups: dupesData.groups.map((g) => ({
-        id: g.groupId,
-        label: truncateLabel(g.label),
-        members: g.members.map((m) => ({
-          prNumber: m.prNumber,
-          title: m.title,
-          author: m.author,
-          state: m.state,
-          rank: m.rank,
-          score: m.score,
-          rationale: m.rationale || "",
-          url: `https://github.com/${owner}/${name}/pull/${m.prNumber}`,
+    // Ensure repo directory exists
+    const dir = join(DATA_DIR, repoDirName(owner, name));
+    mkdirSync(dir, { recursive: true });
+
+    // Track which scan IDs are current (for cleanup)
+    const currentScanIds = new Set(apiScans.map((s) => s.id));
+
+    // Download each scan (skip if already exists)
+    const scanSummaries: ScanSummary[] = [];
+    let newScans = 0;
+
+    for (const scanMeta of apiScans) {
+      const filename = scanFilename(scanMeta.id);
+      const filepath = join(dir, filename);
+
+      scanSummaries.push({
+        id: scanMeta.id,
+        completedAt: scanMeta.completedAt,
+        prCount: scanMeta.prCount,
+        dupeGroupCount: scanMeta.dupeGroupCount,
+      });
+
+      if (existsSync(filepath)) {
+        continue; // already downloaded
+      }
+
+      // Fetch full dupes for this scan
+      const dupesRes = await fetch(
+        `${apiUrl}/repos/${owner}/${name}/dupes?scanId=${scanMeta.id}`,
+        { headers }
+      );
+      if (!dupesRes.ok) {
+        console.error(`  Skipping scan ${scanMeta.id} — failed to fetch dupes: ${dupesRes.status}`);
+        continue;
+      }
+      const dupesData: ApiDupesResponse = await dupesRes.json();
+
+      const repoScanData: RepoScanData = {
+        repo: { owner, name, url: `https://github.com/${owner}/${name}` },
+        scan: {
+          id: scanMeta.id,
+          completedAt: scanMeta.completedAt,
+          prCount: scanMeta.prCount,
+          dupeGroupCount: scanMeta.dupeGroupCount,
+        },
+        groups: dupesData.groups.map((g) => ({
+          id: g.groupId,
+          label: truncateLabel(g.label),
+          members: g.members.map((m) => ({
+            prNumber: m.prNumber,
+            title: m.title,
+            author: m.author,
+            state: m.state,
+            rank: m.rank,
+            score: m.score,
+            rationale: m.rationale || "",
+            url: `https://github.com/${owner}/${name}/pull/${m.prNumber}`,
+          })),
         })),
-      })),
-    };
+      };
 
-    // Write JSON
-    const filename = `${owner}-${name}.json`;
-    const filepath = join(DATA_DIR, filename);
-    writeFileSync(filepath, JSON.stringify(repoScanData, null, 2) + "\n");
-    pulled.push(filename);
-
-    const totalMembers = repoScanData.groups.reduce(
-      (s, g) => s + g.members.length,
-      0
-    );
-    const dupes = repoScanData.groups.reduce(
-      (s, g) => s + g.members.filter((m) => m.rank > 1).length,
-      0
-    );
-    console.log(`  ${repoScanData.groups.length} groups, ${totalMembers} members, ${dupes} duplicates`);
-
-    // Auto-update barrel
-    const barrelPath = join(DATA_DIR, "index.ts");
-    const barrelContent = readFileSync(barrelPath, "utf-8");
-
-    if (!barrelContent.includes(filename)) {
-      const importName = `${owner}${name.charAt(0).toUpperCase() + name.slice(1)}Data`;
-      const importLine = `import ${importName} from "./${filename}";`;
-      const castEntry = `  ${importName} as RepoScanData,`;
-
-      const updated = barrelContent
-        .replace(
-          /(import type \{ RepoScanData \} from "[^"]+";)/,
-          `$1\n${importLine}`
-        )
-        .replace(
-          /(export const repos: RepoScanData\[\] = \[)/,
-          `$1\n${castEntry}`
-        );
-
-      writeFileSync(barrelPath, updated);
-      console.log(`  Added to barrel.`);
+      writeFileSync(filepath, JSON.stringify(repoScanData, null, 2) + "\n");
+      newScans++;
     }
 
-    console.log();
+    // Cleanup: remove scan files that are no longer on the server (TTL'd)
+    const existing = readdirSync(dir).filter((f) => f.startsWith("scan-") && f.endsWith(".json"));
+    for (const file of existing) {
+      const match = file.match(/^scan-(\d+)\.json$/);
+      if (match && !currentScanIds.has(Number(match[1]))) {
+        rmSync(join(dir, file));
+        console.log(`  Removed expired: ${file}`);
+      }
+    }
+
+    repoIndexes.push({
+      repo: { owner, name, url: `https://github.com/${owner}/${name}` },
+      scans: scanSummaries,
+    });
+
+    console.log(`  ${apiScans.length} scan(s) (${newScans} new)\n`);
   }
 
-  console.log(`Pulled ${pulled.length} repo(s). Run \`npm run build\` in demo/ to rebuild.`);
+  // 3. Generate barrel file
+  generateBarrel(repoIndexes);
+
+  console.log(`Done. ${repoIndexes.length} repo(s) processed. Run \`npm run build\` in demo/ to rebuild.`);
+}
+
+function generateBarrel(indexes: RepoScanIndex[]) {
+  const lines: string[] = [
+    `import type { RepoScanData, RepoScanIndex } from "@/lib/types";`,
+    ``,
+  ];
+
+  // Static imports for all scan files
+  const scanImports = new Map<string, string[]>();
+  for (const idx of indexes) {
+    const { owner, name } = idx.repo;
+    const dirName = repoDirName(owner, name);
+    const importNames: string[] = [];
+
+    for (const scan of idx.scans) {
+      const safeName = name.replace(/[^a-zA-Z0-9]/g, "");
+      const importName = `${owner}${safeName.charAt(0).toUpperCase() + safeName.slice(1)}Scan${scan.id}`;
+      lines.push(`import ${importName} from "./${dirName}/${scanFilename(scan.id)}";`);
+      importNames.push(importName);
+    }
+
+    scanImports.set(`${owner}/${name}`, importNames);
+  }
+
+  lines.push(``);
+
+  // Scan lookup map
+  lines.push(`const scanMap: Record<string, Record<number, RepoScanData>> = {`);
+  for (const idx of indexes) {
+    const { owner, name } = idx.repo;
+    const key = `${owner}/${name}`;
+    const importNames = scanImports.get(key) ?? [];
+    lines.push(`  "${key}": {`);
+    for (let i = 0; i < idx.scans.length; i++) {
+      lines.push(`    ${idx.scans[i].id}: ${importNames[i]} as RepoScanData,`);
+    }
+    lines.push(`  },`);
+  }
+  lines.push(`};`);
+  lines.push(``);
+
+  // Repo indexes
+  lines.push(`export const repos: RepoScanIndex[] = ${JSON.stringify(indexes, null, 2)};`);
+  lines.push(``);
+
+  // Helpers
+  lines.push(`export function getRepoData(owner: string, name: string): RepoScanIndex | undefined {`);
+  lines.push("  return repos.find((r) => r.repo.owner === owner && r.repo.name === name);");
+  lines.push(`}`);
+  lines.push(``);
+  lines.push(`export function getScanData(owner: string, name: string, scanId: number): RepoScanData | undefined {`);
+  lines.push("  return scanMap[`${owner}/${name}`]?.[scanId];");
+  lines.push(`}`);
+  lines.push(``);
+  lines.push(`export function getLatestScan(owner: string, name: string): RepoScanData | undefined {`);
+  lines.push(`  const repo = getRepoData(owner, name);`);
+  lines.push(`  if (!repo || repo.scans.length === 0) return undefined;`);
+  lines.push(`  return getScanData(owner, name, repo.scans[0].id);`);
+  lines.push(`}`);
+  lines.push(``);
+
+  writeFileSync(join(DATA_DIR, "index.ts"), lines.join("\n"));
+  console.log("  Regenerated barrel: src/data/index.ts");
 }
 
 main();
