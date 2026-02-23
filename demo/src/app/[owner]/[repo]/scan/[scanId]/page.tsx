@@ -9,8 +9,7 @@ import { DownloadButton } from "@/components/download-button";
 export function generateStaticParams() {
   const params: { owner: string; repo: string; scanId: string }[] = [];
   for (const r of repos) {
-    // Skip the first scan (shown on the main repo page)
-    for (const scan of r.scans.slice(1)) {
+    for (const scan of r.scans) {
       params.push({
         owner: r.repo.owner,
         repo: r.repo.name,
