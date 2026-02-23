@@ -1,29 +1,37 @@
 import type { RepoScanData, RepoScanIndex } from "@/lib/types";
 
+import openclawOpenclawScan39 from "./openclaw-openclaw/scan-39.json";
 import openclawOpenclawScan38 from "./openclaw-openclaw/scan-38.json";
 
 const scanMap: Record<string, Record<number, RepoScanData>> = {
   "openclaw/openclaw": {
+    39: openclawOpenclawScan39 as RepoScanData,
     38: openclawOpenclawScan38 as RepoScanData,
   },
 };
 
 export const repos: RepoScanIndex[] = [
   {
-    repo: {
-      owner: "openclaw",
-      name: "openclaw",
-      url: "https://github.com/openclaw/openclaw",
+    "repo": {
+      "owner": "openclaw",
+      "name": "openclaw",
+      "url": "https://github.com/openclaw/openclaw"
     },
-    scans: [
+    "scans": [
       {
-        id: 38,
-        completedAt: "2026-02-22T14:01:28.499Z",
-        prCount: 4421,
-        dupeGroupCount: 409,
+        "id": 39,
+        "completedAt": "2026-02-23T17:19:09.695Z",
+        "prCount": 4260,
+        "dupeGroupCount": 354
       },
-    ],
-  },
+      {
+        "id": 38,
+        "completedAt": "2026-02-22T14:01:28.499Z",
+        "prCount": 4421,
+        "dupeGroupCount": 409
+      }
+    ]
+  }
 ];
 
 export function getRepoData(owner: string, name: string): RepoScanIndex | undefined {

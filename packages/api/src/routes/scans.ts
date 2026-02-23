@@ -52,6 +52,29 @@ scans.post("/repos/:owner/:name/scan", async (c) => {
   return c.json({ scanId: scan.id, jobId, status: "queued" }, 202);
 });
 
+scans.get("/repos/:owner/:name/scans", (c) => {
+  const db = c.get("db");
+  const account = c.get("account");
+  const { owner, name } = c.req.param();
+
+  const repo = db.getRepoByOwnerName(owner, name);
+  if (!repo) {
+    return c.json({ error: `${owner}/${name} is not tracked` }, 404);
+  }
+
+  const completed = db.listCompletedScans(repo.id, account.id);
+
+  return c.json({
+    scans: completed.map((s) => ({
+      id: s.id,
+      status: s.status,
+      prCount: s.prCount,
+      dupeGroupCount: s.dupeGroupCount,
+      completedAt: s.completedAt,
+    })),
+  });
+});
+
 scans.get("/scans/:id", (c) => {
   const db = c.get("db");
   const account = c.get("account");

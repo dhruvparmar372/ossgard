@@ -7,6 +7,7 @@ import { ReviewCarousel } from "@/components/review-carousel";
 import { DownloadButton } from "@/components/download-button";
 
 export function generateStaticParams() {
+  if (repos.length === 0) return [{ owner: "_", repo: "_" }];
   return repos.map((r) => ({
     owner: r.repo.owner,
     repo: r.repo.name,

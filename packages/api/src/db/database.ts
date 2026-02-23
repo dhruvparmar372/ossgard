@@ -581,6 +581,14 @@ export class Database {
     return row ? mapScanRow(row) : null;
   }
 
+  listCompletedScans(repoId: number, accountId: number): Scan[] {
+    const stmt = this.raw.prepare(
+      "SELECT * FROM scans WHERE repo_id = ? AND account_id = ? AND status = 'done' ORDER BY completed_at DESC"
+    );
+    const rows = stmt.all(repoId, accountId) as ScanRow[];
+    return rows.map(mapScanRow);
+  }
+
   clearScans(): void {
     this.raw.run("DELETE FROM dupe_group_members");
     this.raw.run("DELETE FROM dupe_groups");

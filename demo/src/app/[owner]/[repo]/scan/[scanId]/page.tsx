@@ -17,6 +17,7 @@ export function generateStaticParams() {
       });
     }
   }
+  if (params.length === 0) return [{ owner: "_", repo: "_", scanId: "0" }];
   return params;
 }
 
