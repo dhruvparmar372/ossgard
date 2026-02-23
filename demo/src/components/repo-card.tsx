@@ -1,23 +1,20 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import {
-  type RepoScanData,
-  countDuplicatePrs,
-  duplicatePercentage,
-} from "@/lib/types";
+import type { RepoScanIndex } from "@/lib/types";
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours < 1) return "just now";
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
-export function RepoCard({ data }: { data: RepoScanData }) {
+export function RepoCard({ data }: { data: RepoScanIndex }) {
   const { owner, name } = data.repo;
-  const dupes = countDuplicatePrs(data);
-  const pct = duplicatePercentage(data);
+  const latest = data.scans[0];
+  if (!latest) return null;
 
   return (
     <Link
@@ -29,14 +26,23 @@ export function RepoCard({ data }: { data: RepoScanData }) {
       </h3>
 
       <p className="mt-3 text-sm text-muted-foreground">
-        Scanned {formatDate(data.scan.completedAt)}
+        Last scanned {timeAgo(latest.completedAt)}
       </p>
 
-      <div className="mt-4 flex items-center gap-2 font-mono text-sm">
-        <span className="font-medium text-primary">{dupes}</span>
-        <span className="text-muted-foreground">
-          duplicate PRs found ({pct}%)
+      <div className="mt-4 flex items-center gap-4 font-mono text-sm">
+        <span>
+          <span className="font-medium text-primary">{latest.dupeGroupCount}</span>{" "}
+          <span className="text-muted-foreground">groups</span>
         </span>
+        <span>
+          <span className="font-medium text-foreground">{latest.prCount}</span>{" "}
+          <span className="text-muted-foreground">PRs</span>
+        </span>
+        {data.scans.length > 1 && (
+          <span className="text-muted-foreground">
+            {data.scans.length} scans
+          </span>
+        )}
       </div>
 
       <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
