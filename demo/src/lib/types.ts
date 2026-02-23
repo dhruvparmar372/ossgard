@@ -13,6 +13,22 @@ export interface RepoScanData {
   groups: Array<DupeGroup>;
 }
 
+export interface ScanSummary {
+  id: number;
+  completedAt: string;
+  prCount: number;
+  dupeGroupCount: number;
+}
+
+export interface RepoScanIndex {
+  repo: {
+    owner: string;
+    name: string;
+    url: string;
+  };
+  scans: ScanSummary[];
+}
+
 export interface DupeGroup {
   id: number;
   label: string;
