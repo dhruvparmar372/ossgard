@@ -140,17 +140,26 @@ export class IngestProcessor implements JobProcessor {
     );
     await Promise.all(workers);
 
-    ingestLog.info("Ingest complete", { scanId, count: fetchedPRs.length, skipped, etagHits, diffTooLarge });
-
-    // Update scan with PR count
-    this.db.updateScanStatus(scanId, "ingesting", {
-      prCount: fetchedPRs.length,
-    });
+    // For full ingest (no lastScanAt): mark DB PRs as closed if they weren't in the fetched set
+    if (!lastScanAt) {
+      const fetchedNumbers = fetchedPRs.map((pr) => pr.number);
+      const staleCount = this.db.markStalePRsClosed(repoId, fetchedNumbers);
+      if (staleCount > 0) {
+        ingestLog.info("Marked stale PRs as closed", { scanId, staleCount });
+      }
+    }
 
     // For detect, use ALL open PRs from DB (not just fetched ones) so duplicate
     // comparison covers the full set, even on incremental scans
     const allOpenPRs = this.db.listOpenPRs(repoId);
     const prNumbers = allOpenPRs.map((pr) => pr.number);
+
+    ingestLog.info("Ingest complete", { scanId, fetched: fetchedPRs.length, total: prNumbers.length, skipped, etagHits, diffTooLarge });
+
+    // Update scan with total PR count (all open, not just incrementally fetched)
+    this.db.updateScanStatus(scanId, "ingesting", {
+      prCount: prNumbers.length,
+    });
 
     // Enqueue the strategy-based detection scoped to these PRs
     await this.queue.enqueue({

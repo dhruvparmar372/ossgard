@@ -128,11 +128,13 @@ export class GitHubClient {
     let page = 1;
     const perPage = maxResults ? Math.min(maxResults, 100) : 100;
 
-    // When doing incremental fetch, sort by recently updated so we can stop early
+    // When doing incremental fetch, use state=all to capture recently-closed/merged PRs,
+    // and sort by recently updated so we can stop early
+    const state = since ? "all" : "open";
     const sortParams = since ? "&sort=updated&direction=desc" : "";
 
     while (true) {
-      const url = `https://api.github.com/repos/${owner}/${repo}/pulls?state=open&per_page=${perPage}&page=${page}${sortParams}`;
+      const url = `https://api.github.com/repos/${owner}/${repo}/pulls?state=${state}&per_page=${perPage}&page=${page}${sortParams}`;
       const response = await this.githubFetch(url, this.defaultHeaders());
 
       if (!response.ok) {
@@ -147,6 +149,7 @@ export class GitHubClient {
         body: string | null;
         user: { login: string } | null;
         state: string;
+        merged_at: string | null;
         created_at: string;
         updated_at: string;
       }>;
@@ -159,12 +162,22 @@ export class GitHubClient {
           break;
         }
 
+        // The list endpoint doesn't have a `merged` boolean, but has `merged_at`
+        let prState: FetchedPR["state"];
+        if (pr.merged_at) {
+          prState = "merged";
+        } else if (pr.state === "closed") {
+          prState = "closed";
+        } else {
+          prState = "open";
+        }
+
         allPRs.push({
           number: pr.number,
           title: pr.title,
           body: pr.body,
           author: pr.user?.login ?? "unknown",
-          state: pr.state as FetchedPR["state"],
+          state: prState,
           createdAt: pr.created_at,
           updatedAt: pr.updated_at,
         });

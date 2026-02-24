@@ -1,14 +1,15 @@
 import { GitHubClient, DiffTooLargeError } from "./github-client.js";
 
-function makeGitHubPR(n: number) {
+function makeGitHubPR(n: number, overrides?: { state?: string; merged_at?: string | null; updated_at?: string }) {
   return {
     number: n,
     title: `PR #${n}`,
     body: `Body of PR #${n}`,
     user: { login: `author${n}` },
-    state: "open",
+    state: overrides?.state ?? "open",
+    merged_at: overrides?.merged_at ?? null,
     created_at: "2025-01-01T00:00:00Z",
-    updated_at: "2025-01-02T00:00:00Z",
+    updated_at: overrides?.updated_at ?? "2025-01-02T00:00:00Z",
   };
 }
 
@@ -387,6 +388,67 @@ describe("GitHubClient", () => {
     await expect(client.getPRDiff("openclaw", "openclaw", 99)).rejects.toThrow(
       DiffTooLargeError
     );
+  });
+
+  it("uses state=all when since is provided", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(makeGitHubResponse([]));
+
+    const client = new GitHubClient({
+      token: "test-token",
+      fetchFn: mockFetch,
+      maxRetries: 0,
+    });
+
+    await client.listOpenPRs("owner", "repo", undefined, "2025-06-01T00:00:00Z");
+
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain("state=all");
+    expect(url).not.toContain("state=open");
+  });
+
+  it("uses state=open when since is not provided", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(makeGitHubResponse([]));
+
+    const client = new GitHubClient({
+      token: "test-token",
+      fetchFn: mockFetch,
+      maxRetries: 0,
+    });
+
+    await client.listOpenPRs("owner", "repo");
+
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain("state=open");
+    expect(url).not.toContain("state=all");
+  });
+
+  it("returns closed PRs with correct state when since is provided", async () => {
+    const prs = [
+      makeGitHubPR(1),
+      makeGitHubPR(2, { state: "closed", updated_at: "2025-06-15T00:00:00Z" }),
+      makeGitHubPR(3, { state: "closed", merged_at: "2025-06-14T00:00:00Z", updated_at: "2025-06-15T00:00:00Z" }),
+    ];
+
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(makeGitHubResponse(prs));
+
+    const client = new GitHubClient({
+      token: "test-token",
+      fetchFn: mockFetch,
+      maxRetries: 0,
+    });
+
+    const result = await client.listOpenPRs("owner", "repo", undefined, "2025-01-01T00:00:00Z");
+
+    expect(result).toHaveLength(3);
+    expect(result[0].state).toBe("open");
+    expect(result[1].state).toBe("closed");
+    expect(result[2].state).toBe("merged");
   });
 
   it("adds sort=updated&direction=desc when since is provided", async () => {

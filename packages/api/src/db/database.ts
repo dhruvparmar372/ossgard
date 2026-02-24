@@ -357,6 +357,21 @@ export class Database {
     return mapPRRow(row);
   }
 
+  markStalePRsClosed(repoId: number, openNumbers: number[]): number {
+    if (openNumbers.length === 0) {
+      // No open PRs fetched — mark ALL open PRs as closed
+      const stmt = this.raw.prepare(
+        "UPDATE prs SET state = 'closed' WHERE repo_id = ? AND state = 'open'"
+      );
+      return stmt.run(repoId).changes;
+    }
+    const placeholders = openNumbers.map(() => "?").join(",");
+    const stmt = this.raw.prepare(
+      `UPDATE prs SET state = 'closed' WHERE repo_id = ? AND state = 'open' AND number NOT IN (${placeholders})`
+    );
+    return stmt.run(repoId, ...openNumbers).changes;
+  }
+
   getPRByNumber(repoId: number, number: number): PR | null {
     const stmt = this.raw.prepare(
       "SELECT * FROM prs WHERE repo_id = ? AND number = ?"

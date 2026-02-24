@@ -303,6 +303,106 @@ describe("IngestProcessor", () => {
     expect(storedPR!.filePaths).toEqual(["src/index.ts", "src/new.ts"]);
   });
 
+  it("marks stale DB PRs as closed during full ingest", async () => {
+    // First: seed DB with PRs 1, 2, 3 (all open)
+    const prs = [makeFetchedPR(1), makeFetchedPR(2), makeFetchedPR(3)];
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
+    (mockGitHub.getPRFiles as any).mockResolvedValue(["src/index.ts"]);
+    (mockGitHub.getPRDiff as any).mockResolvedValue({ diff: makeDiff(1), etag: null });
+
+    await processor.process(makeJob());
+
+    expect(db.listOpenPRs(repoId)).toHaveLength(3);
+
+    // Second full ingest: only PR 1 and PR 3 are still open on GitHub
+    const fullIngestPRs = [makeFetchedPR(1), makeFetchedPR(3)];
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(fullIngestPRs);
+    (mockGitHub.getPRFiles as any).mockClear().mockResolvedValue(["src/index.ts"]);
+    (mockGitHub.getPRDiff as any).mockClear().mockResolvedValue({ diff: makeDiff(1), etag: null });
+    (mockQueue.enqueue as any).mockClear();
+
+    // Full ingest (no lastScanAt)
+    await processor.process(makeJob());
+
+    // PR 2 should now be marked as closed
+    const openPRs = db.listOpenPRs(repoId);
+    expect(openPRs).toHaveLength(2);
+    expect(openPRs.map((p) => p.number).sort()).toEqual([1, 3]);
+
+    const pr2 = db.getPRByNumber(repoId, 2);
+    expect(pr2!.state).toBe("closed");
+
+    // Detect job should only include the 2 open PRs
+    const detectCall = (mockQueue.enqueue as any).mock.calls[0][0];
+    expect(detectCall.payload.prNumbers).toEqual([1, 3]);
+  });
+
+  it("does not mark stale PRs during incremental ingest", async () => {
+    // Seed DB with PRs 1, 2
+    const prs = [makeFetchedPR(1), makeFetchedPR(2)];
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
+    (mockGitHub.getPRFiles as any).mockResolvedValue(["src/index.ts"]);
+    (mockGitHub.getPRDiff as any).mockResolvedValue({ diff: makeDiff(1), etag: null });
+
+    await processor.process(makeJob());
+
+    expect(db.listOpenPRs(repoId)).toHaveLength(2);
+
+    // Incremental ingest: only fetches PR 3 (new)
+    (mockGitHub.listOpenPRs as any).mockResolvedValue([makeFetchedPR(3)]);
+    (mockGitHub.getPRFiles as any).mockClear().mockResolvedValue(["src/new.ts"]);
+    (mockGitHub.getPRDiff as any).mockClear().mockResolvedValue({ diff: makeDiff(3), etag: null });
+    (mockQueue.enqueue as any).mockClear();
+
+    const incrementalJob: Job = {
+      ...makeJob(),
+      payload: { repoId, scanId, accountId, owner: "facebook", repo: "react", lastScanAt: "2025-01-01T00:00:00Z" },
+    };
+
+    await processor.process(incrementalJob);
+
+    // All 3 PRs should still be open — no stale reconciliation on incremental
+    const openPRs = db.listOpenPRs(repoId);
+    expect(openPRs).toHaveLength(3);
+  });
+
+  it("upserts closed/merged PRs from incremental ingest with correct state", async () => {
+    // Seed DB with open PRs 1 and 2
+    const prs = [makeFetchedPR(1), makeFetchedPR(2)];
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
+    (mockGitHub.getPRFiles as any).mockResolvedValue(["src/index.ts"]);
+    (mockGitHub.getPRDiff as any).mockResolvedValue({ diff: makeDiff(1), etag: null });
+
+    await processor.process(makeJob());
+
+    // Incremental ingest: PR 2 was closed, PR 3 was merged
+    const closedPR: FetchedPR = { ...makeFetchedPR(2), state: "closed", updatedAt: "2025-01-03T00:00:00Z" };
+    const mergedPR: FetchedPR = { ...makeFetchedPR(3), state: "merged", updatedAt: "2025-01-03T00:00:00Z" };
+    (mockGitHub.listOpenPRs as any).mockResolvedValue([closedPR, mergedPR]);
+    (mockGitHub.getPRFiles as any).mockClear().mockResolvedValue(["src/index.ts"]);
+    (mockGitHub.getPRDiff as any).mockClear().mockResolvedValue({ diff: makeDiff(2), etag: null });
+    (mockQueue.enqueue as any).mockClear();
+
+    const incrementalJob: Job = {
+      ...makeJob(),
+      payload: { repoId, scanId, accountId, owner: "facebook", repo: "react", lastScanAt: "2025-01-01T00:00:00Z" },
+    };
+
+    await processor.process(incrementalJob);
+
+    // PR 2 should be closed, PR 3 should be merged
+    const pr2 = db.getPRByNumber(repoId, 2);
+    expect(pr2!.state).toBe("closed");
+
+    const pr3 = db.getPRByNumber(repoId, 3);
+    expect(pr3!.state).toBe("merged");
+
+    // Only PR 1 should be open — detect should only include it
+    const openPRs = db.listOpenPRs(repoId);
+    expect(openPRs).toHaveLength(1);
+    expect(openPRs[0].number).toBe(1);
+  });
+
   it("continues ingesting when a PR diff is too large", async () => {
     const prs = [makeFetchedPR(1), makeFetchedPR(2)];
     (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
