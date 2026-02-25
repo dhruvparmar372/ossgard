@@ -143,6 +143,8 @@ export class GitHubClient {
         );
       }
 
+      githubLog.info("Fetched PR page", { repo: `${owner}/${repo}`, page, state, collected: allPRs.length });
+
       const data = (await response.json()) as Array<{
         number: number;
         title: string;

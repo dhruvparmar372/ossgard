@@ -8,6 +8,7 @@ import { registerConfigCommand } from "./commands/config.js";
 import { scanCommand } from "./commands/scan.js";
 import { checkDuplicatesCommand } from "./commands/duplicates.js";
 import { cleanCommand } from "./commands/clean.js";
+import { reconcileCommand } from "./commands/reconcile.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { setJsonMode } from "./json-mode.js";
 import { setNonInteractive } from "./interactive.js";
@@ -43,6 +44,9 @@ program.addCommand(checkDuplicatesCommand(client));
 // Informational
 program.addCommand(statusCommand(client));
 registerConfigCommand(program, client);
+
+// Maintenance
+program.addCommand(reconcileCommand(client));
 
 // Destructive
 program.addCommand(cleanCommand(client));

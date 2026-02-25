@@ -48,7 +48,7 @@ async function main() {
   }
 
   const port = Number(process.env.PORT) || 3400;
-  const server = Bun.serve({ fetch: app.fetch, port });
+  const server = Bun.serve({ fetch: app.fetch, port, idleTimeout: 120 });
   log.info(`Listening on http://localhost:${server.port}`, { logLevel: process.env.LOG_LEVEL ?? "info" });
   ctx.worker.start();
   log.info("Worker loop started");
