@@ -27,7 +27,7 @@ The API server must be running. Pull fresh data:
 ```bash
 cd /Users/dhruv/Code/ossgard/demo
 bun install   # ensure deps are present
-npm run pull-data
+bun run pull-data
 ```
 
 This fetches scan data from the running ossgard-api and regenerates
@@ -41,7 +41,7 @@ This fetches scan data from the running ossgard-api and regenerates
 
 ```bash
 cd /Users/dhruv/Code/ossgard/demo
-npm run build
+bun run build
 ```
 
 This produces a static export in `demo/out/` (configured via
