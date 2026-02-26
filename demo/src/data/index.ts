@@ -1,12 +1,12 @@
 import type { RepoScanData, RepoScanIndex } from "@/lib/types";
 
-import openclawOpenclawScan39 from "./openclaw-openclaw/scan-39.json";
-import openclawOpenclawScan38 from "./openclaw-openclaw/scan-38.json";
+import openclawOpenclawScan43 from "./openclaw-openclaw/scan-43.json";
+import openclawOpenclawScan42 from "./openclaw-openclaw/scan-42.json";
 
 const scanMap: Record<string, Record<number, RepoScanData>> = {
   "openclaw/openclaw": {
-    39: openclawOpenclawScan39 as RepoScanData,
-    38: openclawOpenclawScan38 as RepoScanData,
+    43: openclawOpenclawScan43 as RepoScanData,
+    42: openclawOpenclawScan42 as RepoScanData,
   },
 };
 
@@ -19,16 +19,16 @@ export const repos: RepoScanIndex[] = [
     },
     "scans": [
       {
-        "id": 39,
-        "completedAt": "2026-02-23T17:19:09.695Z",
-        "prCount": 4260,
-        "dupeGroupCount": 354
+        "id": 43,
+        "completedAt": "2026-02-25T18:53:15.596Z",
+        "prCount": 4010,
+        "dupeGroupCount": 323
       },
       {
-        "id": 38,
-        "completedAt": "2026-02-22T14:01:28.499Z",
-        "prCount": 4421,
-        "dupeGroupCount": 409
+        "id": 42,
+        "completedAt": "2026-02-25T09:48:41.524Z",
+        "prCount": 3761,
+        "dupeGroupCount": 272
       }
     ]
   }
