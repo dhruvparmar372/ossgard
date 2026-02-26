@@ -17,7 +17,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rmSync
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { homedir } from "os";
-import type { RepoScanData, RepoScanIndex, ScanSummary } from "../src/lib/types";
+import type { RepoScanData } from "../src/lib/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "src", "data");
@@ -140,7 +140,7 @@ async function main() {
   console.log(`Found ${repos.length} repo(s) with scan data.\n`);
 
   // 2. Pull scan data for each repo
-  const repoIndexes: RepoScanIndex[] = [];
+  let repoCount = 0;
 
   for (const repo of repos) {
     const { owner, name } = repo;
@@ -167,19 +167,11 @@ async function main() {
     const currentScanIds = new Set(apiScans.map((s) => s.id));
 
     // Download each scan (skip if already exists)
-    const scanSummaries: ScanSummary[] = [];
     let newScans = 0;
 
     for (const scanMeta of apiScans) {
       const filename = scanFilename(scanMeta.id);
       const filepath = join(dir, filename);
-
-      scanSummaries.push({
-        id: scanMeta.id,
-        completedAt: scanMeta.completedAt,
-        prCount: scanMeta.prCount,
-        dupeGroupCount: scanMeta.dupeGroupCount,
-      });
 
       if (existsSync(filepath)) {
         continue; // already downloaded
@@ -234,82 +226,11 @@ async function main() {
       }
     }
 
-    repoIndexes.push({
-      repo: { owner, name, url: `https://github.com/${owner}/${name}` },
-      scans: scanSummaries,
-    });
-
+    repoCount++;
     console.log(`  ${apiScans.length} scan(s) (${newScans} new)\n`);
   }
 
-  // 3. Generate barrel file
-  generateBarrel(repoIndexes);
-
-  console.log(`Done. ${repoIndexes.length} repo(s) processed. Run \`npm run build\` in demo/ to rebuild.`);
-}
-
-function generateBarrel(indexes: RepoScanIndex[]) {
-  const lines: string[] = [
-    `import type { RepoScanData, RepoScanIndex } from "@/lib/types";`,
-    ``,
-  ];
-
-  // Static imports for all scan files
-  const scanImports = new Map<string, string[]>();
-  for (const idx of indexes) {
-    const { owner, name } = idx.repo;
-    const dirName = repoDirName(owner, name);
-    const importNames: string[] = [];
-
-    for (const scan of idx.scans) {
-      const safeName = name.replace(/[^a-zA-Z0-9]/g, "");
-      const importName = `${owner}${safeName.charAt(0).toUpperCase() + safeName.slice(1)}Scan${scan.id}`;
-      lines.push(`import ${importName} from "./${dirName}/${scanFilename(scan.id)}";`);
-      importNames.push(importName);
-    }
-
-    scanImports.set(`${owner}/${name}`, importNames);
-  }
-
-  lines.push(``);
-
-  // Scan lookup map
-  lines.push(`const scanMap: Record<string, Record<number, RepoScanData>> = {`);
-  for (const idx of indexes) {
-    const { owner, name } = idx.repo;
-    const key = `${owner}/${name}`;
-    const importNames = scanImports.get(key) ?? [];
-    lines.push(`  "${key}": {`);
-    for (let i = 0; i < idx.scans.length; i++) {
-      lines.push(`    ${idx.scans[i].id}: ${importNames[i]} as RepoScanData,`);
-    }
-    lines.push(`  },`);
-  }
-  lines.push(`};`);
-  lines.push(``);
-
-  // Repo indexes
-  lines.push(`export const repos: RepoScanIndex[] = ${JSON.stringify(indexes, null, 2)};`);
-  lines.push(``);
-
-  // Helpers
-  lines.push(`export function getRepoData(owner: string, name: string): RepoScanIndex | undefined {`);
-  lines.push("  return repos.find((r) => r.repo.owner === owner && r.repo.name === name);");
-  lines.push(`}`);
-  lines.push(``);
-  lines.push(`export function getScanData(owner: string, name: string, scanId: number): RepoScanData | undefined {`);
-  lines.push("  return scanMap[`${owner}/${name}`]?.[scanId];");
-  lines.push(`}`);
-  lines.push(``);
-  lines.push(`export function getLatestScan(owner: string, name: string): RepoScanData | undefined {`);
-  lines.push(`  const repo = getRepoData(owner, name);`);
-  lines.push(`  if (!repo || repo.scans.length === 0) return undefined;`);
-  lines.push(`  return getScanData(owner, name, repo.scans[0].id);`);
-  lines.push(`}`);
-  lines.push(``);
-
-  writeFileSync(join(DATA_DIR, "index.ts"), lines.join("\n"));
-  console.log("  Regenerated barrel: src/data/index.ts");
+  console.log(`Done. ${repoCount} repo(s) processed. Run \`npm run build\` in demo/ to rebuild.`);
 }
 
 main();

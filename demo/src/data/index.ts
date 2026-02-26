@@ -1,45 +1,62 @@
-import type { RepoScanData, RepoScanIndex } from "@/lib/types";
+import { readFileSync, readdirSync, existsSync } from "fs";
+import { join } from "path";
+import type { RepoScanData, RepoScanIndex, ScanSummary } from "@/lib/types";
 
-import openclawOpenclawScan43 from "./openclaw-openclaw/scan-43.json";
-import openclawOpenclawScan42 from "./openclaw-openclaw/scan-42.json";
+const DATA_DIR = join(process.cwd(), "src", "data");
 
-const scanMap: Record<string, Record<number, RepoScanData>> = {
-  "openclaw/openclaw": {
-    43: openclawOpenclawScan43 as RepoScanData,
-    42: openclawOpenclawScan42 as RepoScanData,
-  },
-};
+function discoverRepos(): RepoScanIndex[] {
+  const entries = readdirSync(DATA_DIR, { withFileTypes: true });
+  const repoDirs = entries.filter((e) => e.isDirectory());
 
-export const repos: RepoScanIndex[] = [
-  {
-    "repo": {
-      "owner": "openclaw",
-      "name": "openclaw",
-      "url": "https://github.com/openclaw/openclaw"
-    },
-    "scans": [
-      {
-        "id": 43,
-        "completedAt": "2026-02-25T18:53:15.596Z",
-        "prCount": 4010,
-        "dupeGroupCount": 323
-      },
-      {
-        "id": 42,
-        "completedAt": "2026-02-25T09:48:41.524Z",
-        "prCount": 3761,
-        "dupeGroupCount": 272
-      }
-    ]
+  const indexes: RepoScanIndex[] = [];
+
+  for (const dir of repoDirs) {
+    const dirPath = join(DATA_DIR, dir.name);
+    const files = readdirSync(dirPath).filter(
+      (f) => f.startsWith("scan-") && f.endsWith(".json")
+    );
+
+    if (files.length === 0) continue;
+
+    // Parse the first scan to get repo metadata
+    const firstScan: RepoScanData = JSON.parse(
+      readFileSync(join(dirPath, files[0]), "utf-8")
+    );
+
+    const scans: ScanSummary[] = files
+      .map((f) => {
+        const data: RepoScanData = JSON.parse(
+          readFileSync(join(dirPath, f), "utf-8")
+        );
+        return {
+          id: data.scan.id,
+          completedAt: data.scan.completedAt,
+          prCount: data.scan.prCount,
+          dupeGroupCount: data.scan.dupeGroupCount,
+        };
+      })
+      .sort((a, b) => b.id - a.id); // newest first
+
+    indexes.push({
+      repo: firstScan.repo,
+      scans,
+    });
   }
-];
+
+  return indexes;
+}
+
+export const repos: RepoScanIndex[] = discoverRepos();
 
 export function getRepoData(owner: string, name: string): RepoScanIndex | undefined {
   return repos.find((r) => r.repo.owner === owner && r.repo.name === name);
 }
 
 export function getScanData(owner: string, name: string, scanId: number): RepoScanData | undefined {
-  return scanMap[`${owner}/${name}`]?.[scanId];
+  const dirName = `${owner}-${name}`;
+  const filePath = join(DATA_DIR, dirName, `scan-${scanId}.json`);
+  if (!existsSync(filePath)) return undefined;
+  return JSON.parse(readFileSync(filePath, "utf-8"));
 }
 
 export function getLatestScan(owner: string, name: string): RepoScanData | undefined {
