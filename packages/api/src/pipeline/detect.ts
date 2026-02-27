@@ -75,6 +75,11 @@ export class DetectProcessor implements JobProcessor {
       scanId,
       strategy: "pairwise-llm",
       groups: result.groups.length,
+      inputTokens: result.tokenUsage.inputTokens,
+      outputTokens: result.tokenUsage.outputTokens,
+      phaseTokenUsage: result.phaseTokenUsage,
+      provider: `${result.providerInfo.llmProvider}/${result.providerInfo.llmModel}`,
+      embeddingProvider: `${result.providerInfo.embeddingProvider}/${result.providerInfo.embeddingModel}`,
     });
   }
 }
