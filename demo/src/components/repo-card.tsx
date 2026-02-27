@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import type { RepoScanIndex } from "@/lib/types";
+import { formatTokens } from "@/lib/utils";
 
 function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -14,6 +15,10 @@ function timeAgo(iso: string): string {
 export function RepoCard({ data }: { data: RepoScanIndex }) {
   const { owner, name } = data.repo;
   const latest = data.scans[0];
+  const totalTokens = data.scans.reduce(
+    (sum, s) => sum + (s.inputTokens ?? 0) + (s.outputTokens ?? 0),
+    0
+  );
   if (!latest) return null;
 
   return (
@@ -41,6 +46,12 @@ export function RepoCard({ data }: { data: RepoScanIndex }) {
         {data.scans.length > 1 && (
           <span className="text-muted-foreground">
             {data.scans.length} scans
+          </span>
+        )}
+        {totalTokens > 0 && (
+          <span>
+            <span className="font-medium text-foreground">{formatTokens(totalTokens)}</span>{" "}
+            <span className="text-muted-foreground">tokens</span>
           </span>
         )}
       </div>

@@ -109,6 +109,8 @@ function getFlag(flag: string): string | null {
   return idx !== -1 && idx + 1 < args.length ? args[idx + 1] : null;
 }
 
+const refresh = args.includes("--refresh");
+
 // --- Main ---
 
 async function main() {
@@ -180,7 +182,7 @@ async function main() {
       const filename = scanFilename(scanMeta.id);
       const filepath = join(dir, filename);
 
-      if (existsSync(filepath)) {
+      if (existsSync(filepath) && !refresh) {
         continue; // already downloaded
       }
 

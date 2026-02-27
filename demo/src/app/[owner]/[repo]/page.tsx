@@ -5,6 +5,7 @@ import { repos, getRepoData, getLatestScan } from "@/data";
 import { StatsBar } from "@/components/stats-bar";
 import { ReviewCarousel } from "@/components/review-carousel";
 import { DownloadButton } from "@/components/download-button";
+import { TokenUsageCard } from "@/components/token-usage-card";
 
 export function generateStaticParams() {
   if (repos.length === 0) return [{ owner: "_", repo: "_" }];
@@ -72,6 +73,17 @@ export default async function RepoPage({
         <div className="mt-8">
           <StatsBar data={latestScan} />
         </div>
+
+        {/* Token Usage */}
+        {latestScan.scan.tokenUsage && (
+          <div className="mt-3">
+            <TokenUsageCard
+              tokenUsage={latestScan.scan.tokenUsage}
+              llmModel={latestScan.scan.llmModel}
+              embeddingModel={latestScan.scan.embeddingModel}
+            />
+          </div>
+        )}
 
         {/* Scan History */}
         {repoIndex.scans.length > 1 && (

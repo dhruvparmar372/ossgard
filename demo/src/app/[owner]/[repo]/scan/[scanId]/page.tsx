@@ -5,6 +5,7 @@ import { repos, getRepoData, getScanData } from "@/data";
 import { StatsBar } from "@/components/stats-bar";
 import { ReviewCarousel } from "@/components/review-carousel";
 import { DownloadButton } from "@/components/download-button";
+import { TokenUsageCard } from "@/components/token-usage-card";
 
 export function generateStaticParams() {
   const params: { owner: string; repo: string; scanId: string }[] = [];
@@ -74,6 +75,17 @@ export default async function ScanDetailPage({
         <div className="mt-8">
           <StatsBar data={data} />
         </div>
+
+        {/* Token Usage */}
+        {data.scan.tokenUsage && (
+          <div className="mt-3">
+            <TokenUsageCard
+              tokenUsage={data.scan.tokenUsage}
+              llmModel={data.scan.llmModel}
+              embeddingModel={data.scan.embeddingModel}
+            />
+          </div>
+        )}
 
         {/* Review Carousel */}
         <ReviewCarousel groups={data.groups} />
