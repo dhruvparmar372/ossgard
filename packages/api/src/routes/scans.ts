@@ -70,6 +70,13 @@ scans.get("/repos/:owner/:name/scans", (c) => {
       status: s.status,
       prCount: s.prCount,
       dupeGroupCount: s.dupeGroupCount,
+      inputTokens: s.inputTokens,
+      outputTokens: s.outputTokens,
+      tokenUsage: s.tokenUsage,
+      llmProvider: s.llmProvider,
+      llmModel: s.llmModel,
+      embeddingProvider: s.embeddingProvider,
+      embeddingModel: s.embeddingModel,
       completedAt: s.completedAt,
     })),
   });

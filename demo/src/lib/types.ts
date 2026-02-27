@@ -1,3 +1,10 @@
+export interface PhaseTokenUsage {
+  intent:    { input: number; output: number };
+  embedding: { input: number };
+  verify:    { input: number; output: number };
+  rank:      { input: number; output: number };
+}
+
 export interface RepoScanData {
   repo: {
     owner: string;
@@ -9,6 +16,13 @@ export interface RepoScanData {
     completedAt: string;
     prCount: number;
     dupeGroupCount: number;
+    inputTokens: number;
+    outputTokens: number;
+    tokenUsage: PhaseTokenUsage | null;
+    llmProvider: string | null;
+    llmModel: string | null;
+    embeddingProvider: string | null;
+    embeddingModel: string | null;
   };
   groups: Array<DupeGroup>;
 }
@@ -18,6 +32,13 @@ export interface ScanSummary {
   completedAt: string;
   prCount: number;
   dupeGroupCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  tokenUsage: PhaseTokenUsage | null;
+  llmProvider: string | null;
+  llmModel: string | null;
+  embeddingProvider: string | null;
+  embeddingModel: string | null;
 }
 
 export interface RepoScanIndex {

@@ -17,7 +17,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rmSync
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { homedir } from "os";
-import type { RepoScanData } from "../src/lib/types";
+import type { RepoScanData, PhaseTokenUsage } from "../src/lib/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "src", "data");
@@ -55,6 +55,13 @@ interface ApiScanSummary {
   status: string;
   prCount: number;
   dupeGroupCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  tokenUsage: PhaseTokenUsage | null;
+  llmProvider: string | null;
+  llmModel: string | null;
+  embeddingProvider: string | null;
+  embeddingModel: string | null;
   completedAt: string;
 }
 
@@ -195,6 +202,13 @@ async function main() {
           completedAt: scanMeta.completedAt,
           prCount: scanMeta.prCount,
           dupeGroupCount: scanMeta.dupeGroupCount,
+          inputTokens: scanMeta.inputTokens,
+          outputTokens: scanMeta.outputTokens,
+          tokenUsage: scanMeta.tokenUsage,
+          llmProvider: scanMeta.llmProvider,
+          llmModel: scanMeta.llmModel,
+          embeddingProvider: scanMeta.embeddingProvider,
+          embeddingModel: scanMeta.embeddingModel,
         },
         groups: dupesData.groups.map((g) => ({
           id: g.groupId,

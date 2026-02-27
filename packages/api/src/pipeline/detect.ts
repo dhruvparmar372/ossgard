@@ -60,6 +60,9 @@ export class DetectProcessor implements JobProcessor {
       this.db.addScanTokens(scanId, result.tokenUsage.inputTokens, result.tokenUsage.outputTokens);
     }
 
+    // Store per-phase token breakdown + provider info
+    this.db.setScanTokenUsage(scanId, result.phaseTokenUsage, result.providerInfo);
+
     // Mark scan done
     this.db.updateScanStatus(scanId, "done", {
       dupeGroupCount: result.groups.length,

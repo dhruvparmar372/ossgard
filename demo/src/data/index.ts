@@ -33,6 +33,13 @@ function discoverRepos(): RepoScanIndex[] {
           completedAt: data.scan.completedAt,
           prCount: data.scan.prCount,
           dupeGroupCount: data.scan.dupeGroupCount,
+          inputTokens: data.scan.inputTokens ?? 0,
+          outputTokens: data.scan.outputTokens ?? 0,
+          tokenUsage: data.scan.tokenUsage ?? null,
+          llmProvider: data.scan.llmProvider ?? null,
+          llmModel: data.scan.llmModel ?? null,
+          embeddingProvider: data.scan.embeddingProvider ?? null,
+          embeddingModel: data.scan.embeddingModel ?? null,
         };
       })
       .sort((a, b) => b.id - a.id); // newest first
