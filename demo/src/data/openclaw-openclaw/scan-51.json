@@ -5,17 +5,33 @@
     "url": "https://github.com/openclaw/openclaw"
   },
   "scan": {
-    "id": 43,
-    "completedAt": "2026-02-25T18:53:15.596Z",
-    "prCount": 4010,
-    "dupeGroupCount": 323,
-    "inputTokens": 2150097,
-    "outputTokens": 2269102,
-    "tokenUsage": null,
-    "llmProvider": null,
-    "llmModel": null,
-    "embeddingProvider": null,
-    "embeddingModel": null
+    "id": 51,
+    "completedAt": "2026-02-27T20:40:16.573Z",
+    "prCount": 4953,
+    "dupeGroupCount": 461,
+    "inputTokens": 1750148,
+    "outputTokens": 1621379,
+    "tokenUsage": {
+      "intent": {
+        "input": 75939,
+        "output": 74196
+      },
+      "embedding": {
+        "input": 27990
+      },
+      "verify": {
+        "input": 738076,
+        "output": 842354
+      },
+      "rank": {
+        "input": 908143,
+        "output": 704829
+      }
+    },
+    "llmProvider": "openai",
+    "llmModel": "gpt-5-nano",
+    "embeddingProvider": "openai",
+    "embeddingModel": "text-embedding-3-small"
   },
   "groups": [
     {

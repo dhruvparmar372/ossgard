@@ -5,12 +5,12 @@
     "url": "https://github.com/openclaw/openclaw"
   },
   "scan": {
-    "id": 43,
-    "completedAt": "2026-02-25T18:53:15.596Z",
-    "prCount": 4010,
-    "dupeGroupCount": 323,
-    "inputTokens": 2150097,
-    "outputTokens": 2269102,
+    "id": 48,
+    "completedAt": "2026-02-27T06:26:12.158Z",
+    "prCount": 4604,
+    "dupeGroupCount": 428,
+    "inputTokens": 3491345,
+    "outputTokens": 3873567,
     "tokenUsage": null,
     "llmProvider": null,
     "llmModel": null,
