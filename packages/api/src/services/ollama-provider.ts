@@ -1,4 +1,4 @@
-import type { EmbeddingProvider, ChatProvider, ChatResult, Message } from "./llm-provider.js";
+import type { EmbeddingProvider, ChatProvider, ChatResult, EmbedResult, Message } from "./llm-provider.js";
 import { countTokensHeuristic } from "./token-counting.js";
 
 const DIMENSION_MAP: Record<string, number> = {
@@ -42,7 +42,7 @@ export class OllamaProvider implements EmbeddingProvider, ChatProvider {
     return countTokensHeuristic(text, 4);
   }
 
-  async embed(texts: string[]): Promise<number[][]> {
+  async embed(texts: string[]): Promise<EmbedResult> {
     const response = await this.fetchFn(`${this.baseUrl}/api/embed`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -59,7 +59,7 @@ export class OllamaProvider implements EmbeddingProvider, ChatProvider {
     }
 
     const data = (await response.json()) as { embeddings: number[][] };
-    return data.embeddings;
+    return { vectors: data.embeddings, tokenCount: 0 };
   }
 
   async chat(messages: Message[]): Promise<ChatResult> {

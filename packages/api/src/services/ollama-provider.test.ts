@@ -107,7 +107,7 @@ describe("OllamaProvider", () => {
   });
 
   describe("embed", () => {
-    it("returns embedding vectors", async () => {
+    it("returns EmbedResult with vectors and tokenCount 0", async () => {
       const embeddings = [
         [0.1, 0.2, 0.3],
         [0.4, 0.5, 0.6],
@@ -122,7 +122,8 @@ describe("OllamaProvider", () => {
 
       const result = await provider.embed(["hello", "world"]);
 
-      expect(result).toEqual(embeddings);
+      expect(result.vectors).toEqual(embeddings);
+      expect(result.tokenCount).toBe(0);
     });
 
     it("calls the correct endpoint with correct body", async () => {

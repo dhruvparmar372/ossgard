@@ -1,4 +1,4 @@
-import type { EmbeddingProvider } from "./llm-provider.js";
+import type { EmbeddingProvider, EmbedResult } from "./llm-provider.js";
 import { createTiktokenEncoder, countTokensTiktoken, truncateToTokenLimit, type Tiktoken } from "./token-counting.js";
 import { chunkEmbeddingTexts } from "./batch-chunker.js";
 
@@ -40,7 +40,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
     return countTokensTiktoken(this.encoder, text);
   }
 
-  async embed(texts: string[]): Promise<number[][]> {
+  async embed(texts: string[]): Promise<EmbedResult> {
     // OpenAI rejects empty strings — replace with a single space
     const sanitized = texts.map((t) => (t.length === 0 ? " " : t));
 
@@ -56,14 +56,16 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
     );
 
     const allEmbeddings: number[][] = [];
+    let totalTokens = 0;
     for (const chunk of chunks) {
-      const embeddings = await this.embedChunk(chunk);
+      const { embeddings, tokenCount } = await this.embedChunk(chunk);
       allEmbeddings.push(...embeddings);
+      totalTokens += tokenCount;
     }
-    return allEmbeddings;
+    return { vectors: allEmbeddings, tokenCount: totalTokens };
   }
 
-  private async embedChunk(texts: string[]): Promise<number[][]> {
+  private async embedChunk(texts: string[]): Promise<{ embeddings: number[][]; tokenCount: number }> {
     const response = await this.fetchFn(
       "https://api.openai.com/v1/embeddings",
       {
@@ -88,11 +90,14 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
 
     const data = (await response.json()) as {
       data: Array<{ index: number; embedding: number[] }>;
+      usage?: { prompt_tokens: number };
     };
 
     // Sort by index to guarantee input order
-    return data.data
+    const embeddings = data.data
       .sort((a, b) => a.index - b.index)
       .map((d) => d.embedding);
+
+    return { embeddings, tokenCount: data.usage?.prompt_tokens ?? 0 };
   }
 }

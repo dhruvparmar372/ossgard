@@ -40,7 +40,7 @@ describe("OpenAIBatchEmbeddingProvider", () => {
   });
 
   describe("embed (sync fallback)", () => {
-    it("returns embeddings sorted by index", async () => {
+    it("returns embeddings sorted by index with token count", async () => {
       const fetchFn = vi.fn().mockResolvedValue({
         ok: true,
         json: () =>
@@ -49,6 +49,7 @@ describe("OpenAIBatchEmbeddingProvider", () => {
               { index: 1, embedding: [0.4, 0.5] },
               { index: 0, embedding: [0.1, 0.2] },
             ],
+            usage: { prompt_tokens: 5 },
           }),
       }) as unknown as typeof fetch;
 
@@ -60,10 +61,13 @@ describe("OpenAIBatchEmbeddingProvider", () => {
 
       const result = await provider.embed(["text1", "text2"]);
 
-      expect(result).toEqual([
-        [0.1, 0.2],
-        [0.4, 0.5],
-      ]);
+      expect(result).toEqual({
+        vectors: [
+          [0.1, 0.2],
+          [0.4, 0.5],
+        ],
+        tokenCount: 5,
+      });
     });
 
     it("throws on non-OK response", async () => {
@@ -103,6 +107,7 @@ describe("OpenAIBatchEmbeddingProvider", () => {
         json: () =>
           Promise.resolve({
             data: [{ index: 0, embedding: [0.1, 0.2] }],
+            usage: { prompt_tokens: 3 },
           }),
       }) as unknown as typeof fetch;
 
@@ -117,7 +122,7 @@ describe("OpenAIBatchEmbeddingProvider", () => {
       ]);
 
       expect(results).toEqual([
-        { id: "req-1", embeddings: [[0.1, 0.2]] },
+        { id: "req-1", embeddings: [[0.1, 0.2]], tokenCount: 3 },
       ]);
       // Only 1 fetch (sync embed), not multi-step batch
       expect(fetchFn).toHaveBeenCalledTimes(1);
@@ -161,6 +166,7 @@ describe("OpenAIBatchEmbeddingProvider", () => {
                     status_code: 200,
                     body: {
                       data: [{ index: 0, embedding: [0.4, 0.5] }],
+                      usage: { prompt_tokens: 7 },
                     },
                   },
                 }),
@@ -170,6 +176,7 @@ describe("OpenAIBatchEmbeddingProvider", () => {
                     status_code: 200,
                     body: {
                       data: [{ index: 0, embedding: [0.1, 0.2] }],
+                      usage: { prompt_tokens: 4 },
                     },
                   },
                 }),
@@ -189,10 +196,10 @@ describe("OpenAIBatchEmbeddingProvider", () => {
         { id: "req-2", texts: ["second"] },
       ]);
 
-      // Results in input order
+      // Results in input order with token counts
       expect(results).toEqual([
-        { id: "req-1", embeddings: [[0.1, 0.2]] },
-        { id: "req-2", embeddings: [[0.4, 0.5]] },
+        { id: "req-1", embeddings: [[0.1, 0.2]], tokenCount: 4 },
+        { id: "req-2", embeddings: [[0.4, 0.5]], tokenCount: 7 },
       ]);
 
       // 4 fetch calls: upload, create, poll, download
@@ -365,14 +372,20 @@ describe("OpenAIBatchEmbeddingProvider", () => {
                   custom_id: "req-1",
                   response: {
                     status_code: 200,
-                    body: { data: [{ index: 0, embedding: [0.1] }] },
+                    body: {
+                      data: [{ index: 0, embedding: [0.1] }],
+                      usage: { prompt_tokens: 2 },
+                    },
                   },
                 }),
                 JSON.stringify({
                   custom_id: "req-2",
                   response: {
                     status_code: 200,
-                    body: { data: [{ index: 0, embedding: [0.2] }] },
+                    body: {
+                      data: [{ index: 0, embedding: [0.2] }],
+                      usage: { prompt_tokens: 3 },
+                    },
                   },
                 }),
               ].join("\n")
@@ -392,6 +405,8 @@ describe("OpenAIBatchEmbeddingProvider", () => {
       ]);
 
       expect(results).toHaveLength(2);
+      expect(results[0].tokenCount).toBe(2);
+      expect(results[1].tokenCount).toBe(3);
       // 5 calls: upload, create, 500-poll, ok-poll, download
       expect(fetchFn).toHaveBeenCalledTimes(5);
     });
@@ -418,14 +433,20 @@ describe("OpenAIBatchEmbeddingProvider", () => {
                   custom_id: "req-1",
                   response: {
                     status_code: 200,
-                    body: { data: [{ index: 0, embedding: [0.1] }] },
+                    body: {
+                      data: [{ index: 0, embedding: [0.1] }],
+                      usage: { prompt_tokens: 1 },
+                    },
                   },
                 }),
                 JSON.stringify({
                   custom_id: "req-2",
                   response: {
                     status_code: 200,
-                    body: { data: [{ index: 0, embedding: [0.2] }] },
+                    body: {
+                      data: [{ index: 0, embedding: [0.2] }],
+                      usage: { prompt_tokens: 1 },
+                    },
                   },
                 }),
               ].join("\n")
@@ -448,6 +469,8 @@ describe("OpenAIBatchEmbeddingProvider", () => {
       );
 
       expect(results).toHaveLength(2);
+      expect(results[0].tokenCount).toBe(1);
+      expect(results[1].tokenCount).toBe(1);
       // Only 2 calls: poll + download (no upload or create)
       expect(fetchFn).toHaveBeenCalledTimes(2);
       expect(fetchFn).toHaveBeenNthCalledWith(
@@ -486,14 +509,20 @@ describe("OpenAIBatchEmbeddingProvider", () => {
                   custom_id: "req-1",
                   response: {
                     status_code: 200,
-                    body: { data: [{ index: 0, embedding: [0.1] }] },
+                    body: {
+                      data: [{ index: 0, embedding: [0.1] }],
+                      usage: { prompt_tokens: 1 },
+                    },
                   },
                 }),
                 JSON.stringify({
                   custom_id: "req-2",
                   response: {
                     status_code: 200,
-                    body: { data: [{ index: 0, embedding: [0.2] }] },
+                    body: {
+                      data: [{ index: 0, embedding: [0.2] }],
+                      usage: { prompt_tokens: 1 },
+                    },
                   },
                 }),
               ].join("\n")

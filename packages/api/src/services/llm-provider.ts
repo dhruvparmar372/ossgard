@@ -13,11 +13,16 @@ export interface ChatResult {
   usage: TokenUsage;
 }
 
+export interface EmbedResult {
+  vectors: number[][];
+  tokenCount: number;
+}
+
 export interface EmbeddingProvider {
   readonly dimensions: number;
   readonly maxInputTokens: number;
   countTokens(text: string): number;
-  embed(texts: string[]): Promise<number[][]>;
+  embed(texts: string[]): Promise<EmbedResult>;
 }
 
 export interface ChatProvider {
@@ -58,6 +63,7 @@ export interface BatchEmbedRequest {
 export interface BatchEmbedResult {
   id: string;
   embeddings: number[][];
+  tokenCount: number;
 }
 
 export interface BatchEmbedOptions {

@@ -68,6 +68,7 @@ describe("OpenAIEmbeddingProvider", () => {
     it("calls the correct endpoint with correct headers and body", async () => {
       const fetchFn = mockFetch({
         data: [{ index: 0, embedding: [0.1, 0.2] }],
+        usage: { prompt_tokens: 1 },
       });
       const provider = new OpenAIEmbeddingProvider({
         apiKey: "sk-my-key",
@@ -93,12 +94,13 @@ describe("OpenAIEmbeddingProvider", () => {
       );
     });
 
-    it("returns embedding vectors", async () => {
+    it("returns embedding vectors with token count", async () => {
       const fetchFn = mockFetch({
         data: [
           { index: 0, embedding: [0.1, 0.2, 0.3] },
           { index: 1, embedding: [0.4, 0.5, 0.6] },
         ],
+        usage: { prompt_tokens: 4 },
       });
       const provider = new OpenAIEmbeddingProvider({
         apiKey: "sk-test",
@@ -108,10 +110,11 @@ describe("OpenAIEmbeddingProvider", () => {
 
       const result = await provider.embed(["hello", "world"]);
 
-      expect(result).toEqual([
+      expect(result.vectors).toEqual([
         [0.1, 0.2, 0.3],
         [0.4, 0.5, 0.6],
       ]);
+      expect(result.tokenCount).toBe(4);
     });
 
     it("sorts response by index to guarantee input order", async () => {
@@ -121,6 +124,7 @@ describe("OpenAIEmbeddingProvider", () => {
           { index: 0, embedding: [0.1, 0.2] },
           { index: 1, embedding: [0.4, 0.5] },
         ],
+        usage: { prompt_tokens: 3 },
       });
       const provider = new OpenAIEmbeddingProvider({
         apiKey: "sk-test",
@@ -130,11 +134,12 @@ describe("OpenAIEmbeddingProvider", () => {
 
       const result = await provider.embed(["a", "b", "c"]);
 
-      expect(result).toEqual([
+      expect(result.vectors).toEqual([
         [0.1, 0.2],
         [0.4, 0.5],
         [0.7, 0.8],
       ]);
+      expect(result.tokenCount).toBe(3);
     });
 
     it("throws on non-OK response", async () => {
@@ -176,6 +181,7 @@ describe("OpenAIEmbeddingProvider", () => {
                 index: i,
                 embedding: [i + 0.1],
               })),
+              usage: { prompt_tokens: input.length * 2 },
             }),
         });
       }) as unknown as typeof fetch;
@@ -190,7 +196,24 @@ describe("OpenAIEmbeddingProvider", () => {
       // 2 texts well under budget — should be 1 chunk, 1 call.
       const result = await provider.embed(["hello world", "hello world"]);
       expect(fetchFn).toHaveBeenCalledTimes(1);
-      expect(result).toHaveLength(2);
+      expect(result.vectors).toHaveLength(2);
+      expect(result.tokenCount).toBe(4);
+    });
+
+    it("defaults tokenCount to 0 when usage is missing from response", async () => {
+      const fetchFn = mockFetch({
+        data: [{ index: 0, embedding: [0.1, 0.2] }],
+      });
+      const provider = new OpenAIEmbeddingProvider({
+        apiKey: "sk-test",
+        model: "text-embedding-3-large",
+        fetchFn,
+      });
+
+      const result = await provider.embed(["hello"]);
+
+      expect(result.vectors).toEqual([[0.1, 0.2]]);
+      expect(result.tokenCount).toBe(0);
     });
   });
 });

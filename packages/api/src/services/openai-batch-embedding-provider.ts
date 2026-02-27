@@ -3,6 +3,7 @@ import type {
   BatchEmbedOptions,
   BatchEmbedRequest,
   BatchEmbedResult,
+  EmbedResult,
 } from "./llm-provider.js";
 import type { Logger } from "../logger.js";
 import { createTiktokenEncoder, countTokensTiktoken, truncateToTokenLimit, type Tiktoken } from "./token-counting.js";
@@ -60,7 +61,7 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
     return countTokensTiktoken(this.encoder, text);
   }
 
-  async embed(texts: string[]): Promise<number[][]> {
+  async embed(texts: string[]): Promise<EmbedResult> {
     // OpenAI rejects empty strings — replace with a single space
     const sanitized = texts.map((t) => (t.length === 0 ? " " : t));
 
@@ -76,14 +77,16 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
     );
 
     const allEmbeddings: number[][] = [];
+    let totalTokens = 0;
     for (const chunk of chunks) {
-      const embeddings = await this.embedChunk(chunk);
-      allEmbeddings.push(...embeddings);
+      const result = await this.embedChunk(chunk);
+      allEmbeddings.push(...result.embeddings);
+      totalTokens += result.tokenCount;
     }
-    return allEmbeddings;
+    return { vectors: allEmbeddings, tokenCount: totalTokens };
   }
 
-  private async embedChunk(texts: string[]): Promise<number[][]> {
+  private async embedChunk(texts: string[]): Promise<{ embeddings: number[][]; tokenCount: number }> {
     const response = await this.fetchFn(
       "https://api.openai.com/v1/embeddings",
       {
@@ -108,11 +111,14 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
 
     const data = (await response.json()) as {
       data: Array<{ index: number; embedding: number[] }>;
+      usage?: { prompt_tokens: number };
     };
 
-    return data.data
+    const embeddings = data.data
       .sort((a, b) => a.index - b.index)
       .map((d) => d.embedding);
+
+    return { embeddings, tokenCount: data.usage?.prompt_tokens ?? 0 };
   }
 
   async embedBatch(requests: BatchEmbedRequest[], options?: BatchEmbedOptions): Promise<BatchEmbedResult[]> {
@@ -120,8 +126,8 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
 
     // Single request: use sync path
     if (requests.length === 1 && !options?.existingBatchId) {
-      const embeddings = await this.embed(requests[0].texts);
-      return [{ id: requests[0].id, embeddings }];
+      const result = await this.embed(requests[0].texts);
+      return [{ id: requests[0].id, embeddings: result.vectors, tokenCount: result.tokenCount }];
     }
 
     let batchId: string;
@@ -309,7 +315,7 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
     }
 
     const resultsText = await downloadRes.text();
-    const resultMap = new Map<string, number[][]>();
+    const resultMap = new Map<string, { embeddings: number[][]; tokenCount: number }>();
 
     for (const line of resultsText.split("\n")) {
       if (!line.trim()) continue;
@@ -320,6 +326,7 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
           status_code: number;
           body: {
             data: Array<{ index: number; embedding: number[] }>;
+            usage?: { prompt_tokens: number };
           };
         };
       };
@@ -334,14 +341,19 @@ export class OpenAIBatchEmbeddingProvider implements BatchEmbeddingProvider {
         .sort((a, b) => a.index - b.index)
         .map((d) => d.embedding);
 
-      resultMap.set(parsed.custom_id, embeddings);
+      const tokenCount = parsed.response.body.usage?.prompt_tokens ?? 0;
+      resultMap.set(parsed.custom_id, { embeddings, tokenCount });
     }
 
     // Map results back in input order
-    return requests.map((req) => ({
-      id: req.id,
-      embeddings: resultMap.get(req.id)!,
-    }));
+    return requests.map((req) => {
+      const result = resultMap.get(req.id)!;
+      return {
+        id: req.id,
+        embeddings: result.embeddings,
+        tokenCount: result.tokenCount,
+      };
+    });
   }
 
   private sleep(ms: number): Promise<void> {
