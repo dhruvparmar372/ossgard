@@ -64,12 +64,13 @@ describe("IntentExtractor", () => {
       makePR({ number: 2, id: 2, title: "Add dark mode" }),
     ];
 
-    const summaries = await extractor.extract(prs);
+    const { intents: summaries, tokenUsage } = await extractor.extract(prs);
 
     expect(summaries.size).toBe(2);
     expect(summaries.get(1)).toBe("This PR fixes the login bug by correcting the session token validation.");
     expect(summaries.get(2)).toBe("This PR adds dark mode support to the settings page.");
     expect(mockChat.chat).toHaveBeenCalledTimes(2);
+    expect(tokenUsage).toEqual({ input: 270, output: 55 });
   });
 
   it("handles batch chat provider", async () => {
@@ -93,13 +94,14 @@ describe("IntentExtractor", () => {
       makePR({ number: 20, id: 20, title: "PR Twenty" }),
     ];
 
-    const summaries = await extractor.extract(prs);
+    const { intents: summaries, tokenUsage } = await extractor.extract(prs);
 
     expect(mockBatch.chatBatch).toHaveBeenCalledTimes(1);
     expect(mockBatch.chat).not.toHaveBeenCalled();
     expect(summaries.size).toBe(2);
     expect(summaries.get(10)).toBe("Summary for PR 10.");
     expect(summaries.get(20)).toBe("Summary for PR 20.");
+    expect(tokenUsage).toEqual({ input: 210, output: 45 });
 
     // Verify batch request IDs
     const batchCall = (mockBatch.chatBatch as any).mock.calls[0][0];
@@ -118,11 +120,12 @@ describe("IntentExtractor", () => {
     const extractor = new IntentExtractor(mockBatch);
     const prs = [makePR({ number: 5 })];
 
-    const summaries = await extractor.extract(prs);
+    const { intents: summaries, tokenUsage } = await extractor.extract(prs);
 
     expect(mockBatch.chat).toHaveBeenCalledTimes(1);
     expect(mockBatch.chatBatch).not.toHaveBeenCalled();
     expect(summaries.get(5)).toBe("Single PR summary.");
+    expect(tokenUsage).toEqual({ input: 80, output: 15 });
   });
 
   it("truncates long diffs to fit context", async () => {
@@ -220,11 +223,12 @@ describe("IntentExtractor", () => {
       makePR({ number: 2, id: 2 }),
     ];
 
-    const summaries = await extractor.extract(prs);
+    const { intents: summaries, tokenUsage } = await extractor.extract(prs);
 
     expect(summaries.size).toBe(1);
     expect(summaries.has(1)).toBe(true);
     expect(summaries.has(2)).toBe(false);
+    expect(tokenUsage).toEqual({ input: 100, output: 20 });
   });
 
   it("includes system prompt in messages", async () => {

@@ -14,7 +14,7 @@ const intentLog = log.child("intent-extractor");
 export class IntentExtractor {
   constructor(private llm: ChatProvider) {}
 
-  async extract(prs: PR[], diffs?: Map<number, string>): Promise<Map<number, string>> {
+  async extract(prs: PR[], diffs?: Map<number, string>): Promise<{ intents: Map<number, string>; tokenUsage: { input: number; output: number } }> {
     const summaries = new Map<number, string>();
     let totalInput = 0;
     let totalOutput = 0;
@@ -50,7 +50,10 @@ export class IntentExtractor {
       outputTokens: totalOutput,
     });
 
-    return summaries;
+    return {
+      intents: summaries,
+      tokenUsage: { input: totalInput, output: totalOutput },
+    };
   }
 
   buildMessages(pr: PR, diff?: string): Message[] {

@@ -146,7 +146,7 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
     if (changedPRs.length > 0) {
       // Intent embeddings for changed PRs
       const intentTexts = changedPRs.map((pr) => intents.get(pr.number) ?? pr.title);
-      const intentVectors = await embedding.embed(intentTexts);
+      const { vectors: intentVectors, tokenCount: intentEmbedTokens } = await embedding.embed(intentTexts);
       await vectorStore.upsert(
         INTENT_COLLECTION,
         changedPRs.map((pr, i) => ({
@@ -164,7 +164,7 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
         const paths = pr.filePaths.join("\n");
         return paths.length > 0 ? `${pr.title}\n${paths}` : pr.title;
       });
-      const codeVectors = await embedding.embed(codeTexts);
+      const { vectors: codeVectors, tokenCount: codeEmbedTokens } = await embedding.embed(codeTexts);
       await vectorStore.upsert(
         CODE_COLLECTION,
         changedPRs.map((pr, i) => ({
