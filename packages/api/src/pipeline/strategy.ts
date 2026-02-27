@@ -24,9 +24,23 @@ export interface StrategyDupeGroup {
   }>;
 }
 
+export interface PhaseTokenUsage {
+  intent:    { input: number; output: number };
+  embedding: { input: number };
+  verify:    { input: number; output: number };
+  rank:      { input: number; output: number };
+}
+
 export interface StrategyResult {
   groups: StrategyDupeGroup[];
   tokenUsage: { inputTokens: number; outputTokens: number };
+  phaseTokenUsage: PhaseTokenUsage;
+  providerInfo: {
+    llmProvider: string;
+    llmModel: string;
+    embeddingProvider: string;
+    embeddingModel: string;
+  };
 }
 
 export interface DuplicateStrategy {

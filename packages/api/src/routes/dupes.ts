@@ -209,7 +209,7 @@ dupes.get("/repos/:owner/:name/review/:prNumber", async (c) => {
     let intentSummary = pr.intentSummary;
     if (!intentSummary) {
       const extractor = new IntentExtractor(services.llm);
-      const intents = await extractor.extract([pr]);
+      const { intents } = await extractor.extract([pr]);
       intentSummary = intents.get(pr.number) ?? pr.title;
     }
 
@@ -224,13 +224,13 @@ dupes.get("/repos/:owner/:name/review/:prNumber", async (c) => {
     const paths = pr.filePaths.join("\n");
     const codeInput = paths.length > 0 ? `${pr.title}\n${paths}` : pr.title;
 
-    const [intentEmbeddings, codeEmbeddings] = await Promise.all([
+    const [intentResult, codeResult] = await Promise.all([
       services.embedding.embed([intentInput]),
       services.embedding.embed([codeInput]),
     ]);
 
-    intentVector = intentEmbeddings[0];
-    codeVector = codeEmbeddings[0];
+    intentVector = intentResult.vectors[0];
+    codeVector = codeResult.vectors[0];
 
     // Upsert into vector store (matching scan pipeline)
     await services.vectorStore.upsert(INTENT_COLLECTION, [{

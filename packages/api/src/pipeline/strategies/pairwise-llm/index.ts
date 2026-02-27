@@ -56,8 +56,15 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
     const { prs, scanId, repoId, accountId, resolver, db } = ctx;
     const { llm, embedding, vectorStore } = await resolver.resolve(accountId);
 
-    let totalInput = 0;
-    let totalOutput = 0;
+    const account = db.getAccount(accountId);
+    const cfg = account!.config;
+
+    const phase = {
+      intent:    { input: 0, output: 0 },
+      embedding: { input: 0 },
+      verify:    { input: 0, output: 0 },
+      rank:      { input: 0, output: 0 },
+    };
 
     // --- Compute hashes and partition PRs into cached vs changed ---
     const hashMap = new Map<number, string>(); // prNumber → currentHash
@@ -109,10 +116,12 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
     // Extract intents only for PRs without cached summaries
     if (needsExtraction.length > 0) {
       const extractor = new IntentExtractor(llm);
-      const newIntents = await extractor.extract(needsExtraction);
+      const { intents: newIntents, tokenUsage: intentTokenUsage } = await extractor.extract(needsExtraction);
       for (const [prNum, summary] of newIntents) {
         intents.set(prNum, summary);
       }
+      phase.intent.input += intentTokenUsage.input;
+      phase.intent.output += intentTokenUsage.output;
     }
 
     strategyLog.info("[detect] Intent cache", {
@@ -176,6 +185,8 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
       for (let i = 0; i < changedPRs.length; i++) {
         codeVectorMap.set(changedPRs[i].number, codeVectors[i]);
       }
+
+      phase.embedding.input += intentEmbedTokens + codeEmbedTokens;
 
       // Persist embed hash now that vectors are in Qdrant
       for (const pr of changedPRs) {
@@ -283,8 +294,8 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
     if (uncachedPairs.length > 0) {
       const verifier = new PairwiseVerifier(llm);
       const { results: verifyResults, tokenUsage: verifyTokens } = await verifier.verifyBatch(uncachedPairs);
-      totalInput += verifyTokens.inputTokens;
-      totalOutput += verifyTokens.outputTokens;
+      phase.verify.input += verifyTokens.inputTokens;
+      phase.verify.output += verifyTokens.outputTokens;
 
       // Store results in cache and build edges
       const cacheEntries = [];
@@ -352,8 +363,8 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
           strategyLog.warn("Rank batch item failed", { group: i, error: result.error });
           continue;
         }
-        totalInput += result.usage.inputTokens;
-        totalOutput += result.usage.outputTokens;
+        phase.rank.input += result.usage.inputTokens;
+        phase.rank.output += result.usage.outputTokens;
         const rankings = (result.response as RankingResponse)?.rankings ?? [];
         const group = buildStrategyGroup(rankings, groupPrs, cg, label);
         if (group) strategyGroups.push(group);
@@ -361,8 +372,8 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
     } else {
       for (const { cg, groupPrs, label, messages } of rankInputs) {
         const rankResult = await llm.chat(messages);
-        totalInput += rankResult.usage.inputTokens;
-        totalOutput += rankResult.usage.outputTokens;
+        phase.rank.input += rankResult.usage.inputTokens;
+        phase.rank.output += rankResult.usage.outputTokens;
         const rankings = (rankResult.response as RankingResponse)?.rankings ?? [];
         const group = buildStrategyGroup(rankings, groupPrs, cg, label);
         if (group) strategyGroups.push(group);
@@ -378,9 +389,19 @@ export class PairwiseLLMStrategy implements DuplicateStrategy {
       pairsTotal: pairs.length,
     });
 
+    const totalInput = phase.intent.input + phase.embedding.input + phase.verify.input + phase.rank.input;
+    const totalOutput = phase.intent.output + phase.verify.output + phase.rank.output;
+
     return {
       groups: strategyGroups,
       tokenUsage: { inputTokens: totalInput, outputTokens: totalOutput },
+      phaseTokenUsage: phase,
+      providerInfo: {
+        llmProvider: cfg.llm.provider,
+        llmModel: cfg.llm.model,
+        embeddingProvider: cfg.embedding.provider,
+        embeddingModel: cfg.embedding.model,
+      },
     };
   }
 }
