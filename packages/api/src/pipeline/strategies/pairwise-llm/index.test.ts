@@ -50,7 +50,7 @@ function createMockEmbedding(dimensions = 3): EmbeddingProvider {
     countTokens: (t: string) => Math.ceil(t.length / 3.5),
     embed: vi.fn().mockImplementation(async (texts: string[]) => {
       // Return distinct vectors for each text
-      return texts.map((_, i) => [i * 0.1, i * 0.2, i * 0.3]);
+      return { vectors: texts.map((_, i) => [i * 0.1, i * 0.2, i * 0.3]), tokenCount: 0 };
     }),
   };
 }
@@ -76,6 +76,19 @@ function createMockDb(): Database {
     updatePREmbedHash: vi.fn(),
     getPairwiseCache: vi.fn().mockReturnValue(new Map()),
     setPairwiseCache: vi.fn(),
+    getAccount: vi.fn().mockReturnValue({
+      id: 1,
+      apiKey: "test-key",
+      label: null,
+      config: {
+        github: { token: "gh-test" },
+        llm: { provider: "anthropic", url: "", model: "claude-test", api_key: "" },
+        embedding: { provider: "openai", url: "", model: "text-embedding-3-small", api_key: "" },
+        vector_store: { url: "", api_key: "" },
+      },
+      createdAt: "2025-01-01",
+      updatedAt: "2025-01-01",
+    }),
   } as unknown as Database;
 }
 
@@ -314,10 +327,26 @@ describe("PairwiseLLMStrategy", () => {
     const strategy = new PairwiseLLMStrategy();
     const result = await strategy.execute(makeContext({ prs: [pr1, pr2], resolver, db }));
 
-    // Token usage should sum verification (200 input, 40 output) + ranking (150 input, 30 output)
-    // Intent extraction tokens are NOT tracked in totalInput/totalOutput (they're internal to IntentExtractor)
-    expect(result.tokenUsage.inputTokens).toBe(200 + 150); // verify + rank
-    expect(result.tokenUsage.outputTokens).toBe(40 + 30); // verify + rank
+    // Token usage should sum intent + verify + rank + embedding
+    // Intent extraction: 100+110 input, 20+25 output
+    // Verify: 200 input, 40 output
+    // Rank: 150 input, 30 output
+    expect(result.tokenUsage.inputTokens).toBe(100 + 110 + 200 + 150); // intent + verify + rank
+    expect(result.tokenUsage.outputTokens).toBe(20 + 25 + 40 + 30); // intent + verify + rank
+
+    // phaseTokenUsage should break out per-phase
+    expect(result.phaseTokenUsage.intent).toEqual({ input: 100 + 110, output: 20 + 25 });
+    expect(result.phaseTokenUsage.embedding).toEqual({ input: 0 }); // mock returns tokenCount: 0
+    expect(result.phaseTokenUsage.verify).toEqual({ input: 200, output: 40 });
+    expect(result.phaseTokenUsage.rank).toEqual({ input: 150, output: 30 });
+
+    // providerInfo should come from the mock account config
+    expect(result.providerInfo).toEqual({
+      llmProvider: "anthropic",
+      llmModel: "claude-test",
+      embeddingProvider: "openai",
+      embeddingModel: "text-embedding-3-small",
+    });
   });
 
   it("handles empty PR list", async () => {
@@ -333,6 +362,16 @@ describe("PairwiseLLMStrategy", () => {
     expect(result.groups).toHaveLength(0);
     expect(result.tokenUsage.inputTokens).toBe(0);
     expect(result.tokenUsage.outputTokens).toBe(0);
+
+    // phaseTokenUsage should all be zeroes
+    expect(result.phaseTokenUsage.intent).toEqual({ input: 0, output: 0 });
+    expect(result.phaseTokenUsage.embedding).toEqual({ input: 0 });
+    expect(result.phaseTokenUsage.verify).toEqual({ input: 0, output: 0 });
+    expect(result.phaseTokenUsage.rank).toEqual({ input: 0, output: 0 });
+
+    // providerInfo should still be populated
+    expect(result.providerInfo.llmProvider).toBe("anthropic");
+    expect(result.providerInfo.embeddingProvider).toBe("openai");
   });
 
   it("embeds into both intent and code collections", async () => {

@@ -150,25 +150,28 @@ describe("PairwiseLLMStrategy integration", () => {
       maxInputTokens: 8000,
       countTokens: (t: string) => Math.ceil(t.length / 4),
       embed: vi.fn().mockImplementation(async (texts: string[]) => {
-        return texts.map((t) => {
-          const lower = t.toLowerCase();
-          if (
-            lower.includes("login") ||
-            lower.includes("session") ||
-            lower.includes("auth") ||
-            lower.includes("timeout") ||
-            lower.includes("expir")
-          )
-            return [0.9, 0.1, 0.1];
-          if (
-            lower.includes("dark") ||
-            lower.includes("theme") ||
-            lower.includes("toggle")
-          )
-            return [0.1, 0.9, 0.1];
-          // typo / readme
-          return [0.1, 0.1, 0.9];
-        });
+        return {
+          vectors: texts.map((t) => {
+            const lower = t.toLowerCase();
+            if (
+              lower.includes("login") ||
+              lower.includes("session") ||
+              lower.includes("auth") ||
+              lower.includes("timeout") ||
+              lower.includes("expir")
+            )
+              return [0.9, 0.1, 0.1];
+            if (
+              lower.includes("dark") ||
+              lower.includes("theme") ||
+              lower.includes("toggle")
+            )
+              return [0.1, 0.9, 0.1];
+            // typo / readme
+            return [0.1, 0.1, 0.9];
+          }),
+          tokenCount: 0,
+        };
       }),
     };
 
@@ -327,6 +330,20 @@ describe("PairwiseLLMStrategy integration", () => {
     expect(result.tokenUsage.inputTokens).toBeGreaterThan(0);
     expect(result.tokenUsage.outputTokens).toBeGreaterThan(0);
 
+    // phaseTokenUsage should exist with per-phase breakdowns
+    expect(result.phaseTokenUsage).toBeDefined();
+    expect(result.phaseTokenUsage.intent.input).toBeGreaterThan(0);
+    expect(result.phaseTokenUsage.verify.input).toBeGreaterThan(0);
+    expect(result.phaseTokenUsage.rank.input).toBeGreaterThan(0);
+
+    // providerInfo should come from the account config
+    expect(result.providerInfo).toEqual({
+      llmProvider: "openai",
+      llmModel: "test",
+      embeddingProvider: "openai",
+      embeddingModel: "test",
+    });
+
     db.close();
   });
 
@@ -397,26 +414,29 @@ describe("PairwiseLLMStrategy integration", () => {
       maxInputTokens: 8000,
       countTokens: (t: string) => Math.ceil(t.length / 4),
       embed: vi.fn().mockImplementation(async (texts: string[]) => {
-        return texts.map((t) => {
-          const lower = t.toLowerCase();
-          if (
-            lower.includes("redis") ||
-            (lower.includes("cache") && lower.includes("user"))
-          )
-            return [0.9, 0.4, 0.3]; // A-like
-          if (
-            lower.includes("session") &&
-            lower.includes("cache")
-          )
-            return [0.7, 0.6, 0.5]; // B-like (between A and C)
-          if (
-            lower.includes("session") ||
-            lower.includes("token")
-          )
-            return [0.5, 0.8, 0.5]; // C-like
-          // fallback: somewhere in the middle
-          return [0.6, 0.6, 0.6];
-        });
+        return {
+          vectors: texts.map((t) => {
+            const lower = t.toLowerCase();
+            if (
+              lower.includes("redis") ||
+              (lower.includes("cache") && lower.includes("user"))
+            )
+              return [0.9, 0.4, 0.3]; // A-like
+            if (
+              lower.includes("session") &&
+              lower.includes("cache")
+            )
+              return [0.7, 0.6, 0.5]; // B-like (between A and C)
+            if (
+              lower.includes("session") ||
+              lower.includes("token")
+            )
+              return [0.5, 0.8, 0.5]; // C-like
+            // fallback: somewhere in the middle
+            return [0.6, 0.6, 0.6];
+          }),
+          tokenCount: 0,
+        };
       }),
     };
 
@@ -625,12 +645,15 @@ describe("PairwiseLLMStrategy integration", () => {
       countTokens: (t: string) => Math.ceil(t.length / 4),
       embed: vi.fn().mockImplementation(async (texts: string[]) => {
         embedCallCounts.embed++;
-        return texts.map((t) => {
-          const lower = t.toLowerCase();
-          if (lower.includes("login") || lower.includes("session") || lower.includes("auth") || lower.includes("timeout") || lower.includes("expir"))
-            return [0.9, 0.1, 0.1];
-          return [0.1, 0.1, 0.9];
-        });
+        return {
+          vectors: texts.map((t) => {
+            const lower = t.toLowerCase();
+            if (lower.includes("login") || lower.includes("session") || lower.includes("auth") || lower.includes("timeout") || lower.includes("expir"))
+              return [0.9, 0.1, 0.1];
+            return [0.1, 0.1, 0.9];
+          }),
+          tokenCount: 0,
+        };
       }),
     };
 
@@ -805,12 +828,15 @@ describe("PairwiseLLMStrategy integration", () => {
       maxInputTokens: 8000,
       countTokens: (t: string) => Math.ceil(t.length / 4),
       embed: vi.fn().mockImplementation(async (texts: string[]) => {
-        return texts.map((t) => {
-          const lower = t.toLowerCase();
-          if (lower.includes("login") || lower.includes("session") || lower.includes("auth") || lower.includes("timeout") || lower.includes("expir"))
-            return [0.9, 0.1, 0.1];
-          return [0.1, 0.1, 0.9];
-        });
+        return {
+          vectors: texts.map((t) => {
+            const lower = t.toLowerCase();
+            if (lower.includes("login") || lower.includes("session") || lower.includes("auth") || lower.includes("timeout") || lower.includes("expir"))
+              return [0.9, 0.1, 0.1];
+            return [0.1, 0.1, 0.9];
+          }),
+          tokenCount: 0,
+        };
       }),
     };
 
