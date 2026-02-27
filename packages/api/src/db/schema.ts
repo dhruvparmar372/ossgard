@@ -45,6 +45,11 @@ CREATE TABLE IF NOT EXISTS scans (
   dupe_group_count INTEGER DEFAULT 0,
   input_tokens    INTEGER DEFAULT 0,
   output_tokens   INTEGER DEFAULT 0,
+  token_usage       TEXT,
+  llm_provider      TEXT,
+  llm_model         TEXT,
+  embedding_provider TEXT,
+  embedding_model   TEXT,
   started_at      TEXT NOT NULL DEFAULT (datetime('now')),
   completed_at    TEXT,
   error           TEXT

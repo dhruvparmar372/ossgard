@@ -51,6 +51,11 @@ interface ScanRow {
   dupe_group_count: number;
   input_tokens: number;
   output_tokens: number;
+  token_usage: string | null;
+  llm_provider: string | null;
+  llm_model: string | null;
+  embedding_provider: string | null;
+  embedding_model: string | null;
   started_at: string;
   completed_at: string | null;
   error: string | null;
@@ -67,6 +72,11 @@ function mapScanRow(row: ScanRow): Scan {
     dupeGroupCount: row.dupe_group_count,
     inputTokens: row.input_tokens,
     outputTokens: row.output_tokens,
+    tokenUsage: row.token_usage ? JSON.parse(row.token_usage) : null,
+    llmProvider: row.llm_provider,
+    llmModel: row.llm_model,
+    embeddingProvider: row.embedding_provider,
+    embeddingModel: row.embedding_model,
     startedAt: row.started_at,
     completedAt: row.completed_at,
     error: row.error,
@@ -184,6 +194,17 @@ export class Database {
       } catch {
         // Column already exists — ignore
       }
+    }
+
+    // Migration: add token_usage + provider columns to scans
+    const cols = this.raw.prepare("PRAGMA table_info(scans)").all() as Array<{ name: string }>;
+    const colNames = new Set(cols.map((c) => c.name));
+    if (!colNames.has("token_usage")) {
+      this.raw.run("ALTER TABLE scans ADD COLUMN token_usage TEXT");
+      this.raw.run("ALTER TABLE scans ADD COLUMN llm_provider TEXT");
+      this.raw.run("ALTER TABLE scans ADD COLUMN llm_model TEXT");
+      this.raw.run("ALTER TABLE scans ADD COLUMN embedding_provider TEXT");
+      this.raw.run("ALTER TABLE scans ADD COLUMN embedding_model TEXT");
     }
   }
 
@@ -324,6 +345,30 @@ export class Database {
       "UPDATE scans SET input_tokens = input_tokens + ?, output_tokens = output_tokens + ? WHERE id = ?"
     );
     stmt.run(inputTokens, outputTokens, scanId);
+  }
+
+  setScanTokenUsage(
+    scanId: number,
+    phaseUsage: import("@ossgard/shared").PhaseTokenUsage,
+    providerInfo: { llmProvider: string; llmModel: string; embeddingProvider: string; embeddingModel: string }
+  ): void {
+    const stmt = this.raw.prepare(
+      `UPDATE scans SET
+        token_usage = ?,
+        llm_provider = ?,
+        llm_model = ?,
+        embedding_provider = ?,
+        embedding_model = ?
+      WHERE id = ?`
+    );
+    stmt.run(
+      JSON.stringify(phaseUsage),
+      providerInfo.llmProvider,
+      providerInfo.llmModel,
+      providerInfo.embeddingProvider,
+      providerInfo.embeddingModel,
+      scanId
+    );
   }
 
   upsertPR(input: UpsertPRInput): PR {

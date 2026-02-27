@@ -35,6 +35,13 @@ export type ScanStatus =
 
 export type DuplicateStrategyName = "pairwise-llm";
 
+export interface PhaseTokenUsage {
+  intent:    { input: number; output: number };
+  embedding: { input: number };
+  verify:    { input: number; output: number };
+  rank:      { input: number; output: number };
+}
+
 export interface Scan {
   id: number;
   repoId: number;
@@ -45,6 +52,11 @@ export interface Scan {
   dupeGroupCount: number;
   inputTokens: number;
   outputTokens: number;
+  tokenUsage: PhaseTokenUsage | null;
+  llmProvider: string | null;
+  llmModel: string | null;
+  embeddingProvider: string | null;
+  embeddingModel: string | null;
   startedAt: string;
   completedAt: string | null;
   error: string | null;

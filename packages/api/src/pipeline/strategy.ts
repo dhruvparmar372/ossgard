@@ -1,4 +1,4 @@
-import type { PR, DuplicateStrategyName } from "@ossgard/shared";
+import type { PR, DuplicateStrategyName, PhaseTokenUsage } from "@ossgard/shared";
 import type { Database } from "../db/database.js";
 import type { ServiceResolver } from "../services/service-resolver.js";
 
@@ -24,12 +24,7 @@ export interface StrategyDupeGroup {
   }>;
 }
 
-export interface PhaseTokenUsage {
-  intent:    { input: number; output: number };
-  embedding: { input: number };
-  verify:    { input: number; output: number };
-  rank:      { input: number; output: number };
-}
+export type { PhaseTokenUsage };
 
 export interface StrategyResult {
   groups: StrategyDupeGroup[];

@@ -1,6 +1,7 @@
 export type {
   Repo,
   PR,
+  PhaseTokenUsage,
   Scan,
   ScanStatus,
   DuplicateStrategyName,
