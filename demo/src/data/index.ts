@@ -33,6 +33,10 @@ function discoverRepos(): RepoScanIndex[] {
           completedAt: data.scan.completedAt,
           prCount: data.scan.prCount,
           dupeGroupCount: data.scan.dupeGroupCount,
+          dupePrCount: data.groups.reduce(
+            (sum, g) => sum + g.members.filter((m) => m.rank > 1).length,
+            0
+          ),
           inputTokens: data.scan.inputTokens ?? 0,
           outputTokens: data.scan.outputTokens ?? 0,
           tokenUsage: data.scan.tokenUsage ?? null,

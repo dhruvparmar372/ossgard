@@ -32,6 +32,7 @@ export interface ScanSummary {
   completedAt: string;
   prCount: number;
   dupeGroupCount: number;
+  dupePrCount: number;
   inputTokens: number;
   outputTokens: number;
   tokenUsage: PhaseTokenUsage | null;

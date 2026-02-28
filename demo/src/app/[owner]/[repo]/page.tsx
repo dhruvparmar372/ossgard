@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Github, Clock } from "lucide-react";
-import { repos, getRepoData, getLatestScan } from "@/data";
-import { StatsBar } from "@/components/stats-bar";
-import { ReviewCarousel } from "@/components/review-carousel";
-import { DownloadButton } from "@/components/download-button";
-import { TokenUsageCard } from "@/components/token-usage-card";
+import { repos, getRepoData } from "@/data";
+import { DupeTrendChart } from "@/components/dupe-trend-chart";
+import { CumulativeStats } from "@/components/cumulative-stats";
 
 export function generateStaticParams() {
   if (repos.length === 0) return [{ owner: "_", repo: "_" }];
@@ -32,10 +30,7 @@ export default async function RepoPage({
 }) {
   const { owner, repo } = await params;
   const repoIndex = getRepoData(owner, repo);
-  if (!repoIndex) notFound();
-
-  const latestScan = getLatestScan(owner, repo);
-  if (!latestScan) notFound();
+  if (!repoIndex || repoIndex.scans.length === 0) notFound();
 
   return (
     <main className="min-h-svh px-6 py-12 sm:px-8">
@@ -54,49 +49,43 @@ export default async function RepoPage({
               {owner}/{repo}
             </h1>
           </div>
-          <div className="flex items-center gap-2">
-            <DownloadButton data={latestScan} />
-            <a
-              href={repoIndex.repo.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-sm border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={`View ${owner}/${repo} on GitHub`}
-            >
-              <Github className="size-4" />
-              <span className="hidden sm:inline">GitHub</span>
-            </a>
-          </div>
+          <a
+            href={repoIndex.repo.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-sm border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`View ${owner}/${repo} on GitHub`}
+          >
+            <Github className="size-4" />
+            <span className="hidden sm:inline">GitHub</span>
+          </a>
         </div>
 
-        {/* Stats Bar */}
+        {/* Duplicate Trend Chart */}
         <div className="mt-8">
-          <StatsBar data={latestScan} />
+          <DupeTrendChart scans={repoIndex.scans} owner={owner} repo={repo} />
         </div>
 
-        {/* Token Usage */}
-        {latestScan.scan.tokenUsage && (
-          <div className="mt-3">
-            <TokenUsageCard
-              tokenUsage={latestScan.scan.tokenUsage}
-              llmModel={latestScan.scan.llmModel}
-              embeddingModel={latestScan.scan.embeddingModel}
-            />
-          </div>
-        )}
+        {/* Cumulative Stats */}
+        <div className="mt-4">
+          <CumulativeStats scans={repoIndex.scans} />
+        </div>
 
         {/* Scan History */}
-        {repoIndex.scans.length > 1 && (
-          <div className="mt-6">
-            <h2 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-muted-foreground">
-              <Clock className="size-3.5" />
-              Scan History
-            </h2>
-            <div className="mt-3 space-y-1">
-              {repoIndex.scans.map((scan, i) => (
+        <div className="mt-8">
+          <h2 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-muted-foreground">
+            <Clock className="size-3.5" />
+            Scan History
+          </h2>
+          <div className="mt-3 space-y-1">
+            {repoIndex.scans.map((scan, i) => {
+              const pct = scan.prCount > 0
+                ? Math.round((scan.dupePrCount / scan.prCount) * 100)
+                : 0;
+              return (
                 <Link
                   key={scan.id}
-                  href={i === 0 ? `/${owner}/${repo}` : `/${owner}/${repo}/scan/${scan.id}`}
+                  href={`/${owner}/${repo}/scan/${scan.id}`}
                   className={`flex items-center justify-between rounded-sm border px-4 py-2.5 text-sm transition-colors ${
                     i === 0
                       ? "border-primary/30 bg-primary/5 text-foreground"
@@ -114,15 +103,13 @@ export default async function RepoPage({
                   <div className="flex items-center gap-4 font-mono text-xs">
                     <span>{scan.prCount} PRs</span>
                     <span>{scan.dupeGroupCount} groups</span>
+                    <span className="text-primary">{pct}%</span>
                   </div>
                 </Link>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        )}
-
-        {/* Review Carousel */}
-        <ReviewCarousel groups={latestScan.groups} />
+        </div>
       </div>
     </main>
   );
