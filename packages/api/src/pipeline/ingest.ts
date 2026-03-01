@@ -88,6 +88,27 @@ export class IngestProcessor implements JobProcessor {
           filePaths = await github.getPRFiles(owner, repo, pr.number);
           diffResult = null;
           diffTooLarge++;
+        } else if (err instanceof Error && err.message.includes("404")) {
+          ingestLog.warn("PR not found (deleted/transferred), marking closed", {
+            scanId,
+            pr: pr.number,
+          });
+          if (existingPR) {
+            this.db.upsertPR({
+              repoId,
+              number: pr.number,
+              title: existingPR.title,
+              body: existingPR.body,
+              author: existingPR.author,
+              diffHash: existingPR.diffHash,
+              filePaths: existingPR.filePaths,
+              state: "closed",
+              createdAt: existingPR.createdAt,
+              updatedAt: existingPR.updatedAt,
+            });
+          }
+          completed++;
+          return;
         } else {
           throw err;
         }

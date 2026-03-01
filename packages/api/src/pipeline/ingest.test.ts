@@ -428,4 +428,43 @@ describe("IngestProcessor", () => {
     // Detect job was still enqueued
     expect(mockQueue.enqueue).toHaveBeenCalledTimes(1);
   });
+
+  it("continues ingesting when a PR returns 404 and marks it closed", async () => {
+    // First ingest: seed PR 1 in DB
+    const prs = [makeFetchedPR(1), makeFetchedPR(2)];
+    (mockGitHub.listOpenPRs as any).mockResolvedValue(prs);
+    (mockGitHub.getPRFiles as any).mockResolvedValue(["src/index.ts"]);
+    (mockGitHub.getPRDiff as any)
+      .mockResolvedValueOnce({ diff: makeDiff(1), etag: '"etag1"' })
+      .mockResolvedValueOnce({ diff: makeDiff(2), etag: '"etag2"' });
+
+    await processor.process(makeJob());
+    expect(db.listOpenPRs(repoId)).toHaveLength(2);
+
+    // Second ingest: PR 1 returns 404 (deleted), PR 2 unchanged
+    const updatedPR1 = { ...makeFetchedPR(1), updatedAt: "2025-01-03T00:00:00Z" };
+    (mockGitHub.listOpenPRs as any).mockResolvedValue([updatedPR1, makeFetchedPR(2)]);
+    (mockGitHub.getPRFiles as any).mockClear()
+      .mockRejectedValueOnce(new Error("GitHub API error: 404 Not Found"))
+      .mockResolvedValueOnce(["src/index.ts"]);
+    (mockGitHub.getPRDiff as any).mockClear()
+      .mockRejectedValueOnce(new Error("GitHub API error: 404 Not Found"))
+      .mockResolvedValueOnce({ diff: makeDiff(2), etag: '"etag2"' });
+    (mockQueue.enqueue as any).mockClear();
+
+    await processor.process(makeJob());
+
+    // PR 1 should be marked as closed
+    const pr1 = db.getPRByNumber(repoId, 1);
+    expect(pr1!.state).toBe("closed");
+
+    // PR 2 should still be open
+    const pr2 = db.getPRByNumber(repoId, 2);
+    expect(pr2!.state).toBe("open");
+
+    // Detect job was still enqueued with only the open PR
+    expect(mockQueue.enqueue).toHaveBeenCalledTimes(1);
+    const detectCall = (mockQueue.enqueue as any).mock.calls[0][0];
+    expect(detectCall.payload.prNumbers).toEqual([2]);
+  });
 });
